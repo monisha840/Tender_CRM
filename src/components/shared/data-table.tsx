@@ -44,6 +44,8 @@ interface DataTableProps<T> {
   pageSize?: number;
   /** Danger / warning rows get a coloured edge and tint (overdue, due in 1-2 days). Pair with a badge: colour is never the only signal. */
   getRowTone?: (row: T) => "danger" | "warning" | undefined;
+  /** data-testid for each desktop row; mobile cards get `<rowTestId>-card`. */
+  rowTestId?: string;
   /** Accessible name for the table. */
   caption: string;
   className?: string;
@@ -69,6 +71,7 @@ export function DataTable<T>({
   pageSize = 25,
   caption,
   getRowTone,
+  rowTestId,
   className,
 }: DataTableProps<T>) {
   const router = useRouter();
@@ -173,6 +176,7 @@ export function DataTable<T>({
                   return (
                     <tr
                       key={getRowId(row)}
+                      data-testid={rowTestId}
                       onClick={href ? () => router.push(href) : undefined}
                       className={cn("h-10 align-middle", href && "cursor-pointer hover:bg-accent-subtle", toneRow(getRowTone?.(row)))}
                     >
@@ -217,7 +221,7 @@ export function DataTable<T>({
                 </>
               );
               return (
-                <li key={getRowId(row)}>
+                <li key={getRowId(row)} data-testid={rowTestId ? `${rowTestId}-card` : undefined}>
                   {href ? (
                     <Link href={href} className={cn("flex min-h-11 items-center gap-2 rounded-lg border bg-surface p-3 active:bg-accent-subtle", toneCard(getRowTone?.(row)))}>
                       <div className="min-w-0 flex-1">{content}</div>

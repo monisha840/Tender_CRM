@@ -31,28 +31,39 @@ interface Props {
   fields: FormField[];
   submitLabel?: string;
   /** Return an error message to keep the form open, or nothing to close it after saving. */
-  onSubmit: (values: Record<string, string>) => string | void;
+  onSubmit: (values: Record<string, string>) => string | void | Promise<string | void>;
+  /** Optional data-testid prefix: the form gets it, the save button gets `<testId>-submit`. */
+  testId?: string;
 }
 
 const controlClass =
   "min-h-11 w-full rounded-lg border bg-surface px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-9 md:text-sm";
 
 /** Slide-in form used by every "Add …" button: single column, 44px targets, inline validation, sticky save bar. */
-export function RecordForm({ open, onOpenChange, title, description, fields, submitLabel = "Save", onSubmit }: Props) {
+export function RecordForm({ open, onOpenChange, title, description, fields, submitLabel = "Save", onSubmit, testId }: Props) {
   const initial = () =>
     Object.fromEntries(fields.map((f) => [f.name, f.defaultValue ?? (f.type === "select" && f.required ? (f.options?.[0]?.value ?? "") : "")]));
   const [values, setValues] = useState<Record<string, string>>(initial);
   const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const visible = fields.filter((f) => !f.when || f.when(values));
   const missing = visible.filter((f) => f.required && !values[f.name]?.trim());
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     setTouched(true);
-    if (missing.length) return;
-    const msg = onSubmit(Object.fromEntries(visible.map((f) => [f.name, values[f.name]?.trim() ?? ""])));
+    if (missing.length || busy) return;
+    setBusy(true);
+    let msg: string | void;
+    try {
+      msg = await onSubmit(Object.fromEntries(visible.map((f) => [f.name, values[f.name]?.trim() ?? ""])));
+    } catch {
+      msg = "Something went wrong. Please try again.";
+    } finally {
+      setBusy(false);
+    }
     if (msg) setError(msg);
     else {
       setValues(initial());
@@ -69,7 +80,7 @@ export function RecordForm({ open, onOpenChange, title, description, fields, sub
           <SheetTitle>{title}</SheetTitle>
           {description && <SheetDescription>{description}</SheetDescription>}
         </SheetHeader>
-        <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
+        <form onSubmit={submit} noValidate data-testid={testId} className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
             {visible.map((f) => {
               const id = `rf-${f.name}`;
@@ -130,7 +141,9 @@ export function RecordForm({ open, onOpenChange, title, description, fields, sub
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">{submitLabel}</Button>
+            <Button type="submit" disabled={busy} data-testid={testId ? `${testId}-submit` : undefined}>
+              {busy ? "Saving…" : submitLabel}
+            </Button>
           </SheetFooter>
         </form>
       </SheetContent>

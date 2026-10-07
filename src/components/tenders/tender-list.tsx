@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { setUrlParam, useUrlParam, useUrlState } from "@/lib/use-url-param";
 import { useRegionFilter } from "@/store/hooks";
 import { useAsOfDb } from "@/components/layout/use-as-of-db";
+import { useTenderRoles } from "./action-helpers";
 import { DeadlineList } from "./deadline-list";
 import { FilterSelect, type FilterOption } from "./parts";
 import { AddTenderForm, TenderImportExport } from "./tender-entry";
@@ -96,6 +97,7 @@ export function TenderList() {
   const [deadline, setDeadline] = useUrlState("deadline", ALL);
   const [query, setQuery] = useUrlState("q");
   const [adding, setAdding] = useState(false);
+  const { canWrite } = useTenderRoles();
   const statusParam = useUrlParam("status");
   const resultParam = useUrlParam("result");
   const kind = statusParam === "open" ? "OPEN" : resultParam === "decided" ? "DECIDED" : null;
@@ -153,7 +155,7 @@ export function TenderList() {
       <PageHeader
         title="Tenders"
         description="Every tender from identification to result, with deadlines, EMD and documents."
-        primaryAction={{ label: "Add tender", icon: Plus, onClick: () => setAdding(true) }}
+        primaryAction={canWrite ? { label: "Add tender", icon: Plus, onClick: () => setAdding(true), testId: "tender-create" } : undefined}
         secondaryActions={[{ label: "Upcoming deadlines", icon: CalendarClock, href: "/tenders/deadlines" }]}
       />
       <AddTenderForm open={adding} onOpenChange={setAdding} />
@@ -241,7 +243,7 @@ export function TenderList() {
             {/* Cards below 1280px: with the sidebar open the table only has room from xl up. */}
             <TenderCards rows={rows} />
             <div className="hidden xl:block">
-              <DataTable caption="Tender register" rows={rows} columns={COLUMNS} getRowId={(r) => r.tender.id} getRowHref={(r) => `/tenders/${r.tender.id}`} getRowTone={tenderTone} pageSize={40} />
+              <DataTable caption="Tender register" rows={rows} columns={COLUMNS} getRowId={(r) => r.tender.id} getRowHref={(r) => `/tenders/${r.tender.id}`} getRowTone={tenderTone} rowTestId="tender-row" pageSize={40} />
             </div>
           </>
         )}

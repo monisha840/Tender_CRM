@@ -20,7 +20,7 @@ interface Props {
   /** The rows currently shown, already flattened to strings in `headers` order. */
   rows: (string | number | null | undefined)[][];
   /** Omit for sections that are export-only. Receives one record per CSV row, keyed by header. */
-  onImport?: (records: Record<string, string>[]) => ImportResult;
+  onImport?: (records: Record<string, string>[]) => ImportResult | Promise<ImportResult>;
 }
 
 /** Export (CSV of what is on screen), Import (CSV file) and a template download. Same look in every section. */
@@ -43,7 +43,7 @@ export function ImportExport({ filename, headers, rows, onImport }: Props) {
       toast.error("No rows found. Use the template: the first row must be the column headers.");
       return;
     }
-    const { imported, errors } = onImport(records);
+    const { imported, errors } = await onImport(records);
     if (imported > 0) toast.success(`Imported ${imported} row${imported === 1 ? "" : "s"}${errors.length ? `, ${errors.length} skipped` : ""}`);
     if (errors.length) toast.error(errors.slice(0, 3).join("\n") + (errors.length > 3 ? `\n…and ${errors.length - 3} more` : ""), { duration: 8000 });
   };
