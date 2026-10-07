@@ -1,9 +1,11 @@
-import { daysBetween, getToday, toIstDate } from "@/lib/dates";
+import { addDays, daysBetween, getToday, toIstDate } from "@/lib/dates";
 import { moneyToNumber, sumMoney } from "@/lib/money";
 import type {
   Bid,
   Database,
   Id,
+  Project,
+  ProjectConversion,
   SecurityInstrument,
   Tender,
   TenderAward,
@@ -15,6 +17,8 @@ import { byId, organisationName, inRegion, regionName, userName, type RegionFilt
 export interface TenderRow {
   tender: Tender;
   organisationName: string;
+  /** Short code, e.g. "NTPC", for compact table cells. */
+  organisationShort: string;
   regionName: string;
   stage: TenderStage;
   ownerName: string;
@@ -40,6 +44,7 @@ export function listTenders(db: Database, filters: TenderFilters = {}): TenderRo
     .map((tender): TenderRow => ({
       tender,
       organisationName: organisationName(db, tender.organisationId),
+      organisationShort: byId(db.organisations, tender.organisationId)?.shortName ?? "—",
       regionName: regionName(db, tender.regionId),
       stage: byId(db.tenderStages, tender.currentStageId)!,
       ownerName: userName(db, tender.ownerId),
@@ -185,4 +190,113 @@ export function getSecuritiesSummary(db: Database, region: RegionFilter = "ALL")
     pbgOutstanding: sumMoney(pbg.map((s) => s.amount)),
     pbgCount: pbg.length,
   };
+}
+
+// ---- Register screen helpers ------------------------------------------------
+
+/** Stage tabs for the status count bar, in stage order, each with how many of `rows` are in it. */
+export function getStageCounts(db: Database, rows: TenderRow[]) {
+  return db.tenderStages
+    .filter((s) => s.isActive)
+    .sort((a, b) => a.sequence - b.sequence)
+    .map((stage) => ({ stage, count: rows.filter((r) => r.stage.id === stage.id).length }));
+}
+
+/** Documents on a tender that are mandatory and not yet ready (feeds the "missing" warning). */
+export const missingMandatoryDocs = (docs: TenderDetail["documents"]) =>
+  docs.filter((d) => d.isMandatory && d.status !== "READY" && d.status !== "NA");
+
+/** Reminder bands from the default 7 / 3 / 1 day schedule (CLAUDE.md → Notifications). */
+export function reminderBand(daysToDeadline: number): 1 | 3 | 7 | null {
+  if (daysToDeadline < 0) return null;
+  if (daysToDeadline <= 1) return 1;
+  if (daysToDeadline <= 3) return 3;
+  if (daysToDeadline <= 7) return 7;
+  return null;
+}
+
+// ---- Convert to project -----------------------------------------------------
+
+export interface ConversionCheck {
+  ok: boolean;
+  /** Why the action is unavailable (shown instead of the button). */
+  blocker: string | null;
+  /** Mandatory award conditions still open: converting then needs a reason. */
+  unmetConditions: string[];
+  siteId: Id | null;
+}
+
+export function checkConversion(db: Database, d: TenderDetail): ConversionCheck {
+  const unmetConditions = d.conditions.filter((c) => c.isMandatory && c.status === "PENDING").map((c) => c.description);
+  if (d.stage.kind !== "WON") return { ok: false, blocker: "Only a Won tender can be converted.", unmetConditions, siteId: null };
+  if (d.projectId) return { ok: false, blocker: "Already converted to a project.", unmetConditions, siteId: null };
+  const siteId =
+    d.tender.siteId ??
+    db.sites.find((s) => s.organisationId === d.tender.organisationId && s.regionId === d.tender.regionId)?.id ??
+    null;
+  if (!siteId) return { ok: false, blocker: "No plant site is linked to this tender, so a project cannot be placed.", unmetConditions, siteId };
+  return { ok: true, blocker: null, unmetConditions, siteId };
+}
+
+/**
+ * Builds the rows a conversion writes: the project (carrying the tender's organisation, region, GSTIN,
+ * value and dates), the provenance record, and the PBG moved onto the project. Nothing is saved here.
+ */
+export function buildConversion(db: Database, d: TenderDetail, userId: Id, overrideReason: string | null) {
+  const check = checkConversion(db, d);
+  if (!check.ok || !check.siteId) throw new Error(check.blocker ?? "Cannot convert");
+  const today = getToday();
+  const now = new Date(`${today}T06:30:00.000Z`).toISOString(); // 12:00 IST on the demo day
+  const t = d.tender;
+  const region = byId(db.regions, t.regionId);
+  const contractValue = d.award?.awardedAmount ?? d.bid?.quotedAmount ?? t.estimatedValue;
+  const isService = (byId(db.tenderTypes, t.tenderTypeId)?.name ?? "").toLowerCase().includes("service");
+  const startDate = d.award?.startDate ?? addDays(today, 7);
+  const nextNo = db.projects.filter((p) => p.regionId === t.regionId).length + 1;
+  const projectId = `prj_${t.id.replace(/^tnd_/, "")}`;
+  const meta = { createdAt: now, updatedAt: now, deletedAt: null };
+
+  const project: Project = {
+    ...meta,
+    id: projectId,
+    code: `SPH-${region?.code ?? "GEN"}-${String(nextNo).padStart(2, "0")}`,
+    name: t.title,
+    serviceLineId: t.serviceLineId,
+    siteId: check.siteId,
+    contractType: isService ? "SERVICE" : "FIXED_SCOPE",
+    workOrderNo: d.award?.loaNo ?? t.tenderNo,
+    workOrderDate: d.award?.loaDate ?? today,
+    billingCycle: isService ? "MONTHLY" : "MILESTONE",
+    paymentTermsDays: 30,
+    tenderId: t.id,
+    organisationId: t.organisationId,
+    regionId: t.regionId,
+    gstRegistrationId: t.gstRegistrationId ?? "",
+    contractValue,
+    startDate,
+    plannedEndDate: addDays(startDate, d.award?.completionPeriodDays ?? 365),
+    statusId: "pst_mobilisation",
+    projectManagerId: null,
+    healthOverride: null,
+  };
+  const conversion: ProjectConversion = {
+    ...meta,
+    id: `conv_${projectId}`,
+    tenderId: t.id,
+    projectId,
+    convertedById: userId,
+    convertedAt: now,
+    snapshot: {
+      tenderNo: t.tenderNo,
+      estimatedValue: t.estimatedValue,
+      awardedAmount: contractValue,
+      workOrderNo: project.workOrderNo,
+      loaDate: d.award?.loaDate ?? null,
+      agreementDate: d.award?.agreementDate ?? null,
+    },
+    overrideReason,
+    approvalRequestId: null,
+  };
+  const instruments = d.instruments.filter((s) => s.type === "PBG").map((s) => ({ ...s, projectId, updatedAt: now }));
+  return { project, conversion, instruments };
 }

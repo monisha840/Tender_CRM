@@ -1,17 +1,11 @@
 # Shared changes requested
 
-Screens were built without editing shared files. These changes would remove workarounds.
+Changes needed in shared files (`src/types`, `src/components/ui`, `src/components/layout`, store setup, seed). Module owners do not edit these; each entry says what was worked around.
 
-| Area | Requested change | Current workaround |
-|---|---|---|
-| `src/types/site.ts` | Add `equipment?: { name: string; qty: number }[]` to `DailyWorkReport` | The new-report form collects equipment but it is not stored or shown on the review screen |
-| `src/types/site.ts` | Add `photoKeys?: string[]` to `DailyWorkReport` | Only `photoCount` is stored; the review screen shows the count, not thumbnails |
-| `src/components/ui` | Add shadcn `Tabs` and `Textarea` | Local `Tabs` and `textareaClass` in `src/components/work/parts.tsx` |
-| `src/lib/data/links.ts` | Point `PROJECT`, `SUBCONTRACTOR_BILL` and `SITE` entities at `/projects/[id]`, `/subcontractors/[id]` and `/daily-work/[id]` | Detail routes exist, but notification and approval links still go to `?focus=` on the module root |
-| `src/lib/data/projects.ts` | Add a project-wise subcontractor "work pending" selector | Computed in the Subcontractors page from active work orders |
-| `src/components/layout/bottom-nav.tsx` | Expose the bottom-nav height as a CSS variable | The sticky submit bar uses `bottom-14` to sit above it |
-| Seed (`seed/org.ts` role specs) | Site Engineer and Supervisor have no `dashboard` VIEW permission, so `/dashboard` shows "no access" for them, and their `homePath` is `/daily-work`. | Added a `/home` route (not in the nav, so no permission gate) that renders the same role-aware home. Point site roles' `homePath` or a bottom-nav item at `/home`, or grant `dashboard` VIEW. |
-| Seed (`seed/org.ts`) | Accounts `homePath` is `/finance`; the finance home view lives at `/dashboard`. | Reachable from the sidebar Dashboard item (Accounts has `dashboard` VIEW). Change `homePath` to `/dashboard` if the finance home should be the landing page. |
-| `lib/nav.ts` / `components/layout` | Bottom nav for site roles has no "My site" (home) item. | None needed for demo; add an item pointing to `/home`. |
-| `lib/data/links.ts` | Entity links only carry `?focus=<id>`; list screens would need to read the filter params this work links to (`?status=open`, `?view=deadlines`, `?salary=pending`, `?view=receivables&overdue=1`, `?view=gst`, `?tab=pf`, `?payment=pending`). | Links are emitted anyway; module screens should read these params or ignore them. |
-| `components/shared/kpi-tile.tsx` | Sparkline has no axis/tooltip and always uses a fixed 80x24 box. | Used as is. |
+## Tenders
+
+1. **Project page does not exist yet.** `/projects` is still a placeholder, so "Open project" after converting a tender links to `/projects?focus=<projectId>`. Once the Projects module has a detail route, `entityHref` in `src/lib/data/links.ts` (and the link in `components/tenders/convert-to-project.tsx`) should point at it.
+2. **Dynamic routes and `usePathname` in the shell (needs a check).** With `cacheComponents` on, the dev overlay reports "`usePathname()` in a Client Component outside of `<Suspense>`" for `/tenders/[id]`, from `AppShell` / `Sidebar`. `/tenders/[id]` already exports `generateStaticParams` for every seeded tender, which the Next docs say removes the need for Suspense, but the dev overlay still reports it. A production build was not run (it would have overwritten the running dev server's `.next`). Suggested fix if it persists in `next build`: wrap the `usePathname` consumers in `components/layout` (Sidebar, MobileDrawer, BottomNav) in `<Suspense>`.
+3. **Audit log on conversion.** The data model asks for an audit entry for every conversion. The store has `auditLogs` but no helper to write one, so converting records a `ProjectConversion` row only. A shared `recordAudit(...)` helper would let every module do this the same way.
+4. **Permission for "convert".** There is no `CONVERT` permission action. Tenders uses "APPROVE or EDIT on `tenders`" as a stand-in (Director, Regional Head, Tender Executive, Legal). Add a dedicated action if the client wants it narrower.
+5. **`DataTable` switches to cards at `md` (768px), but the sidebar is already open there.** At 768px only about 500px is left for content, so a 9-column table is clipped. Suggest a `breakpoint` prop (`md` | `lg` | `xl`) on `DataTable`. Tenders works around it with its own card list below 1280px and search/filters in the page, and uses `DataTable` only from `xl`.

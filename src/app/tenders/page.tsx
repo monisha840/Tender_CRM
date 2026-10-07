@@ -1,8 +1,17 @@
 import type { Metadata } from "next";
-import { ModulePlaceholder } from "@/components/layout/module-placeholder";
+import { Suspense } from "react";
+import { FocusRedirect } from "@/components/tenders/focus-redirect";
+import { TenderList } from "@/components/tenders/tender-list";
 
 export const metadata: Metadata = { title: "Tenders" };
 
 export default function Page() {
-  return <ModulePlaceholder moduleKey="tenders" />;
+  return (
+    <>
+      <Suspense fallback={null}>
+        <FocusRedirect />
+      </Suspense>
+      <TenderList />
+    </>
+  );
 }
