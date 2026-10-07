@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Leftover scaffold stub folder, not part of the app.
     "tender-crm/**",
     ".claude/**",
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 
