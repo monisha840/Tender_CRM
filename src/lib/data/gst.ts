@@ -1,5 +1,6 @@
 import { addMoney, subMoney, sumMoney } from "@/lib/money";
 import type { Database, GstDirection, GstRegistration, GstTransaction, Id, Money } from "@/types";
+import { isLive } from "./definitions";
 import { byId } from "./shared";
 
 export interface GstFilters {
@@ -11,6 +12,7 @@ export interface GstFilters {
 
 export function listGstTransactions(db: Database, filters: GstFilters = {}): GstTransaction[] {
   return db.gstTransactions
+    .filter(isLive)
     .filter((t) => !filters.gstRegistrationId || filters.gstRegistrationId === "ALL" || t.gstRegistrationId === filters.gstRegistrationId)
     .filter((t) => !filters.period || t.period === filters.period)
     .filter((t) => !filters.direction || t.direction === filters.direction)
@@ -50,4 +52,4 @@ export function getGstSummary(db: Database, filters: GstFilters = {}): GstSummar
 }
 
 export const listGstPeriods = (db: Database): string[] =>
-  [...new Set(db.gstTransactions.map((t) => t.period))].sort().reverse();
+  [...new Set(db.gstTransactions.filter(isLive).map((t) => t.period))].sort().reverse();

@@ -2,6 +2,7 @@ import { daysBetween, getToday } from "@/lib/dates";
 import { moneyToNumber, sumMoney } from "@/lib/money";
 import type { Database, HealthStatus, Id, Money, Project, ProjectStatus, Site } from "@/types";
 import { getProjectBilling } from "./accounts";
+import { isLive } from "./definitions";
 import { byId, employeeName, inRegion, organisationName, regionName, sum, type RegionFilter } from "./shared";
 
 /**
@@ -19,8 +20,8 @@ export interface ProjectRow {
   /** The plant site where the work is done. */
   site: Site | null;
   serviceLineName: string;
-  /** Invoiced (incl. GST), received and still to receive. */
-  billing: { invoicedTotal: Money; received: Money; outstanding: Money };
+  /** Billed (taxable value, excl. GST), invoiced incl. GST, received and still to receive. */
+  billing: { billed: Money; invoicedTotal: Money; received: Money; outstanding: Money };
   /** Executed value as a share of contract value, 0–100. */
   progressPct: number;
   /** Time elapsed as a share of the planned duration, 0–100. */
@@ -33,7 +34,7 @@ export interface ProjectRow {
 export function getProjectProgress(db: Database, projectId: Id): { progressPct: number; plannedPct: number } {
   const project = byId(db.projects, projectId);
   if (!project) return { progressPct: 0, plannedPct: 0 };
-  const items = db.boqItems.filter((b) => b.projectId === projectId);
+  const items = db.boqItems.filter((b) => isLive(b) && b.projectId === projectId);
   const total = sum(items.map((b) => moneyToNumber(b.amount)));
   const done = sum(items.map((b) => Number(b.executedQty) * moneyToNumber(b.rate)));
   const today = getToday();
@@ -53,7 +54,7 @@ export function computeHealth(project: Project, progressPct: number, plannedPct:
 export function listProjects(db: Database, region: RegionFilter = "ALL", health?: HealthStatus): ProjectRow[] {
   const today = getToday();
   return db.projects
-    .filter((p) => !p.deletedAt && inRegion(region, p.regionId))
+    .filter((p) => isLive(p) && inRegion(region, p.regionId))
     .map((project): ProjectRow => {
       const { progressPct, plannedPct } = getProjectProgress(db, project.id);
       return {
@@ -64,7 +65,7 @@ export function listProjects(db: Database, region: RegionFilter = "ALL", health?
         managerName: employeeName(db, project.projectManagerId),
         site: byId(db.sites, project.siteId) ?? null,
         serviceLineName: byId(db.serviceLines, project.serviceLineId)?.name ?? "—",
-        billing: (({ invoicedTotal, received, outstanding }) => ({ invoicedTotal, received, outstanding }))(getProjectBilling(db, project.id)),
+        billing: (({ billed, invoicedTotal, received, outstanding }) => ({ billed, invoicedTotal, received, outstanding }))(getProjectBilling(db, project.id)),
         progressPct,
         plannedPct,
         gapPct: plannedPct - progressPct,

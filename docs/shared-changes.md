@@ -14,3 +14,16 @@ Changes needed in shared files (`src/types`, `src/components/ui`, `src/component
 
 1. **`src/components/ui/*.tsx` still import `cn` from the npm package `cn`, not `@/lib/utils`.** Files: `badge`, `button`, `card`, `chart`, `dropdown-menu`, `input`, `select`, `separator`, `sheet`, `skeleton` (and any others importing `from "cn"`). `src/lib/utils.ts` now exports `cn` = `clsx` + `tailwind-merge`, so feature code that imports `@/lib/utils` already merges conflicting Tailwind classes; the shadcn primitives do not yet. Change: replace `import { cn } from "cn"` with `import { cn } from "@/lib/utils"` in those files. Once nothing imports `"cn"`, remove the `cn` dependency from `package.json` (tooling owner). Reason: one `cn` everywhere, so a `className` passed to a primitive reliably overrides its defaults.
 2. **`@types/node` moved from `^20` to `^22`** (dev). Vitest 5 requires `^22 || >=24` as a peer and the install otherwise fails with ERESOLVE. The machine runs Node 24.
+
+## Figures agent (A-figures, branch `wave-a/figures`)
+
+Definitions now live in `src/lib/data/definitions.ts`. Changes needed in files I do not own:
+
+1. **`src/components/finance/gst-summary.tsx`** — mount the net-GST position above the table: `<GstNetPosition gstRegistrationId={gstin} />` (import from `./gst-net-position`, a new file I added). `getGstSummary` was unused (B-gap list, "use the unused getGstSummary"). Reason: net GST (output − ITC − TDS) was computed but never shown.
+2. **`src/components/finance/helpers.tsx`** — `AGEING_BUCKETS`, `AgeingBucket`, `invoiceAge`, `bucketOf` are now dead (age = days since invoice, the old B9 definition). Delete them, or re-export from `@/lib/data/definitions`. Nothing I own imports them any more.
+3. **`src/app/projects/[id]/detail.tsx`** (lines ~120, 206, 98) — "Billed" must be `billing.billed` (taxable, excl. GST) labelled "Billed (excl. GST)"; the chart's `Billed` series (`r.invoice.total`) should use `r.invoice.taxableValue`. `billing.invoicedTotal` stays available for an explicit "Invoiced (incl. GST)" tile. `src/app/projects/page.tsx:171` hint "Billed, not yet received" should read "Invoiced incl. GST, not yet received".
+4. **`src/components/dashboard/kpi-grid.tsx`** — item 8 "Employees": label it "Headcount (incl. directors)"; keep "N on payroll (wage above zero)". Item 5 hint "billed" → "billed (excl. GST)".
+5. **`src/lib/data/workforce.ts` / `src/app/employees/payroll/page.tsx` (A3)** — payroll "On payroll" is the count of payslips; use `isOnPayroll` from `definitions.ts` and label it "On payroll (wage above zero)" so it equals `dashboard.employees.onPayroll`. Also `getEpfSummary` and `listEmployeePay` should skip soft-deleted rows via `isLive`.
+6. **Dashboard drill-down for ageing (B8)** — bucket labels are now `0–30`, `31–60`, `61–90`, `90+` (the old `Not yet due`/`Over 60 days` are gone). `charts.tsx` passes the label through `ageing=`; the Finance receivables tab should read that param against the same labels.
+7. **`src/app/subcontractors/page.tsx` and `[id]/detail.tsx`** — "Billed" is gross before GST (non-rejected, non-draft bills); label "Billed (excl. GST)". "Payable"/"Balance" is approved + part-paid bills only.
+8. **PF status (dashboard13.ts)** — untouched: A3 owns the PF logic; at merge, take A3's `getPfStatus`/`pfRemittance` over mine.
