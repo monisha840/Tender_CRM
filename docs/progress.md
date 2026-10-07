@@ -44,3 +44,12 @@ S1b: lint clean, tsc clean, vitest 19 files / 247 passed + 6 todo (includes test
 - D10 No real starting data. All mock/demo data kept (incl. Employees/Payroll and GST/Finance demo records, hidden behind PHASE67 flag); only dropped roles' personas are removed. App ships WITH demo data. Seeded records carry an isDemo marker; guarded script `db:clear-demo` removes only demo records when the client starts real use. This REPLACES the rule "demo seed never in production".
 - D11 Deployment target = Vercel (not Hostinger VPS); still no deployment work in this run. Build compatibly: no long-running worker (no pg-boss); deadline notifications computed on read or via a cron-callable API route secured with a secret; Prisma uses the Supabase pooled connection (pgbouncer=true) at runtime and DIRECT_URL only for migrations; nothing writes to the local filesystem at runtime.
 - D12 GSTINs stay placeholders, clearly marked as placeholders in settings; real ones entered later without code changes.
+
+## Scope update 3 (decisions D13-D19): final cut
+- S2 kept: login/logout, route protection, server-side permission checks, audit writes, Director approval with maker-checker. Password-reset UI and custom rate limiting are dropped (admin resets in the Supabase dashboard; rely on Supabase Auth limits) — already-built pages/limiter are left unused/unlinked, no further work.
+- S3 two agents: (1) Tenders end to end (create, edit, stages, GO/NO-GO approval, Won, convert to project with Director approval); (2) Dashboard on real data + Projects and Subcontractors VIEW-ONLY from the DB (no create/edit forms).
+- Stored notifications dropped; keep computed deadline badges and the bell.
+- isDemo marker and db:clear-demo DEFERRED (demo data still ships).
+- Review: one final review agent only.
+- Playwright smoke suite only: login Admin+Director; Admin blocked from approving incl. direct server call; tender create -> GO approved by Director -> Won -> convert -> project visible; dashboard loads with active-tenders count == DB; desktop crawl of every page for console errors; mobile 360px check of dashboard + tender list only.
+- Bug loop: fix high-severity/blocking only, log the rest; exit after one fully green run. Test report short.

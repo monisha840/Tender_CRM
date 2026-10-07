@@ -40,13 +40,10 @@ export class VersionConflictError extends ServiceError {
 
 export type UserResolver = () => Promise<SessionUser>;
 
-/**
- * The session layer (src/lib/auth/session, built separately) provides `requireUserForAction`. Until it is merged,
- * the resolver is injected: pass `getUser` per action or call `setUserResolver(requireUserForAction)` once.
- * TODO(after auth merge): replace this stub with `import { requireUserForAction } from "@/lib/auth/session"`.
- */
+/** Default resolver: the real Supabase session (lazy import keeps unit tests free of next/headers). */
 let defaultResolver: UserResolver = async () => {
-  throw new AuthError("UNAUTHENTICATED", "No user resolver configured (setUserResolver / getUser)");
+  const { requireUserForAction } = await import("@/lib/auth/session");
+  return requireUserForAction();
 };
 export function setUserResolver(fn: UserResolver) {
   defaultResolver = fn;
