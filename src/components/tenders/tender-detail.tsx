@@ -221,7 +221,7 @@ function StageStepper({ detail, stages }: { detail: Detail; stages: ReturnType<t
               className={cn(
                 "relative flex size-7 items-center justify-center rounded-full border text-xs font-medium",
                 lost
-                  ? "border-status-danger bg-status-danger text-white"
+                  ? "border-status-danger bg-status-danger-tint text-status-danger"
                   : done
                     ? "border-accent-strong bg-accent text-accent-foreground"
                     : isCurrent

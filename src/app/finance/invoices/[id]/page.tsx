@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { decodeRouteId } from "@/lib/data/links";
 import { buildSeedDatabase } from "@/lib/data/seed";
 import { InvoiceDetail } from "@/components/finance/invoice-detail";
 
@@ -11,5 +12,5 @@ export function generateStaticParams() {
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <InvoiceDetail id={decodeURIComponent(id)} />;
+  return <InvoiceDetail id={decodeRouteId(id)} />;
 }

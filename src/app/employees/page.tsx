@@ -16,8 +16,9 @@ import { WorkforceTabs } from "@/components/workforce/workforce-tabs";
 import { formatDate, getToday } from "@/lib/dates";
 import { formatINR, sumMoney } from "@/lib/money";
 import { getDirectory, type DirectoryRow, type PayFilter } from "@/modules/workforce/queries";
-import { useUrlParam } from "@/lib/use-url-param";
-import { useCurrentPersona, useDb, useRegionFilter } from "@/store/hooks";
+import { useUrlState } from "@/lib/use-url-param";
+import { useCurrentPersona, useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 import type { Database } from "@/types";
 
 const PAY_OPTIONS: { value: PayFilter; label: string }[] = [
@@ -65,7 +66,7 @@ function employeeFields(db: Database): FormField[] {
 }
 
 export default function EmployeesPage() {
-  const db = useDb();
+  const db = useAsOfDb();
   const upsert = useDataStore((s) => s.upsert);
   const persona = useCurrentPersona();
   const [adding, setAdding] = useState(false);
@@ -91,12 +92,13 @@ export default function EmployeesPage() {
     return { imported, errors };
   };
   const { region } = useRegionFilter();
-  const [site, setSite] = useState("ALL");
-  const [designation, setDesignation] = useState("ALL");
-  const [department, setDepartment] = useState("ALL");
-  const [payPick, setPay] = useState<string | null>(null);
-  const salaryParam = useUrlParam("salary");
-  const pay = payPick ?? (salaryParam === "pending" ? "PENDING" : salaryParam === "on-hold" ? "ON_HOLD" : "ALL");
+  // Filters live in the URL; dashboard links use ?salary=pending and ?salary=on-hold.
+  const [site, setSite] = useUrlState("site", "ALL");
+  const [designation, setDesignation] = useUrlState("designation", "ALL");
+  const [department, setDepartment] = useUrlState("department", "ALL");
+  const [salaryParam, setSalaryParam] = useUrlState("salary", "ALL");
+  const pay = salaryParam === "pending" ? "PENDING" : salaryParam === "on-hold" ? "ON_HOLD" : salaryParam;
+  const setPay = (v: string) => setSalaryParam(v === "PENDING" ? "pending" : v === "ON_HOLD" ? "on-hold" : v);
 
   const all = useMemo(() => getDirectory(db, region), [db, region]);
   const sites = useMemo(() => {
@@ -120,19 +122,38 @@ export default function EmployeesPage() {
   );
 
   const columns: DataTableColumn<DirectoryRow>[] = [
-    { key: "code", header: "Code", cell: (r) => <span className="tabular text-muted-foreground">{r.code}</span>, sortValue: (r) => r.code },
-    { key: "name", header: "Name", cell: (r) => <span className="font-medium">{r.name}</span>, sortValue: (r) => r.name, mobile: "title" },
-    { key: "phone", header: "Phone", cell: (r) => <span className="tabular">{r.phone}</span> },
-    { key: "site", header: "Site", cell: (r) => r.siteNames, sortValue: (r) => r.siteNames },
-    { key: "designation", header: "Designation", cell: (r) => r.designation, sortValue: (r) => r.designation },
-    { key: "department", header: "Department", cell: (r) => r.department, sortValue: (r) => r.department },
-    { key: "joined", header: "Joined", cell: (r) => <span className="tabular">{formatDate(r.joiningDate)}</span>, sortValue: (r) => r.joiningDate },
+    {
+      key: "name",
+      header: "Employee",
+      cell: (r) => (
+        <span className="block min-w-40">
+          <span className="block font-medium">{r.name}</span>
+          <span className="tabular block text-xs whitespace-nowrap text-muted-foreground">{r.code}</span>
+        </span>
+      ),
+      sortValue: (r) => r.name,
+      mobile: "title",
+    },
+    { key: "phone", header: "Phone", cell: (r) => <span className="tabular whitespace-nowrap">{r.phone}</span> },
+    { key: "site", header: "Site", cell: (r) => <span className="block max-w-40 truncate" title={r.siteNames}>{r.siteNames}</span>, sortValue: (r) => r.siteNames },
+    {
+      key: "designation",
+      header: "Role",
+      cell: (r) => (
+        <span className="block min-w-36">
+          <span className="block">{r.designation}</span>
+          <span className="block text-xs text-muted-foreground">{r.department}</span>
+        </span>
+      ),
+      sortValue: (r) => r.designation,
+    },
+    { key: "joined", header: "Joined", cell: (r) => <span className="tabular whitespace-nowrap">{formatDate(r.joiningDate)}</span>, sortValue: (r) => r.joiningDate },
     {
       key: "salary",
       header: "Salary",
       numeric: true,
       cell: (r) => (
-        <span>
+        <span className="whitespace-nowrap">
           {formatINR(r.wage)}
           {r.wageUnit === "day" && <span className="text-xs text-muted-foreground"> /day</span>}
         </span>

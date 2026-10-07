@@ -10,13 +10,15 @@ import { ImportExport } from "@/components/data/import-export";
 import { PfBanner, pfNeedsAttention } from "@/components/workforce/pf-banner";
 import { AlertTriangle } from "lucide-react";
 import { DeadlineBadge, StatusBadge, type StatusTone } from "@/components/shared/status-badge";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import { ChartTooltipContent } from "@/components/charts/chart-tooltip";
+import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import { WorkforceTabs } from "@/components/workforce/workforce-tabs";
 import { getPfStatus, getSalaryPending, listEmployees } from "@/lib/data";
 import { formatDate, formatMonth, nextMonth15th } from "@/lib/dates";
 import { formatINR, formatINRAxis } from "@/lib/money";
 import { getPayrollTrend } from "@/modules/workforce/queries";
-import { useDb, useRegionFilter } from "@/store/hooks";
+import { useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 
 const salaryConfig = {
   paid: { label: "Paid", color: "var(--chart-1)" },
@@ -32,7 +34,7 @@ const PF_TONE: Record<string, { tone: StatusTone; label: string }> = {
 };
 
 export default function PayrollDashboardPage() {
-  const db = useDb();
+  const db = useAsOfDb();
   const { region } = useRegionFilter();
   const salary = useMemo(() => getSalaryPending(db, region), [db, region]);
   const pf = useMemo(() => getPfStatus(db, region), [db, region]);

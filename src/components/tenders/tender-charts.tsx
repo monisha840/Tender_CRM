@@ -9,7 +9,7 @@ import { getWonLostByMonth } from "@/lib/data/tenders";
 import type { TenderRow } from "@/lib/data/tenders";
 import { formatINR, formatINRAxis } from "@/lib/money";
 import type { RegionFilter } from "@/lib/data/shared";
-import { useDb } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 import { moneyToNumber, sumMoney } from "@/lib/money";
 
 interface TipProps {
@@ -43,7 +43,7 @@ const wonLostConfig = {
 
 /** Tender counts per stage; clicking a bar filters the register to that stage. */
 export function StageChart({ rows, onSelectStage }: { rows: TenderRow[]; onSelectStage: (stageId: string) => void }) {
-  const db = useDb();
+  const db = useAsOfDb();
   const data = useMemo(
     () =>
       db.tenderStages
@@ -110,7 +110,7 @@ export function StageChart({ rows, onSelectStage }: { rows: TenderRow[]; onSelec
 
 /** Value won against value lost by month of submission. */
 export function WonLostChart({ region }: { region: RegionFilter }) {
-  const db = useDb();
+  const db = useAsOfDb();
   const data = useMemo(
     () => getWonLostByMonth(db, region).map((m) => ({ ...m, label: formatMonth(m.month) })),
     [db, region],

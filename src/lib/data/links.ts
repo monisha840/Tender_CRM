@@ -11,10 +11,11 @@ const ENTITY_DETAIL: Record<string, (id: string) => string> = {
   SITE: (id) => `/daily-work?site=${id}`,
 };
 
+/** Purchases have no screen of their own yet; their requests are decided in the approvals inbox. */
 const ENTITY_MODULE: Record<string, string> = {
   SUBCONTRACTOR_BILL: "/subcontractors",
-  PURCHASE_REQUEST: "/daily-work",
-  PURCHASE_ORDER: "/daily-work",
+  PURCHASE_REQUEST: "/approvals",
+  PURCHASE_ORDER: "/approvals",
   PAYROLL_RUN: "/employees/payroll",
   APPROVAL_REQUEST: "/approvals",
 };
@@ -24,6 +25,23 @@ export function entityHref(entityType: string | null | undefined, id?: Id | null
   if (id && ENTITY_DETAIL[key]) return ENTITY_DETAIL[key](encodeURIComponent(id));
   return ENTITY_MODULE[key] ?? "/dashboard";
 }
+
+/** A route `[id]` segment back to the record id (it arrives percent-encoded when the id had special characters). */
+export function decodeRouteId(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+/** Receivables drill-down from the dashboard ageing chart: days past the payment due date. */
+export const DASHBOARD_AGEING: { label: string; test: (daysOverdue: number) => boolean }[] = [
+  { label: "Not yet due", test: (d) => d === 0 },
+  { label: "1–30 days", test: (d) => d >= 1 && d <= 30 },
+  { label: "31–60 days", test: (d) => d >= 31 && d <= 60 },
+  { label: "Over 60 days", test: (d) => d > 60 },
+];
 
 export const ENTITY_LABEL: Record<string, string> = {
   TENDER_GO_NO_GO: "GO / NO-GO",

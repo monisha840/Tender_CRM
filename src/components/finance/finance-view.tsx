@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Plus } from "lucide-react";
-import { useUrlParam } from "@/lib/use-url-param";
+import { useUrlState } from "@/lib/use-url-param";
 import { PageHeader } from "@/components/layout/page-header";
 import { daysBetween, getToday } from "@/lib/dates";
 import { formatINR, sumMoney } from "@/lib/money";
@@ -25,10 +25,10 @@ const TABS = [
 type Tab = (typeof TABS)[number]["key"];
 
 export function FinanceView() {
-  const [picked, setTab] = useState<Tab | null>(null);
-  const viewParam = useUrlParam("view");
-  const fromUrl = TABS.find((t) => t.key === viewParam)?.key;
-  const tab: Tab = picked ?? fromUrl ?? "invoices";
+  // The tab is in the URL (?view=gst) so dashboard links, refresh and the back button all land on the same view.
+  const [viewParam, setView] = useUrlState("view", "invoices");
+  const tab: Tab = TABS.find((t) => t.key === viewParam)?.key ?? "invoices";
+  const setTab = (t: Tab) => setView(t);
   const go = (t: Tab) => {
     setTab(t);
     document.getElementById("finance-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });

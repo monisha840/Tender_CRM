@@ -22,7 +22,7 @@ export function RegionFilterControl() {
   // A single-region user has nothing to choose: show their region as a label.
   if (options.length <= 1) {
     return (
-      <span className="hidden items-center gap-1.5 text-sm text-muted-foreground sm:inline-flex">
+      <span className="hidden items-center gap-1.5 text-sm text-muted-foreground lg:inline-flex">
         <MapPin className="size-4" aria-hidden="true" />
         {options[0]?.name ?? "—"}
       </span>
@@ -31,9 +31,9 @@ export function RegionFilterControl() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" className="h-11 gap-1.5 px-2.5 md:h-9" aria-label={`Region filter: ${current}`} />}>
+      <DropdownMenuTrigger render={<Button variant="outline" className="h-11 min-w-11 gap-1.5 px-2.5 md:h-9 lg:min-w-0" aria-label={`Region filter: ${current}`} />}>
         <MapPin aria-hidden="true" />
-        <span className="max-w-28 truncate text-sm">{current}</span>
+        <span className="hidden max-w-28 truncate text-sm lg:inline">{current}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuGroup>

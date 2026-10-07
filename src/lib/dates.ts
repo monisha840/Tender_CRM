@@ -13,7 +13,13 @@ export const APP_TIME_ZONE = "Asia/Kolkata";
  * When a backend lands, replace the body with the real IST date.
  */
 export const DEMO_TODAY: IsoDate = "2026-10-07";
-export const getToday = (): IsoDate => DEMO_TODAY;
+
+/** The "as of" date chosen in the header date picker; null means the real (demo) today. */
+let asOfOverride: IsoDate | null = null;
+export const setAsOfDate = (date: IsoDate | null): void => {
+  asOfOverride = date && date !== DEMO_TODAY ? date : null;
+};
+export const getToday = (): IsoDate => asOfOverride ?? DEMO_TODAY;
 
 const MS_PER_DAY = 86_400_000;
 
@@ -66,6 +72,24 @@ export function toIstDate(dateTime: IsoDateTime): IsoDate {
 export function istToUtc(date: IsoDate, time = "00:00"): IsoDateTime {
   const [h, m] = time.split(":").map(Number);
   return new Date(parseIsoDate(date) + (h * 60 + m - 330) * 60_000).toISOString();
+}
+
+/**
+ * Current timestamp on the demo clock: the demo "today" (or the as-of date) with the real IST time of day.
+ * Use this instead of `new Date().toISOString()` for `createdAt` / `updatedAt` so new records never
+ * look like they were created on a different day than the one the app is showing.
+ */
+export function nowIso(): IsoDateTime {
+  const real = new Date();
+  const { h, min } = istPartsOf(real.toISOString());
+  const base = Date.parse(istToUtc(getToday(), `${h}:${min}`));
+  return new Date(base + real.getUTCSeconds() * 1000 + real.getUTCMilliseconds()).toISOString();
+}
+
+/** Real IST wall-clock time, "HH:mm". */
+export function nowIstTime(): string {
+  const { h, min } = istPartsOf(new Date().toISOString());
+  return `${h}:${min}`;
 }
 
 /** DD-MM-YYYY. Accepts a pure date or a UTC timestamp (converted to IST). */

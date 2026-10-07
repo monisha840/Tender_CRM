@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { ImportExport } from "@/components/data/import-export";
 import { RecordForm } from "@/components/data/record-form";
 import { buildApprovalRequest, REQUEST_TYPES } from "@/modules/approvals/entry";
-import { relativeDeadline } from "@/lib/dates";
+import { formatDateTime, nowIso, relativeDeadline } from "@/lib/dates";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { DeadlineBadge, StatusBadge } from "@/components/shared/status-badge";
@@ -15,21 +15,24 @@ import { Timeline } from "@/components/shared/timeline";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { getApprovalTimeline, getScope, listApprovals, type ApprovalRow } from "@/lib/data";
-import { formatDateTime } from "@/lib/dates";
 import { formatINR } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { useUrlState } from "@/lib/use-url-param";
 import { useDataStore } from "@/store/data-store";
-import { useCurrentPersona, useDb, useRegionFilter } from "@/store/hooks";
+import { useCurrentPersona, useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 
 type Tab = "mine" | "all" | "decided";
 
 /** Approvals inbox: what waits for me, everything pending, and the decided history. Approve or reject with a comment. */
 export function ApprovalsInbox() {
-  const db = useDb();
+  const db = useAsOfDb();
   const persona = useCurrentPersona();
   const { region } = useRegionFilter();
   const upsert = useDataStore((s) => s.upsert);
-  const [tab, setTab] = useState<Tab>("mine");
+  const [tabParam, setTabParam] = useUrlState("tab", "mine");
+  const tab: Tab = (["mine", "all", "decided"] as const).find((t) => t === tabParam) ?? "mine";
+  const setTab = (t: Tab) => setTabParam(t);
   const [open, setOpen] = useState<string | null>(null);
   const [deciding, setDeciding] = useState<{ row: ApprovalRow; decision: "APPROVE" | "REJECT" } | null>(null);
   const [comment, setComment] = useState("");
@@ -55,7 +58,7 @@ export function ApprovalsInbox() {
     if (decision === "REJECT" && !comment.trim()) return;
     const step = db.approvalSteps.find((s) => s.requestId === row.request.id && s.sequence === row.request.currentSequence);
     if (!step) return;
-    const now = new Date().toISOString();
+    const now = nowIso();
     const status = decision === "APPROVE" ? "APPROVED" : "REJECTED";
     upsert("approvalSteps", { ...step, status, updatedAt: now });
     upsert("approvalRequests", { ...row.request, status, completedAt: now, updatedAt: now });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { ImportExport } from "@/components/data/import-export";
 import { DeadlineBadge, StatusBadge } from "@/components/shared/status-badge";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { formatDate, formatMonth } from "@/lib/dates";
 import type { InvoiceRow } from "@/lib/data/accounts";
 import { formatINR, moneyToNumber } from "@/lib/money";
+import { useUrlState } from "@/lib/use-url-param";
 import { useDb } from "@/store/hooks";
 import { INVOICE_HEADERS } from "@/modules/finance/entry";
 import { useInvoiceImport } from "./invoice-form";
@@ -19,11 +20,12 @@ export function InvoiceList() {
   const db = useDb();
   const importInvoices = useInvoiceImport();
   const all = useInvoiceRows();
-  const [gstin, setGstin] = useState("ALL");
-  const [customer, setCustomer] = useState("ALL");
-  const [payment, setPayment] = useState("ALL");
-  const [filing, setFiling] = useState("ALL");
-  const [month, setMonth] = useState("ALL");
+  // Filters are kept in the URL (also read by links from the dashboard, e.g. ?customer=<organisation id>).
+  const [gstin, setGstin] = useUrlState("gstin", "ALL");
+  const [customer, setCustomer] = useUrlState("customer", "ALL");
+  const [payment, setPayment] = useUrlState("payment", "ALL");
+  const [filing, setFiling] = useUrlState("filing", "ALL");
+  const [month, setMonth] = useUrlState("month", "ALL");
 
   const gstinOf = useMemo(() => new Map(db.gstRegistrations.map((g) => [g.id, g.gstin])), [db.gstRegistrations]);
   const months = useMemo(() => [...new Set(all.map((r) => r.invoice.invoiceDate.slice(0, 7)))].sort().reverse(), [all]);

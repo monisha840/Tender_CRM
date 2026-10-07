@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDashboard, getManpowerTrend } from "@/lib/data";
 import { formatDate, getToday } from "@/lib/dates";
-import { useCurrentPersona, useDb, useHydrated, useRegionFilter } from "@/store/hooks";
+import { useCurrentPersona, useHydrated, useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 import { FinanceView, ProjectsView, TenderView } from "./role-views";
 import { SiteView } from "./site-view";
 import { DirectorView } from "./director-view";
@@ -24,7 +24,7 @@ const VIEW_NAME: Record<string, string> = {
 
 /** One home screen, different content per role. The region filter in the header applies to every widget. */
 export function Home() {
-  const db = useDb();
+  const db = useAsOfDb();
   const persona = useCurrentPersona();
   const { region } = useRegionFilter();
   const hydrated = useHydrated();
@@ -71,7 +71,7 @@ export function Home() {
           <DirectorView dashboard={dashboard} manpower={manpower} region={region} />
         )}
         <p className="text-xs text-muted-foreground">
-          Every tile and chart opens the related list. <Link href="/notifications" className="text-accent-strong hover:underline">Notifications</Link> are in the bell at the top.
+          Every tile and chart opens the related list. Notifications are in the bell at the top.
         </p>
       </div>
     </>

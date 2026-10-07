@@ -56,7 +56,7 @@ export function RoleSwitcher() {
         <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-xs font-semibold text-accent-strong" aria-hidden="true">
           {initials(persona.user.name)}
         </span>
-        <span className="hidden min-w-0 text-left leading-tight sm:block">
+        <span className="hidden min-w-0 text-left leading-tight lg:block">
           <span className="block max-w-36 truncate text-xs font-medium">{persona.user.name}</span>
           <span className="block max-w-36 truncate text-[11px] font-normal text-muted-foreground">{persona.role.name}</span>
         </span>

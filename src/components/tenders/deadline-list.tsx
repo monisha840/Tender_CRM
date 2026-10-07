@@ -10,7 +10,8 @@ import { tenderTone, toneClass } from "./urgency";
 import { getUpcomingDeadlines, listTenders, missingMandatoryDocs, reminderBand, type TenderRow } from "@/lib/data/tenders";
 import { formatDateTime } from "@/lib/dates";
 import { formatINR } from "@/lib/money";
-import { useDb, useRegionFilter } from "@/store/hooks";
+import { useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 
 const BANDS: { key: 1 | 3 | 7 | null; title: string; hint: string }[] = [
   { key: 1, title: "Due within 1 day", hint: "Final reminder" },
@@ -24,7 +25,7 @@ const BANDS: { key: 1 | 3 | 7 | null; title: string; hint: string }[] = [
  * `limit` shows a short version for the register page.
  */
 export function DeadlineList({ withinDays = 30, limit }: { withinDays?: number; limit?: number }) {
-  const db = useDb();
+  const db = useAsOfDb();
   const { region } = useRegionFilter();
   const rows = useMemo(() => getUpcomingDeadlines(db, region, withinDays), [db, region, withinDays]);
   // Overdue open tenders are the most urgent; shown on the full page only (not the short register version).
@@ -78,23 +79,27 @@ function DeadlineRow({ row, missingDocs }: { row: TenderRow; missingDocs: number
   const t = row.tender;
   return (
     <li>
-      <Link href={`/tenders/${t.id}`} className={cn("flex min-h-11 items-center gap-3 px-3 py-3 hover:bg-accent-subtle", toneClass(tenderTone(row)))}>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-            <p className="min-w-0 text-sm font-medium">{t.title}</p>
-            <DeadlineBadge value={t.submissionDeadlineAt} />
+      <Link href={`/tenders/${t.id}`} className={cn("flex min-h-11 items-center gap-3 px-4 py-3.5 hover:bg-accent-subtle", toneClass(tenderTone(row)))}>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm leading-snug font-medium">{t.title}</p>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {t.tenderNo} · {row.organisationName} · {row.regionName}
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <DeadlineBadge value={t.submissionDeadlineAt} />
+              <span className="tabular text-xs whitespace-nowrap text-muted-foreground">{formatDateTime(t.submissionDeadlineAt)}</span>
+            </div>
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {t.tenderNo} · {row.organisationName} · {row.regionName}
-          </p>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            <span className="tabular text-muted-foreground">Closes {formatDateTime(t.submissionDeadlineAt)}</span>
-            <span className="tabular text-muted-foreground">EMD {formatINR(t.emdAmount, { compact: "auto" })}</span>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
             <StageBadge name={row.stage.name} kind={row.stage.kind} />
+            <span className="tabular text-muted-foreground">EMD <span className="font-medium text-foreground">{formatINR(t.emdAmount, { compact: "auto" })}</span></span>
             {missingDocs > 0 && (
-              <span className="inline-flex items-center gap-1 font-medium text-status-warning">
+              <span className="inline-flex items-center gap-1 text-status-warning">
                 <FileWarning className="size-3.5" aria-hidden="true" />
-                {missingDocs} mandatory document{missingDocs === 1 ? "" : "s"} not ready
+                {missingDocs} mandatory doc{missingDocs === 1 ? "" : "s"} missing
               </span>
             )}
           </div>

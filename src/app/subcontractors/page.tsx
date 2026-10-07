@@ -12,10 +12,11 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { listSubcontractorAssignments, listSubcontractors, type SubcontractorRow } from "@/lib/data";
 import { addDays, daysBetween, getToday } from "@/lib/dates";
 import { formatINR, moneyToNumber, sumMoney } from "@/lib/money";
-import { useUrlParam } from "@/lib/use-url-param";
+import { useUrlState } from "@/lib/use-url-param";
 import { buildAssignment, buildSubcontractor, buildSubcontractors, SUBCONTRACTOR_CSV_HEADERS, SUBCONTRACTOR_STATUSES } from "@/modules/subcontractors/entry";
 import { useDataStore } from "@/store/data-store";
-import { useDb, useRegionFilter } from "@/store/hooks";
+import { useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 
 /** Subcontractor bills fall due this many days after the bill date. */
 const PAYMENT_DAYS = 30;
@@ -54,7 +55,7 @@ const columns: DataTableColumn<Row>[] = [
 ];
 
 export default function Page() {
-  const db = useDb();
+  const db = useAsOfDb();
   const upsert = useDataStore((s) => s.upsert);
   const { region } = useRegionFilter();
   const [adding, setAdding] = useState(false);
@@ -69,8 +70,11 @@ export default function Page() {
       return { ...r, overdueDays: Math.max(0, ...overdue) };
     });
   }, [base, db.subcontractorBills]);
-  const pendingOnly = useUrlParam("payment") === "pending";
-  const [overdueOnly, setOverdueOnly] = useState(false);
+  // Both filters live in the URL: ?payment=pending (dashboard link) and ?overdue=1.
+  const [paymentParam, setPaymentParam] = useUrlState("payment");
+  const pendingOnly = paymentParam === "pending";
+  const [overdueParam, setOverdueParam] = useUrlState("overdue");
+  const overdueOnly = overdueParam === "1";
   const rows = useMemo(
     () =>
       all.filter((r) => (pendingOnly ? moneyToNumber(r.outstanding) > 0 || r.billsAwaitingApproval > 0 : true)).filter((r) => (overdueOnly ? r.overdueDays > 0 : true)),
@@ -194,12 +198,21 @@ export default function Page() {
       {overdueCount > 0 && (
         <button
           type="button"
-          onClick={() => setOverdueOnly((v) => !v)}
+          onClick={() => setOverdueParam(overdueOnly ? null : "1")}
           aria-pressed={overdueOnly}
           className="mb-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-status-danger-tint px-3 text-sm font-medium text-status-danger outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <AlertTriangle className="size-4" aria-hidden="true" />
           {overdueOnly ? `Showing ${overdueCount} with overdue payments. Show all` : `${overdueCount} with overdue payments. Show them`}
+        </button>
+      )}
+      {pendingOnly && (
+        <button
+          type="button"
+          onClick={() => setPaymentParam(null)}
+          className="mb-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-accent-strong bg-accent-subtle px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Showing subcontractors with pending payments. Show all
         </button>
       )}
       <DataTable

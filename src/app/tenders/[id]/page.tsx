@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { TenderDetail } from "@/components/tenders/tender-detail";
+import { decodeRouteId } from "@/lib/data/links";
 import { buildSeedDatabase } from "@/lib/data/seed";
 
 export const metadata: Metadata = { title: "Tender" };
@@ -11,5 +12,5 @@ export function generateStaticParams() {
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <TenderDetail id={id} />;
+  return <TenderDetail id={decodeRouteId(id)} />;
 }

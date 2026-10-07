@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { FieldGrid, ProgressBar, Section, textareaClass } from "@/components/work/parts";
 import { getDailyReport } from "@/lib/data";
-import { formatDate, formatDateTime } from "@/lib/dates";
+import { formatDate, formatDateTime, nowIso } from "@/lib/dates";
 import { useCurrentPersona, useDb } from "@/store/hooks";
 import { useDataStore } from "@/store/data-store";
 
@@ -37,7 +37,7 @@ export function Detail({ id }: { id: string }) {
       status: "REVIEWED",
       reviewedById: persona.user.id,
       reviewComment: comment.trim() || report.reviewComment || null,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nowIso(),
     });
     toast.success("Report marked as reviewed");
   };
