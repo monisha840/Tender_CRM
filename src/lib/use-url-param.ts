@@ -19,7 +19,8 @@ function patchHistory(): void {
     const original = window.history[method];
     window.history[method] = function (this: History, ...args: Parameters<History["pushState"]>) {
       const result = original.apply(this, args);
-      window.dispatchEvent(new Event(URL_EVENT));
+      // Deferred: Next's router calls these from inside an insertion effect, where React forbids scheduling updates.
+      queueMicrotask(() => window.dispatchEvent(new Event(URL_EVENT)));
       return result;
     };
   });
