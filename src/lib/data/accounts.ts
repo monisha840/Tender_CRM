@@ -1,6 +1,7 @@
-import { addDays, daysBetween, getToday } from "@/lib/dates";
+import { daysBetween, getToday } from "@/lib/dates";
 import { moneyToNumber, subMoney, sumMoney } from "@/lib/money";
 import type { Database, GstFilingStatus, Id, Invoice, InvoicePaymentStatus, Money, Payment } from "@/types";
+import { ageingTotals, daysPastDue, isLive, isPayableSubBill, isPayableVendorInvoice, subBillDueDate } from "./definitions";
 import { byId, inRegion, organisationName, sum, type RegionFilter } from "./shared";
 
 export interface InvoiceRow {
@@ -9,7 +10,7 @@ export interface InvoiceRow {
   organisationName: string;
   /** Net receivable not yet received. */
   outstanding: Money;
-  /** Days past the payment due date; 0 when not yet due or fully paid. */
+  /** Days past the payment due date (the ageing definition, see definitions.ts); 0 when not yet due or fully paid. */
   daysOverdue: number;
   /** Days past the GST filing due date while still pending; 0 otherwise. */
   filingDaysOverdue: number;
@@ -39,7 +40,7 @@ export function listInvoices(db: Database, filters: InvoiceFilters = {}): Invoic
         projectName: byId(db.projects, invoice.projectId)?.name ?? "—",
         organisationName: organisationName(db, invoice.organisationId),
         outstanding,
-        daysOverdue: Number(outstanding) > 0 ? Math.max(0, daysBetween(invoice.dueDate, today)) : 0,
+        daysOverdue: Number(outstanding) > 0 ? daysPastDue(invoice.dueDate, today) : 0,
         filingDaysOverdue: invoice.gstFilingStatus === "PENDING" ? Math.max(0, daysBetween(invoice.gstFilingDueDate, today)) : 0,
       };
     })
@@ -60,16 +61,23 @@ export function getReceivablesSummary(db: Database, region: RegionFilter = "ALL"
     total: sumMoney(rows.map((r) => r.outstanding)),
     overdue: sumMoney(overdue.map((r) => r.outstanding)),
     overdueCount: overdue.length,
+    /** Outstanding by days past due: 0–30, 31–60, 61–90, 90+ (one definition for Finance and dashboard). */
+    ageing: ageingTotals(rows, (r) => r.daysOverdue, (r) => r.outstanding),
     rows,
   };
 }
 
-/** Billing and payment totals for one project, from its invoices. */
+/**
+ * Billing and payment totals for one project, from its live invoices.
+ * `billed` is the taxable value, EXCLUDING GST (the one "billed" definition); `invoicedTotal` is incl. GST.
+ */
 export function getProjectBilling(db: Database, projectId: Id) {
-  const invoices = db.invoices.filter((i) => i.projectId === projectId);
+  const invoices = db.invoices.filter((i) => isLive(i) && i.projectId === projectId);
+  const billed = sumMoney(invoices.map((i) => i.taxableValue));
   return {
     invoiceCount: invoices.length,
-    invoicedTaxable: sumMoney(invoices.map((i) => i.taxableValue)),
+    billed,
+    invoicedTaxable: billed,
     invoicedTotal: sumMoney(invoices.map((i) => i.total)),
     received: sumMoney(invoices.map((i) => i.receivedAmount)),
     outstanding: sumMoney(invoices.map((i) => subMoney(i.netReceivable, i.receivedAmount))),
@@ -99,12 +107,12 @@ export interface PayableRow {
   daysOverdue: number;
 }
 
-/** Vendor invoices and approved subcontractor bills not yet fully paid. */
+/** Approved vendor invoices and approved subcontractor bills not yet fully paid (see definitions.ts). */
 export function listPayables(db: Database, region: RegionFilter = "ALL"): PayableRow[] {
   const today = getToday();
   const partyOf = (partyId: string) => byId(db.parties, partyId)?.name ?? "—";
   const vendor = db.vendorInvoices
-    .filter((i) => inRegion(region, i.regionId) && Number(subMoney(i.total, i.paidAmount)) > 0)
+    .filter((i) => isPayableVendorInvoice(i) && inRegion(region, i.regionId) && Number(subMoney(i.total, i.paidAmount)) > 0)
     .map((i): PayableRow => ({
       kind: "VENDOR_INVOICE",
       id: i.id,
@@ -112,12 +120,12 @@ export function listPayables(db: Database, region: RegionFilter = "ALL"): Payabl
       projectName: byId(db.projects, i.projectId)?.name ?? "—",
       outstanding: subMoney(i.total, i.paidAmount),
       dueDate: i.dueDate,
-      daysOverdue: Math.max(0, daysBetween(i.dueDate, today)),
+      daysOverdue: daysPastDue(i.dueDate, today),
     }));
   const subs = db.subcontractorBills
-    .filter((b) => inRegion(region, b.regionId) && ["APPROVED", "PARTLY_PAID"].includes(b.status))
+    .filter((b) => isPayableSubBill(b) && inRegion(region, b.regionId))
     .map((b): PayableRow => {
-      const dueDate = addDays(b.billDate, 30);
+      const dueDate = subBillDueDate(b.billDate);
       return {
         kind: "SUBCONTRACTOR_BILL",
         id: b.id,
@@ -125,7 +133,7 @@ export function listPayables(db: Database, region: RegionFilter = "ALL"): Payabl
         projectName: byId(db.projects, b.projectId)?.name ?? "—",
         outstanding: subMoney(b.netPayable, b.paidAmount),
         dueDate,
-        daysOverdue: Math.max(0, daysBetween(dueDate, today)),
+        daysOverdue: daysPastDue(dueDate, today),
       };
     });
   return [...vendor, ...subs].sort((a, b) => b.daysOverdue - a.daysOverdue);
@@ -146,7 +154,7 @@ export function getPayablesSummary(db: Database, region: RegionFilter = "ALL") {
 export function getCollectionsByMonth(db: Database, region: RegionFilter = "ALL") {
   const buckets = new Map<string, number>();
   db.payments
-    .filter((p) => p.direction === "IN" && p.purpose === "INVOICE_RECEIPT" && inRegion(region, p.regionId))
+    .filter((p) => isLive(p) && p.direction === "IN" && p.purpose === "INVOICE_RECEIPT" && inRegion(region, p.regionId))
     .forEach((p) => buckets.set(p.paidOn.slice(0, 7), (buckets.get(p.paidOn.slice(0, 7)) ?? 0) + moneyToNumber(p.amount)));
   return [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, collected]) => ({ month, collected }));
 }
@@ -164,10 +172,10 @@ export interface BudgetRow {
 /** Planned budget vs actual and committed cost per project (rupees, for charts). */
 export function getBudgetVsActual(db: Database, region: RegionFilter = "ALL"): BudgetRow[] {
   return db.projects
-    .filter((p) => inRegion(region, p.regionId))
+    .filter((p) => isLive(p) && inRegion(region, p.regionId))
     .map((p) => {
       const planned = sum(db.projectBudgetLines.filter((l) => l.projectId === p.id).map((l) => moneyToNumber(l.plannedAmount)));
-      const cost = (kind: "ACTUAL" | "COMMITTED") => sum(db.costEntries.filter((c) => c.projectId === p.id && c.kind === kind).map((c) => moneyToNumber(c.amount)));
+      const cost = (kind: "ACTUAL" | "COMMITTED") => sum(db.costEntries.filter((c) => isLive(c) && c.projectId === p.id && c.kind === kind).map((c) => moneyToNumber(c.amount)));
       const actual = cost("ACTUAL");
       return { projectId: p.id, projectName: p.name, planned, actual, committed: cost("COMMITTED"), spentRatio: planned ? actual / planned : 0 };
     })
@@ -176,14 +184,14 @@ export function getBudgetVsActual(db: Database, region: RegionFilter = "ALL"): B
 
 export function listPayments(db: Database, region: RegionFilter = "ALL", direction?: Payment["direction"]): Payment[] {
   return db.payments
-    .filter((p) => inRegion(region, p.regionId) && (!direction || p.direction === direction))
+    .filter((p) => isLive(p) && inRegion(region, p.regionId) && (!direction || p.direction === direction))
     .sort((a, b) => b.paidOn.localeCompare(a.paidOn));
 }
 
 /** Retention currently held back, by side. */
 export function getRetentionSummary(db: Database, region: RegionFilter = "ALL") {
   const projectRegion = new Map(db.projects.map((p) => [p.id, p.regionId]));
-  const entries = db.retentionEntries.filter((e) => inRegion(region, projectRegion.get(e.projectId)));
+  const entries = db.retentionEntries.filter((e) => isLive(e) && inRegion(region, projectRegion.get(e.projectId)));
   const held = (side: "CLIENT" | "SUBCONTRACTOR") =>
     sumMoney(entries.filter((e) => e.side === side).map((e) => (e.type === "WITHHELD" ? e.amount : subMoney("0.00", e.amount))));
   return { receivable: held("CLIENT"), payable: held("SUBCONTRACTOR") };
