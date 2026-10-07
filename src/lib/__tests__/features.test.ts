@@ -16,7 +16,7 @@ describe("PHASE67 feature flag", () => {
     expect(resolvePhase67("FALSE", undefined)).toBe(false);
   });
   it("is on under the test environment by default", () => {
-    expect(PHASE67_ENABLED).toBe(true);
+    expect(resolvePhase67(undefined, "test")).toBe(true); // independent of the local .env.local override
   });
   it("hides employees, finance and daily work when disabled", () => {
     const hidden = NAV_MODULES.filter((m) => !isModuleEnabled(m.key, false)).map((m) => m.key);
