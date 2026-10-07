@@ -1,5 +1,6 @@
 import { getToday } from "@/lib/dates";
 import { moneyToNumber, sumMoney } from "@/lib/money";
+import { computePf, daysInMonth } from "@/lib/payroll-rules";
 import type { Attendance, Database, Employee, EmployeeProfile, Id, IsoDate, PayrollRun, Payslip, SiteAssignment } from "@/types";
 import { byId, inRegion, regionName, sum, type RegionFilter } from "./shared";
 
@@ -74,16 +75,27 @@ export function getPayslips(db: Database, runId: Id) {
     .map((payslip) => ({ payslip, employee: byId(db.employees, payslip.employeeId)! }));
 }
 
-/** EPF totals for a month ("YYYY-MM"), ready for the EPFO export screen. */
+/**
+ * EPF totals for a month ("YYYY-MM"), ready for the EPFO export screen. `employerShare` is the employer's 12%
+ * (EPF 3.67% + EPS 8.33%); `admin` and `edli` are employer charges on top; `payable` is the whole monthly challan.
+ * `total` stays employee + employer share for existing callers.
+ */
 export function getEpfSummary(db: Database, period: string, region: RegionFilter = "ALL") {
   const runs = db.payrollRuns.filter((r) => r.periodMonth === period && inRegion(region, r.regionId));
   const slips = db.payslips.filter((p) => runs.some((r) => r.id === p.payrollRunId));
+  const asOf = `${period}-${String(daysInMonth(period)).padStart(2, "0")}`;
+  const parts = slips.filter((p) => Number(p.epfWages) > 0).map((p) => computePf(p.epfWages, asOf));
   return {
     period,
-    members: slips.length,
+    members: parts.length,
     wages: sumMoney(slips.map((p) => p.epfWages)),
     employeeShare: sumMoney(slips.map((p) => p.epfEmployee)),
     employerShare: sumMoney(slips.map((p) => p.epfEmployer)),
+    epf: sumMoney(parts.map((x) => x.epf)),
+    eps: sumMoney(parts.map((x) => x.eps)),
+    admin: sumMoney(parts.map((x) => x.admin)),
+    edli: sumMoney(parts.map((x) => x.edli)),
+    payable: sumMoney([...slips.flatMap((p) => [p.epfEmployee, p.epfEmployer]), ...parts.flatMap((x) => [x.admin, x.edli])]),
     total: sumMoney(slips.flatMap((p) => [p.epfEmployee, p.epfEmployer])),
     totalNumber: moneyToNumber(sumMoney(slips.flatMap((p) => [p.epfEmployee, p.epfEmployer]))),
   };

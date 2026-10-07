@@ -1,4 +1,6 @@
 import { getToday, istToUtc } from "@/lib/dates";
+import { fromPaise, toPaise } from "@/lib/money";
+import { isEsiEligible, STANDARD_MONTH_DAYS } from "@/lib/payroll-rules";
 import type { Attendance, AttendanceStatus, Database, Employee, EmployeeProfile, Id, SiteAssignment } from "@/types";
 
 /** Raw, string-valued employee entry (form values or a CSV record). Region, labour type and site may be a name or an id. */
@@ -26,9 +28,10 @@ export interface EmployeeRows {
 }
 
 const norm = (s: string | undefined) => (s ?? "").trim().toLowerCase();
+/** A blank or "auto" answer takes the fallback; anything else must be an explicit yes or no. */
 const isYes = (v: string | undefined, fallback: boolean) => {
   const s = norm(v);
-  if (!s) return fallback;
+  if (!s || s === "auto") return fallback;
   return ["yes", "y", "true", "1"].includes(s);
 };
 
@@ -45,12 +48,20 @@ export function parseDateInput(v: string | undefined): string | null {
   return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-function money(v: string | undefined): string | null {
+/**
+ * Parses a rupee amount typed by a person: digits with an optional ₹, commas and up to two decimals.
+ * Rejects exponents ("1e3"), hex ("0x10"), signs, NaN and more than two decimals instead of letting Number() accept them.
+ * Returns a normalised "1234.50" string without ever going through a float, or null when invalid.
+ */
+export function parseMoneyInput(v: string | undefined): string | null {
   const s = (v ?? "").replace(/[₹,\s]/g, "");
   if (s === "") return "0.00";
-  const n = Number(s);
-  return Number.isFinite(n) && n >= 0 ? n.toFixed(2) : null;
+  const m = /^(\d{1,12})(?:\.(\d{1,2}))?$/.exec(s);
+  if (!m) return null;
+  return `${m[1].replace(/^0+(?=\d)/, "")}.${(m[2] ?? "").padEnd(2, "0")}`;
 }
+
+const money = parseMoneyInput;
 
 /** Next free "SPH-###" code. */
 export function nextEmployeeCode(db: Database, extra: Iterable<string> = []): string {
@@ -85,6 +96,8 @@ export function buildEmployee(
   if (wage === null || Number(wage) <= 0) return { error: `Wage '${e.wage ?? ""}' is not a valid amount` };
   const advance = money(e.advance);
   if (advance === null) return { error: `Advance '${e.advance ?? ""}' is not a valid amount` };
+  // ESI is automatic from the wage ceiling unless the user says yes/no explicitly. Daily wages are compared as a 26-day month.
+  const monthlyEquivalent = labour.payrollMode === "DAILY" ? fromPaise(toPaise(wage) * BigInt(STANDARD_MONTH_DAYS)) : wage;
   const joiningDate = e.joiningDate?.trim() ? parseDateInput(e.joiningDate) : getToday();
   if (!joiningDate) return { error: `Joining date '${e.joiningDate}' must be DD-MM-YYYY` };
 
@@ -101,7 +114,7 @@ export function buildEmployee(
   const profile: EmployeeProfile = {
     id: `ep_${id}`, createdAt: now, updatedAt: now, employeeId: id,
     designation, department: (e.department ?? "").trim() || "Site Operations", labourTypeId: labour.id, joiningDate,
-    exitDate: null, wageAmount: wage, pfApplicable: isYes(e.pf, true), esiApplicable: isYes(e.esi, false),
+    exitDate: null, wageAmount: wage, pfApplicable: isYes(e.pf, true), esiApplicable: isYes(e.esi, isEsiEligible(monthlyEquivalent, joiningDate)),
     advanceBalance: advance, uan: e.uan?.trim() || null, contractorId: null,
   };
   let assignment: SiteAssignment | null = null;
