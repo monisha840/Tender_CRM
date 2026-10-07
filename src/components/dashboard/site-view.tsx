@@ -11,6 +11,7 @@ import { ChartTooltipContent } from "@/components/charts/chart-tooltip";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import { countAttendanceNotMarked, getAttendanceSummary, listSiteIssues, listSites, type RegionFilter } from "@/lib/data";
 import { formatDate, getToday, lastNDays } from "@/lib/dates";
+import { PHASE67_ENABLED } from "@/lib/features";
 import { useCurrentPersona } from "@/store/hooks";
 import { useAsOfDb } from "@/components/layout/use-as-of-db";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -81,7 +82,7 @@ export function SiteView({ region }: { region: RegionFilter }) {
         <KpiTile label="Workers today" value={String(trend[trend.length - 1].workers)} hint="from today's reports" icon={Users} trend={trend.map((t) => t.workers)} href="/daily-work" />
         <KpiTile label="Reports today" value={`${row.reportsToday} / ${row.reportsExpected}`} hint={formatDate(today)} icon={ClipboardList} href="/daily-work" />
         <KpiTile label="Open issues" value={String(issues.length)} hint={`${issues.filter((i) => i.severity === "HIGH").length} high severity`} icon={AlertTriangle} href="/daily-work?tab=issues" />
-        <KpiTile label="Attendance not marked" value={String(notMarked)} hint={`${attendance.present} present today`} icon={HardHat} href="/employees/attendance" />
+        {PHASE67_ENABLED && <KpiTile label="Attendance not marked" value={String(notMarked)} hint={`${attendance.present} present today`} icon={HardHat} href="/employees/attendance" />}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">

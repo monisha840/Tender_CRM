@@ -5,6 +5,7 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { DeadlineBadge, StageBadge, StatusBadge } from "@/components/shared/status-badge";
 import { entityHref, listProjects, type ProjectRow, type TenderRow } from "@/lib/data";
 import { formatDate } from "@/lib/dates";
+import { PHASE67_ENABLED } from "@/lib/features";
 import { formatINR, moneyToNumber } from "@/lib/money";
 import { useCurrentPersona } from "@/store/hooks";
 import { useAsOfDb } from "@/components/layout/use-as-of-db";
@@ -15,6 +16,7 @@ import { KpiGrid } from "./kpi-grid";
 
 /** Accounts / Finance: money first. */
 export function FinanceView({ dashboard, manpower, region }: ViewProps) {
+  if (!PHASE67_ENABLED) return <AttentionArea region={region} only={["approvals"]} />;
   const rows = dashboard.receivables.byOrganisation;
   const columns: DataTableColumn<(typeof rows)[number]>[] = [
     { key: "name", header: "Customer", cell: (r) => r.name, mobile: "title", sortValue: (r) => r.name },

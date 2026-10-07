@@ -5,6 +5,7 @@ import { KpiTile } from "@/components/shared/kpi-tile";
 import { canView, type Dashboard } from "@/lib/data";
 import { formatDate, formatMonth } from "@/lib/dates";
 import { formatINR } from "@/lib/money";
+import { isModuleEnabled } from "@/lib/features";
 import { useCurrentPersona } from "@/store/hooks";
 import { useAsOfDb } from "@/components/layout/use-as-of-db";
 
@@ -45,7 +46,7 @@ export function buildTiles(d: Dashboard, manpower: number[]): TileSpec[] {
 export function KpiGrid({ dashboard, manpower, only }: { dashboard: Dashboard; manpower: number[]; only?: number[] }) {
   const db = useAsOfDb();
   const persona = useCurrentPersona();
-  const tiles = buildTiles(dashboard, manpower).filter((t) => (!only || only.includes(t.n)) && canView(db, persona.user.id, t.module));
+  const tiles = buildTiles(dashboard, manpower).filter((t) => (!only || only.includes(t.n)) && isModuleEnabled(t.module) && canView(db, persona.user.id, t.module));
   return (
     <section aria-label="Key figures" className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
       {tiles.map((t) => (
