@@ -41,7 +41,8 @@ npm run dev          # ✔ start dev server
 npm run build        # ✔ production build
 npm run lint         # ✔ eslint
 npm run typecheck    # ✔ tsc --noEmit
-npm run seed:check   # ✔ build the mock seed and print integrity/sanity checks (uses npx tsx)
+npm run seed:check   # ✔ audit the mock seed against the client's field lists and the 13 dashboard items (uses npx tsx)
+npm run contrast:check # ✔ WCAG AA check of every design-token colour pair (uses npx tsx)
 npm test             # vitest
 npm run test:e2e     # playwright (desktop + mobile projects)
 npx prisma migrate dev --name <change>   # create & apply migration
@@ -61,21 +62,26 @@ Define these as CSS variables / Tailwind theme tokens and use **only tokens**, n
 | `background` | `#F8F8F7` | App background |
 | `surface` | `#FFFFFF` | Panels, tables, sidebar, dialogs |
 | `text` | `#171717` | Primary text |
-| `text-secondary` | `#737373` | Labels, meta, helper text |
+| `text-secondary` | `#6B6B6B` | Labels, meta, helper text (AA on background, surface and accent-subtle) |
 | `border` | `#E5E5E5` | Thin dividers and outlines |
-| `accent` | `#1E3A5F` | Primary actions, active nav, links, focus, primary chart series |
+| `accent` | `#F2B800` | **Fill only** (the S. Prince logo yellow): primary buttons, active-nav indicator, primary chart series, selected states |
+| `accent-foreground` | `#171717` | Text/icons on `accent`. **Never white text on yellow** |
+| `accent-strong` | `#856000` | Dark amber for links, icons, focus rings and any yellow-family text on white (≥ 4.5:1) |
+| `accent-subtle` | `#FDF6E3` | Very light yellow: active nav background, row highlights, hover |
 
 Status colours — **muted, used only for status indicators** (badges, health dots, alert markers), never for decoration:
 
 | Token | Meaning |
 |---|---|
 | `status-success` | On track / approved / paid (muted green) |
-| `status-warning` | At risk / pending / due soon (muted amber) |
+| `status-warning` | At risk / pending / due soon (muted orange) |
 | `status-danger` | Delayed / rejected / overdue (muted red) |
 | `status-neutral` | Draft / inactive (grey) |
 
 Rules:
-- Mostly neutrals with **one deep navy accent**. Use colour sparingly — only for actions and status.
+- Mostly neutrals with **one yellow accent** (the S. Prince logo yellow). Yellow is a *fill*: never use it for text or icons on white (it fails contrast) — use `accent-strong` for that, and `accent-foreground` (dark) on top of yellow.
+- Use colour sparingly — only for actions and status. `status-warning` is a muted **orange** so it is never confused with the yellow accent.
+- **Contrast is checked, not eyeballed:** run `npm run contrast:check` after changing any token. Every text pair must reach 4.5:1 and every icon/indicator/chart series 3:1. The yellow fill alone is 1.8:1 on white, so it always carries a dark label, and chart bars in `accent` get a 1px `accent-strong` outline.
 - **Avoid:** gradients, glassmorphism, heavy or stacked shadows, 3D effects, decorative illustrations, unnecessary colours.
 - Elevation comes from thin `border` lines and whitespace; at most a very subtle shadow on popovers/dialogs.
 - Status must never rely on colour alone — pair with a label or icon.
@@ -88,15 +94,15 @@ Rules:
 ### Layout & components
 - Prefer **whitespace, thin borders, clean typography, tables, timelines and clear hierarchy** over piles of cards. Use cards only for genuinely separate summary items (e.g. KPI tiles).
 - **Information-dense but uncluttered**: compact table rows on desktop, generous spacing between sections.
-- **Sidebar:** white surface, thin right border, grouped navigation, **subtle navy active state** (navy text/icon + light navy tint background or left indicator). Collapsible on desktop; becomes a drawer on mobile.
+- **Sidebar:** white surface, thin right border, grouped navigation, **subtle yellow active state** (`accent-subtle` background, a `accent` left indicator, dark text, `accent-strong` icon). Collapsible on desktop; becomes a drawer on mobile.
 - **Timelines** for tender stages, approval history and audit trail.
 - **Page header pattern:** title, key status badge, primary action on the right, secondary actions in a menu.
 - **Empty states:** one line explaining what goes here and a single clear action.
-- Rounded corners small and consistent (e.g. 6–8px). Focus rings in `accent`, always visible for keyboard users.
+- Rounded corners small and consistent (e.g. 6–8px). Focus rings in `accent-strong`, always visible for keyboard users.
 
 ### Charts & graphs
 Charts should make the dashboard genuinely useful and look polished — but stay calm.
-- Primary series in `accent` navy; additional series in tints/greys of the same palette; status colours only when the data *is* status (e.g. Green/Amber/Red project health).
+- Primary series in `accent` yellow (with a 1px `accent-strong` outline); additional series `chart-2…5` (dark/mid amber and greys, each ≥ 3:1 on white); status colours only when the data *is* status (e.g. Green/Amber/Red project health).
 - No 3D, no gradients, no heavy animation (a short, subtle entry transition is fine). Light gridlines in `border`, axis labels in `text-secondary`.
 - Every chart has a title, clear units (₹ Cr / ₹ L / %, days), INR-formatted tooltips, and a sensible empty state.
 - Prefer simple, readable types: bar, line/area (flat fill), stacked bar, donut for composition, progress bars, funnels for the tender pipeline, sparklines in KPI tiles.
