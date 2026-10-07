@@ -3,7 +3,7 @@ import { test, expect } from "../helpers/fixtures";
 import { onlyProject } from "../helpers/project-gate";
 import { AUTH } from "../helpers/auth-paths";
 import { closeDb, findTender, latestApproval } from "../helpers/db";
-import { approveControl, createTender, newTenderData, openTender, run } from "../helpers/tender-flow";
+import { approveControl, createTender, newTenderData, openTender, requestGo } from "../helpers/tender-flow";
 import { TenderDetailPage } from "../helpers/pages";
 
 /**
@@ -25,7 +25,7 @@ test("Admin cannot approve: no control in the UI and a forged server call is rej
   const tender = newTenderData();
   await createTender(page, tender);
   const detail = await openTender(page, tender);
-  await run(page, detail.goNoGo());
+  await requestGo(page, detail);
 
   const row = await findTender(tender.tenderNo);
   expect(row, "tender was created").not.toBeNull();

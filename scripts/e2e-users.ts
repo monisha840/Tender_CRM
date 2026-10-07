@@ -34,8 +34,19 @@ export async function ensureE2eUsers(): Promise<void> {
     for (const u of E2E_USERS) {
       let authId = existing.get(u.email);
       if (authId) {
-        const { error } = await supabase.auth.admin.updateUserById(authId, { password, email_confirm: true });
-        if (error) throw new Error(`e2e-users: update ${u.email} failed: ${error.message}`);
+        // Only touch the password when it does not already work: updating it revokes every live session, which
+        // broke concurrent/sequential Playwright runs sharing these two users.
+        const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        let passwordWorks = false;
+        if (anon) {
+          const probe = createClient(url, anon, { auth: { autoRefreshToken: false, persistSession: false } });
+          const { error: signInError } = await probe.auth.signInWithPassword({ email: u.email, password });
+          passwordWorks = !signInError;
+        }
+        if (!passwordWorks) {
+          const { error } = await supabase.auth.admin.updateUserById(authId, { password, email_confirm: true });
+          if (error) throw new Error(`e2e-users: update ${u.email} failed: ${error.message}`);
+        }
       } else {
         const { data, error } = await supabase.auth.admin.createUser({ email: u.email, password, email_confirm: true });
         if (error || !data.user) throw new Error(`e2e-users: create ${u.email} failed: ${error?.message}`);

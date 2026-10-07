@@ -50,9 +50,9 @@ export async function completeDialogIfShown(page: Page, reason = "E2E smoke test
 }
 
 /** Fill a text-like field by label (or testid); choose the first option for selects/comboboxes. False when absent. */
-export async function fillField(page: Page, label: RegExp, value: string, testId?: string): Promise<boolean> {
-  let field = page.getByLabel(label).first();
-  if (testId) field = field.or(page.getByTestId(testId)).first();
+export async function fillField(page: Page, label: RegExp, value: string, testId?: string, scope: Page | Locator = page): Promise<boolean> {
+  let field = scope.getByLabel(label).first();
+  if (testId) field = field.or(scope.getByTestId(testId)).first();
   if ((await field.count()) === 0) return false;
   const tag = await field.evaluate((el) => el.tagName.toLowerCase());
   const role = await field.getAttribute("role");
@@ -60,7 +60,7 @@ export async function fillField(page: Page, label: RegExp, value: string, testId
     await field.selectOption({ index: 1 }).catch(() => field.selectOption({ index: 0 }));
   } else if (role === "combobox" || tag === "button") {
     await field.click();
-    const opt = page.getByRole("option").first();
+    const opt = page.getByRole("option").first(); // option popups render in a portal, so search the whole page
     await opt.waitFor();
     await opt.click();
   } else {
@@ -70,9 +70,9 @@ export async function fillField(page: Page, label: RegExp, value: string, testId
 }
 
 /** Date input (date / datetime-local) or DD-MM-YYYY text. False when absent. */
-export async function fillDate(page: Page, label: RegExp, iso: string, testId?: string): Promise<boolean> {
-  let field = page.getByLabel(label).first();
-  if (testId) field = field.or(page.getByTestId(testId)).first();
+export async function fillDate(page: Page, label: RegExp, iso: string, testId?: string, scope: Page | Locator = page): Promise<boolean> {
+  let field = scope.getByLabel(label).first();
+  if (testId) field = field.or(scope.getByTestId(testId)).first();
   if ((await field.count()) === 0) return false;
   const type = await field.getAttribute("type");
   if (type === "date") await field.fill(iso);

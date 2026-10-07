@@ -19,9 +19,12 @@ export interface ApprovalFilters {
   assignedToId?: Id;
 }
 
+/** Minimal scope: only tender approvals are shown anywhere (inbox, bell, dashboard attention). Other seeded types stay hidden. */
+export const VISIBLE_APPROVAL_TYPES: ReadonlySet<string> = new Set(["TENDER_GO_NO_GO", "TENDER_CONVERSION"]);
+
 export function listApprovals(db: Database, filters: ApprovalFilters = {}): ApprovalRow[] {
   return db.approvalRequests
-    .filter((r) => !r.deletedAt && inRegion(filters.region ?? "ALL", r.regionId) && (!filters.status || r.status === filters.status))
+    .filter((r) => !r.deletedAt && VISIBLE_APPROVAL_TYPES.has(r.entityType) && inRegion(filters.region ?? "ALL", r.regionId) && (!filters.status || r.status === filters.status))
     .map((request): ApprovalRow => {
       const step = db.approvalSteps.find((s) => s.requestId === request.id && s.sequence === request.currentSequence);
       return {

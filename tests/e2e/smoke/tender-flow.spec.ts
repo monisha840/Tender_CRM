@@ -2,7 +2,7 @@ import { test, expect } from "../helpers/fixtures";
 import { onlyProject } from "../helpers/project-gate";
 import { AUTH } from "../helpers/auth-paths";
 import { closeDb, findTender, projectForTender } from "../helpers/db";
-import { approveInInbox, createTender, newTenderData, openTender, run } from "../helpers/tender-flow";
+import { advanceToSubmitted, approveInInbox, createTender, newTenderData, openTender, requestGo, run } from "../helpers/tender-flow";
 
 /** Tender -> GO (Director approves) -> Won -> convert (Director approves) -> project visible. Unique ids, no clean-up. */
 test.describe.configure({ mode: "serial" });
@@ -15,7 +15,7 @@ const tender = newTenderData();
 test("Admin creates a tender and requests GO", async ({ page }) => {
   await createTender(page, tender);
   const detail = await openTender(page, tender);
-  await run(page, detail.goNoGo());
+  await requestGo(page, detail);
   await expect.poll(async () => (await findTender(tender.tenderNo))?.id, "tender saved").toBeTruthy();
 });
 
@@ -29,6 +29,7 @@ test("Director approves GO in the approvals inbox", async ({ browser, baseURL })
 
 test("Admin marks the tender Won with a reason", async ({ page }) => {
   const detail = await openTender(page, tender);
+  await advanceToSubmitted(page);
   await run(page, detail.markWon(), "Awarded in E2E smoke test");
   await expect.poll(async () => (await findTender(tender.tenderNo))?.currentStage.kind, "tender is in a WON stage").toBe("WON");
 });

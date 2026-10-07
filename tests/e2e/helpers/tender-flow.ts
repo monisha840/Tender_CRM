@@ -19,21 +19,25 @@ export function newTenderData(): NewTender {
 export async function createTender(page: Page, t: NewTender): Promise<void> {
   await new TendersListPage(page).goto();
   await new TendersListPage(page).create().click();
-  await fillField(page, /tender\s*(no|number)|reference/i, t.tenderNo, "tender-no-input");
-  await fillField(page, /^(tender\s*)?title|name/i, t.title, "tender-title-input");
-  await fillField(page, /work description|description|scope/i, "E2E smoke test work description");
-  await fillField(page, /eligibility/i, "E2E smoke test eligibility");
-  await fillField(page, /location/i, "Raichur");
-  await fillField(page, /client|organi[sz]ation|department|customer/i, "", "tender-client-select");
-  await fillField(page, /region/i, "");
-  await fillField(page, /service line/i, "");
-  await fillField(page, /tender type|type/i, "");
-  await fillField(page, /estimated value|value|amount/i, String(t.value), "tender-value-input");
-  await fillField(page, /^emd|earnest/i, "100000");
-  await fillField(page, /fee/i, "1000");
-  await fillDate(page, /opening/i, isoInDays(1));
-  await fillDate(page, /submission|deadline|due/i, isoInDays(30), "tender-deadline-input");
-  await orTestId(page, page.getByRole("button", { name: /^(save|create|register|submit)\b/i }), "tender-save").last().click();
+  // The tender form is a side sheet (dialog); scope to it so the list filters behind it (also labelled Region/Organisation) are not matched.
+  const form = page.getByRole("dialog");
+  await fillField(page, /tender\s*(no|number)|reference/i, t.tenderNo, "tender-no-input", form);
+  await fillField(page, /^(tender\s*)?title|name/i, t.title, "tender-title-input", form);
+  await fillField(page, /work description|description|scope/i, "E2E smoke test work description", undefined, form);
+  await fillField(page, /eligibility/i, "E2E smoke test eligibility", undefined, form);
+  await fillField(page, /location/i, "Raichur", undefined, form);
+  await fillField(page, /client|organi[sz]ation|department|customer/i, "", "tender-client-select", form);
+  await fillField(page, /region/i, "", undefined, form);
+  await fillField(page, /service line/i, "", undefined, form);
+  await fillField(page, /tender type|type/i, "", undefined, form);
+  await fillField(page, /estimated value|value|amount/i, String(t.value), "tender-value-input", form);
+  await fillField(page, /^emd|earnest/i, "100000", undefined, form);
+  await fillField(page, /fee/i, "1000", undefined, form);
+  await fillDate(page, /opening/i, isoInDays(1), undefined, form);
+  await fillDate(page, /submission|deadline|due/i, isoInDays(30), "tender-deadline-input", form);
+  await orTestId(page, form.getByRole("button", { name: /^(save|create|register|submit|add)\b/i }), "tender-save").last().click();
+  // The server action (insert + audit in one transaction) can take a while on a cold dev server: wait for the sheet to close.
+  await expect(form).toBeHidden({ timeout: 60_000 });
   await expect(page.getByText(t.tenderNo).first()).toBeVisible();
 }
 
@@ -47,6 +51,26 @@ export async function openTender(page: Page, t: NewTender): Promise<TenderDetail
   await link.click();
   await expect(page.getByText(t.tenderNo).first()).toBeVisible();
   return new TenderDetailPage(page);
+}
+
+/**
+ * Real workflow: a New tender is first moved to Under Evaluation; only there can GO be requested.
+ * Moves it along when needed, then requests GO and completes the dialog.
+ */
+export async function requestGo(page: Page, detail: TenderDetailPage): Promise<void> {
+  const move = page.getByTestId("stage-advance");
+  if (await move.filter({ hasText: /under evaluation/i }).isVisible()) await move.click();
+  await run(page, detail.goNoGo());
+}
+
+/** After GO approval the tender sits in Bid Preparing; mark it Submitted (the stage the Won action needs). */
+export async function advanceToSubmitted(page: Page): Promise<void> {
+  const advance = page.getByTestId("stage-advance");
+  await expect(advance.or(page.getByTestId("mark-won")).first()).toBeVisible();
+  for (let i = 0; i < 3 && !(await page.getByTestId("mark-won").isVisible()); i++) {
+    await advance.click();
+    await expect(advance.or(page.getByTestId("mark-won")).first()).toBeVisible();
+  }
 }
 
 /** Click an action on the detail page and finish its confirmation dialog (if any). */
