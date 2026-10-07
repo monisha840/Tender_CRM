@@ -1,6 +1,6 @@
 /**
  * Hard stop for scripts that write to the database (db:reset, seeds, e2e users, Playwright global setup).
- * The live site (https://tender-crm.vercel.app) runs on the SAME Supabase project as dev/test, so any DATABASE_URL
+ * The live site (https://sprince-crm.vercel.app) runs on the SAME Supabase project as dev/test, so any DATABASE_URL
  * pointing at that project is treated as production. Extra markers can be added with PRODUCTION_DB_MARKERS
  * (comma-separated substrings). There is deliberately no override flag: to lift the guard, change PROTECTED_PROJECT_REFS.
  */
