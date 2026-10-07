@@ -3,6 +3,7 @@ import { onlyProject } from "../helpers/project-gate";
 import { LoginPage } from "../helpers/pages";
 import { USERS, password, type RoleKey } from "../helpers/users";
 import { loginViaUi, signOut, userMenu } from "../helpers/ui";
+import { AUTH } from "../helpers/auth-paths";
 
 // Fresh, logged-out browser context for every test in this file. Desktop only (mobile login adds nothing).
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -42,4 +43,15 @@ test("wrong password shows an error and stays on /login", async ({ page }) => {
   await expect(login.error().first()).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
   await expect(userMenu(page)).toHaveCount(0);
+});
+
+// Signing out revokes the user's Supabase sessions server-side, which invalidates the admin login saved by
+// auth.setup.ts for the specs that run after this file. Re-authenticate and rewrite that saved state.
+test.afterAll(async ({ browser }) => {
+  const ctx = await browser.newContext({ baseURL: `http://localhost:${process.env.E2E_PORT ?? 3000}` });
+  const page = await ctx.newPage();
+  await loginViaUi(page, "admin");
+  await expect(page).not.toHaveURL(/\/login/, { timeout: 45_000 });
+  await ctx.storageState({ path: AUTH.admin });
+  await ctx.close();
 });

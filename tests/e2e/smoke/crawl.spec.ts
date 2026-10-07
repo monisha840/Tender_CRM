@@ -27,7 +27,7 @@ for (const role of ["admin", "director"] as const) {
           await expect(page.getByRole("heading").first()).toBeVisible();
           await expectNoHorizontalOverflow(page);
           const slug = route.replace(/^\//, "").replace(/[^a-z0-9]+/gi, "-") || "home";
-          await page.screenshot({ path: path.join("test-results", "crawl", `${role}-${slug}.png`), fullPage: true });
+          await page.screenshot({ path: path.join("test-results", "crawl", `${role}-${slug}.png`), fullPage: true, caret: "initial" });
         });
       }
       testInfo.annotations.push({ type: "role", description: role });

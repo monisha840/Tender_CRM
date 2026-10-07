@@ -12,7 +12,9 @@ export function navRoutes(): string[] {
 
 /** Nav routes plus the sub-pages that exist today (deadlines, one detail page per list). */
 export async function crawlRoutes(): Promise<string[]> {
-  const routes = new Set<string>(navRoutes());
+  // Phase 1 scope (client cut): only these nav pages are crawled.
+  const inScope = new Set(["/dashboard", "/tenders", "/projects", "/subcontractors", "/approvals"]);
+  const routes = new Set<string>(navRoutes().filter((r) => inScope.has(r)));
   routes.add("/tenders/deadlines");
   const [t, p, s] = await Promise.all([firstTenderId(), firstProjectId(), firstSubcontractorId()]);
   if (t) routes.add(`/tenders/${t}`);

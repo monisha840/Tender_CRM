@@ -17,7 +17,11 @@ export const test = base.extend<{ allow: AllowList }>({
     });
     page.on("pageerror", (e) => problems.push(`pageerror: ${e.message}`));
     page.on("requestfailed", (r) => {
-      if (!allow.requests.some((x) => x.test(r.url()))) problems.push(`requestfailed: ${r.url()} ${r.failure()?.errorText}`);
+      const err = r.failure()?.errorText ?? "";
+      // Browser-initiated aborts are not app failures: a navigation superseding an in-flight navigation, or an RSC
+      // prefetch (?_rsc=) cancelled by navigation. Nothing broader than ERR_ABORTED on those two kinds is ignored.
+      if (/ERR_ABORTED/.test(err) && (r.isNavigationRequest() || /[?&]_rsc=/.test(r.url()))) return;
+      if (!allow.requests.some((x) => x.test(r.url()))) problems.push(`requestfailed: ${r.url()} ${err}`);
     });
     page.on("response", (r) => {
       if (r.status() >= 400 && !allow.requests.some((x) => x.test(r.url()))) problems.push(`http ${r.status()}: ${r.url()}`);
