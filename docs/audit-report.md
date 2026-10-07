@@ -13,6 +13,24 @@ Audit date: 2026-10-07 (the app's fixed demo "today"). Read-only: no application
 
 ---
 
+## Wave A status (2026-10-07)
+
+Wave A merged into `main`: tooling-tests (e98e4c0), figures (f494e0c), finance-gst (a03f5b6), payroll (6da065f), app-fixes (96e9623), then the shared-changes integration (28da281). Per-bug commit references are marked **Fixed** in section 6. lint, typecheck, `npm test` (205 passed, 6 todo), build, `seed:check` and `contrast:check` pass. `SEED_VERSION` is 4.
+
+**Still open:**
+- B2 audit log, B3 approvals acting on their entities, T1, T2, T3 (urgency thresholds), T4, T5, G2-G6, B25, S2, N5, N6, P3.
+- B5 for the non-invoice importers; B24 parts T6/T7 not re-checked; weekly off is still hard-coded as Sunday.
+- Section 6.4 hard-coded rules (configuration tables) and everything in Wave B (database, auth, rules engine, payslips linked to projects).
+- No screen records a PF challan payment, so PF status can only read Pending or Overdue until one exists (`PaymentPurpose` "PF" is in the types).
+- Data-table search is not kept in the URL; detail pages ignore the as-of date by design.
+- Tenders notes still open: dedicated CONVERT permission, shared `recordAudit` helper, `DataTable` breakpoint prop.
+- Payslip columns for EPS, admin, EDLI and professional tax (Wave B); a per-state customer GSTIN table.
+- Unverified by the payroll work: Tamil Nadu professional-tax slabs (not re-checked online) and treating the "South" region as Tamil Nadu (Karnataka sites differ).
+- Browser check at 360/768/1280/1440px: automated crawl started but had not finished when this was written, so layout and console results are **not yet verified**.
+- `Government contractor operations and CRM market.md` is no longer in the working tree; `docs/research-report.md` holds the report.
+
+---
+
 ## 0. Check results
 
 | Check | Result |
@@ -22,7 +40,7 @@ Audit date: 2026-10-07 (the app's fixed demo "today"). Read-only: no application
 | `npm run build` | Pass (Next 16.4.0 Turbopack, 500 static pages generated in 12.4s). **Warning:** Recharts logs `The width(-1) and height(-1) of chart should be greater than 0` four times during static generation, meaning at least some chart containers render with no size at prerender (likely harmless at runtime, but not verified) |
 | `npm run seed:check` | Pass, "all checks passed" (integrity, client fields, 13 dashboard items populated) |
 | `npm run contrast:check` | Pass, all 24 token pairs meet AA (text ≥ 4.5, indicators ≥ 3). Accent yellow on white is 1.81:1, documented as fill-only |
-| `npm test` / `npm run test:e2e` | **Do not exist.** No test script, runner, or `*.test.*`/`*.spec.*` file |
+| `npm test` | Vitest: 205 passed, 6 todo (after Wave A). `test:e2e` still does not exist |
 | Browser checks (console, 360/768/1280px) | **Not run** |
 
 ---
@@ -346,54 +364,54 @@ Severity is by effect on money, compliance or trust in numbers. IDs B1–B26 con
 
 | ID | Issue | File |
 |---|---|---|
-| B1 | New and imported invoices get `customerGstin = org.gstin ?? "UNREGISTERED"`, and every organisation has `gstin: null`, so UI-created invoices would be filed as B2C. Seeded customer GSTINs use a fake check letter (verified) | `modules/finance/entry.ts:103`, `lib/data/seed/org.ts:243` |
-| P1 | **EPF wage ceiling is Rs 15,000** and applies to the 2026-09 payslips; the research report gives Rs 25,000 from 17-Sep-2026. Example: gross 22,000 gives employee PF 1,800 against 2,640. Not date-versioned, so a split month can't be computed (verified constant) | `lib/data/seed/payroll.ts:12,45-47` |
+| B1 ✅ | New and imported invoices get `customerGstin = org.gstin ?? "UNREGISTERED"`, and every organisation has `gstin: null`, so UI-created invoices would be filed as B2C. Seeded customer GSTINs use a fake check letter (verified) | `modules/finance/entry.ts:103`, `lib/data/seed/org.ts:243` **Fixed:** e36d1f2. |
+| P1 ✅ | **EPF wage ceiling is Rs 15,000** and applies to the 2026-09 payslips; the research report gives Rs 25,000 from 17-Sep-2026. Example: gross 22,000 gives employee PF 1,800 against 2,640. Not date-versioned, so a split month can't be computed (verified constant) | `lib/data/seed/payroll.ts:12,45-47` **Fixed:** aa38d43. |
 | B2 | No audit entry is ever written (violates CLAUDE.md principle 4) | `lib/data/notifications.ts:26` and whole app |
 | B3 | Approving/rejecting changes only the approval rows, never the PO, bill, payroll run or tender | `components/approvals/approvals-inbox.tsx:59-62` |
-| N1 | The header "as-of" date only moves the clock. Invoices, payments, bills and payslips dated after it are still counted, so setting 2026-06-30 still includes July–October invoices. Typed future dates are accepted | `components/layout/date-filter.tsx:19-25`, `lib/dates.ts:17-22` |
-| L1 | Header at 360px: menu, logo, region button (up to `max-w-28`), date input (fixed `w-37`, 148px, plus reset), bell and avatar total roughly 500px in a 360px bar with no wrapping | `components/layout/header.tsx:14-24`, `date-filter.tsx:24`, `region-filter.tsx:36` |
+| N1 ✅ | The header "as-of" date only moves the clock. Invoices, payments, bills and payslips dated after it are still counted, so setting 2026-06-30 still includes July–October invoices. Typed future dates are accepted | `components/layout/date-filter.tsx:19-25`, `lib/dates.ts:17-22` **Fixed:** 9cd9574, 28da281. |
+| L1 ✅ | Header at 360px: menu, logo, region button (up to `max-w-28`), date input (fixed `w-37`, 148px, plus reset), bell and avatar total roughly 500px in a 360px bar with no wrapping | `components/layout/header.tsx:14-24`, `date-filter.tsx:24`, `region-filter.tsx:36` **Fixed:** 9cd9574, 00446c6. |
 
 ### 6.2 Medium
 
 | ID | Issue | File |
 |---|---|---|
-| B4 | Seed invoice number `SPH/CG/2025-26/0001` is 19 chars (GST limit 16) and new numbers inherit it; "latest" is chosen by string sort (`…/0999` > `…/1000`); sequence never resets on 1 April | `modules/finance/entry.ts:46-48`, `seed/accounts.ts:116` |
-| B5 | `Date.parse` accepts impossible dates (2026-02-30) and future dates; invoice import rejects DD-MM-YYYY while other importers accept it | `modules/finance/entry.ts:28,71` |
-| B6 / G1 | Invoice form allows any of the four GSTINs, defaulting to the first rather than the project's. Choosing Delhi's GSTIN for a Chhattisgarh plant flips CGST+SGST to IGST. No check that the GSTIN's state code matches `stateId`, no place-of-supply field stored | `components/finance/invoice-form.tsx:55,62,77`, `entry.ts:89-92` |
-| B7 | A new invoice with GST-TDS or retention creates no retention entry or `TDS_RECEIVED` transaction; recording payment creates none, so net-GST and retention summaries are wrong for UI-created invoices | `modules/finance/entry.ts:123-146`, `lib/data/gst.ts:40` |
-| B8 | Dead drill-downs: `/tenders?stage=`, `/finance?…overdue=1`, `&ageing=` and `/projects?focus=` (after conversion) land on unfiltered lists. `?customer=` is fixed | `components/dashboard/charts.tsx:54,178`, `attention.tsx:139`, `command-centre.tsx:117`, `tenders/convert-to-project.tsx:26,56` |
-| N2 | "Attendance not marked" attention item links to `/employees` instead of `/employees/attendance/mark` | `lib/data/dashboard.ts:126` |
-| B9 | Ageing is days since invoice on Finance but days past due on the dashboard, with different buckets, so the same invoices total differently | `finance/receivables.tsx:22`, `dashboard13.ts:391` |
+| B4 ✅ | Seed invoice number `SPH/CG/2025-26/0001` is 19 chars (GST limit 16) and new numbers inherit it; "latest" is chosen by string sort (`…/0999` > `…/1000`); sequence never resets on 1 April | `modules/finance/entry.ts:46-48`, `seed/accounts.ts:116` **Fixed:** e36d1f2. |
+| B5 ✅ | `Date.parse` accepts impossible dates (2026-02-30) and future dates; invoice import rejects DD-MM-YYYY while other importers accept it | `modules/finance/entry.ts:28,71` **Fixed:** e36d1f2 (invoice dates only; the other importers are still open). |
+| B6 / G1 ✅ | Invoice form allows any of the four GSTINs, defaulting to the first rather than the project's. Choosing Delhi's GSTIN for a Chhattisgarh plant flips CGST+SGST to IGST. No check that the GSTIN's state code matches `stateId`, no place-of-supply field stored | `components/finance/invoice-form.tsx:55,62,77`, `entry.ts:89-92` **Fixed:** e36d1f2. |
+| B7 ✅ | A new invoice with GST-TDS or retention creates no retention entry or `TDS_RECEIVED` transaction; recording payment creates none, so net-GST and retention summaries are wrong for UI-created invoices | `modules/finance/entry.ts:123-146`, `lib/data/gst.ts:40` **Fixed:** e36d1f2. |
+| B8 ✅ | Dead drill-downs: `/tenders?stage=`, `/finance?…overdue=1`, `&ageing=` and `/projects?focus=` (after conversion) land on unfiltered lists. `?customer=` is fixed | `components/dashboard/charts.tsx:54,178`, `attention.tsx:139`, `command-centre.tsx:117`, `tenders/convert-to-project.tsx:26,56` **Fixed:** 9cd9574. |
+| N2 ✅ | "Attendance not marked" attention item links to `/employees` instead of `/employees/attendance/mark` | `lib/data/dashboard.ts:126` **Fixed:** moot after 9cd9574: the old attention list was replaced by one shared builder with no attendance item, and 28da281 deleted the old code. |
+| B9 ✅ | Ageing is days since invoice on Finance but days past due on the dashboard, with different buckets, so the same invoices total differently | `finance/receivables.tsx:22`, `dashboard13.ts:391` **Fixed:** a753286, 28da281. |
 | T3 | Urgency thresholds disagree: ≤3 days "urgent" (`dates.ts:110`), danger at ≤2 (`urgency.ts:8`), attention danger at ≤3 (`dashboard.ts:55`), command centre ≤2. A tender due in 3 days is red on one screen and amber on another | listed |
-| B10 | "Subcontractor payable" has four definitions across `parties.ts`, `dashboard13.ts`, `accounts.ts`, `subcontractors/page.tsx`; assignment balance includes rejected/draft bills | listed |
-| B11 | `deletedAt` is ignored in project billing, payables, GST summary, dashboard bills and retention (latent: no delete action yet) | `accounts.ts:69,107,118`, `parties.ts:24-25`, `gst.ts:13` |
-| B12 / P4 | Advance recovery on payslips is random and never reduces `advanceBalance`, so "advance outstanding" is overstated | `seed/payroll.ts:50`, `workforce.ts:131` |
-| B13 | PF on gross including OT; employer share a flat 12% (no EPS 8.33 / EPF 3.67 / EDLI / admin); "Remitted" means run locked; no ESI status/due date; professional tax flat 200/200/208/0 above 15,000 | `seed/payroll.ts:12-17,45-51`, `dashboard13.ts:322` |
-| B14 | Payslip days and OT are random, not derived from attendance; proration rounds the percentage to 2 decimals (24 days on 20,000 gives 18,462.00 instead of 18,461.54) | `seed/payroll.ts:40-44` |
-| B15 | Employee builder uses `Number(s).toFixed(2)` (accepts `1e3`, `0x10`); ESI applicability not derived from wage | `modules/workforce/entry.ts:48-53,104` |
-| B16 | Conversion leaves GSTIN `""` when the tender has none, manager null, payment terms hard-coded 30; project code is `count + 1` with no collision loop | `lib/data/tenders.ts:255-279` |
-| B17 | GSTIN checked by format only (no state-code or PAN match), duplicates checked by name only; seed sub-bill GST uses subcontractor vs project state but records the project GSTIN | `modules/subcontractors/entry.ts:26-45` |
+| B10 ✅ | "Subcontractor payable" has four definitions across `parties.ts`, `dashboard13.ts`, `accounts.ts`, `subcontractors/page.tsx`; assignment balance includes rejected/draft bills | listed **Fixed:** a753286. |
+| B11 ✅ | `deletedAt` is ignored in project billing, payables, GST summary, dashboard bills and retention (latent: no delete action yet) | `accounts.ts:69,107,118`, `parties.ts:24-25`, `gst.ts:13` **Fixed:** a753286. |
+| B12 / P4 ✅ | Advance recovery on payslips is random and never reduces `advanceBalance`, so "advance outstanding" is overstated | `seed/payroll.ts:50`, `workforce.ts:131` **Fixed:** aa38d43, 9726338. |
+| B13 ✅ | PF on gross including OT; employer share a flat 12% (no EPS 8.33 / EPF 3.67 / EDLI / admin); "Remitted" means run locked; no ESI status/due date; professional tax flat 200/200/208/0 above 15,000 | `seed/payroll.ts:12-17,45-51`, `dashboard13.ts:322` **Fixed:** aa38d43, 9726338, 28da281. |
+| B14 ✅ | Payslip days and OT are random, not derived from attendance; proration rounds the percentage to 2 decimals (24 days on 20,000 gives 18,462.00 instead of 18,461.54) | `seed/payroll.ts:40-44` **Fixed:** aa38d43, 9726338, 28da281. |
+| B15 ✅ | Employee builder uses `Number(s).toFixed(2)` (accepts `1e3`, `0x10`); ESI applicability not derived from wage | `modules/workforce/entry.ts:48-53,104` **Fixed:** 61ac1c7, 28da281. |
+| B16 ✅ | Conversion leaves GSTIN `""` when the tender has none, manager null, payment terms hard-coded 30; project code is `count + 1` with no collision loop | `lib/data/tenders.ts:255-279` **Fixed:** 9cd9574. |
+| B17 ✅ | GSTIN checked by format only (no state-code or PAN match), duplicates checked by name only; seed sub-bill GST uses subcontractor vs project state but records the project GSTIN | `modules/subcontractors/entry.ts:26-45` **Fixed:** e36d1f2, 28da281. |
 | T1 | EMD entered at registration never becomes an instrument, so "EMD locked" omits UI-created tenders | `modules/tenders/entry.ts:99,135`, `lib/data/tenders.ts:180-192` |
 | T5 | Empty BOQ gives 0% progress, so every new or converted project turns Amber then Red; completed projects under 85% also show red | `lib/data/projects.ts:33-51`, `dashboard.ts:133` |
-| N3 | Attendance "not marked" alert fires on Sundays/holidays with zero rows | `workforce.ts:53-60` |
+| N3 ✅ | Attendance "not marked" alert fires on Sundays/holidays with zero rows | `workforce.ts:53-60` **Fixed:** 9cd9574, 28da281 (countAttendanceNotMarked). |
 | L2 | Fixed/min widths likely to pinch at 360px | `daily-work/new/page.tsx:112,138`, `employees/page.tsx:127,141`, `projects/[id]/detail.tsx:43,190`, `subcontractors/[id]/detail.tsx:55` |
-| BUILD | Recharts prerender warning `width(-1) height(-1)` ×4 in `next build` | chart containers (not traced to a file) |
+| BUILD ✅ | Recharts prerender warning `width(-1) height(-1)` ×4 in `next build` | chart containers (not traced to a file) **Fixed:** 9cd9574, 28da281 (SizedContainer). |
 
 ### 6.3 Low / info
 
-- **B18** CGST rounded half-up, SGST = remainder; odd-paisa tax gives CGST > SGST by 0.01 (`entry.ts:91,110-111`).
-- **B19** `toPaise` throws on malformed strings, so a bad value crashes a render; compact format picks the unit before rounding (99,99,999.99 shows "₹100.00 L") (`lib/money.ts:14-19,88-93`).
-- **B20** `Number()` comparisons on money; over-receipt drops an invoice from receivables (`accounts.ts:42,52`).
-- **B21** `useUrlParam` has a no-op subscribe; list filters are lost on navigation (`lib/use-url-param.ts`).
-- **B22** `/home` duplicates `/dashboard`; `entityHref` sends purchase types to `/daily-work`; `tenders/[id]` doesn't `decodeURIComponent` (`links.ts:16-17`, `app/tenders/[id]/page.tsx:14`).
-- **B23 / N4** Missing-report logic ignores site cutoff; weekly off hard-coded Sunday; HOLIDAY not treated as off; `reportsToday` counts drafts while `getMissingReports` doesn't (`sites.ts:29,70,73`).
-- **B24 / T6 / T7** "Employees", "active projects" and "billed" are each defined two ways; the "convert" attention item checks `systemKey` while conversion checks `kind` (`dashboard13.ts`, `dashboard.ts:80,176`).
+- ✅ **B18** CGST rounded half-up, SGST = remainder; odd-paisa tax gives CGST > SGST by 0.01 (`entry.ts:91,110-111`). **Fixed:** e36d1f2.
+- ✅ **B19** `toPaise` throws on malformed strings, so a bad value crashes a render; compact format picks the unit before rounding (99,99,999.99 shows "₹100.00 L") (`lib/money.ts:14-19,88-93`). **Fixed:** e36d1f2.
+- ✅ **B20** `Number()` comparisons on money; over-receipt drops an invoice from receivables (`accounts.ts:42,52`). **Fixed:** e36d1f2, 28da281.
+- ✅ **B21** `useUrlParam` has a no-op subscribe; list filters are lost on navigation (`lib/use-url-param.ts`). **Fixed:** 9cd9574.
+- ✅ **B22** `/home` duplicates `/dashboard`; `entityHref` sends purchase types to `/daily-work`; `tenders/[id]` doesn't `decodeURIComponent` (`links.ts:16-17`, `app/tenders/[id]/page.tsx:14`). **Fixed:** 9cd9574 (decoding and /home; the purchase-link part too).
+- ✅ **B23 / N4** Missing-report logic ignores site cutoff; weekly off hard-coded Sunday; HOLIDAY not treated as off; `reportsToday` counts drafts while `getMissingReports` doesn't (`sites.ts:29,70,73`). **Fixed:** 9cd9574, 28da281. **Fixed:** 9cd9574, 28da281 (site cutoff, HOLIDAY as off, employees counted once; the weekly-off day is still hard-coded as Sunday).
+- ✅ **B24 / T6 / T7** "Employees", "active projects" and "billed" are each defined two ways; the "convert" attention item checks `systemKey` while conversion checks `kind` (`dashboard13.ts`, `dashboard.ts:80,176`). **Fixed:** a753286, 28da281. **Fixed:** a753286, 28da281 for the employee and billed definitions; the other two parts (active projects, the convert attention item) are not re-checked.
 - **G2–G6** GST % accepts any number 0–40; deductions unconstrained and TDS not checked against 2%; payment terms and due-day literals duplicated in five files; "not yet due" bucket includes due-today; payment date/mode/UTR can't be entered.
 - **T2 / T4** Tender deadline can be in the past; days-left ignores time of day.
 - **P2 / P3** PT threshold and ESI ceiling hard-coded; future-dated site assignments counted as current.
 - **N5 / N6** `getSiteStock` ignores `deletedAt`; tender stepper hard-codes `grid-cols-5`.
 - **B25** Detail pages for UI-created ids (outside `generateStaticParams`) were not tested.
-- **B26** Demo clock frozen; `createdAt` still uses the real clock.
+- ✅ **B26** Demo clock frozen; `createdAt` still uses the real clock. **Fixed:** 9cd9574, 28da281 (the demo clock stays frozen by design).
 - **S1–S3** Dead code: `bottom-nav.tsx` notification badge (nav module removed), `inNav` flag, `module-placeholder.tsx`, unused `ui/{badge,card,separator,table}`, ~40 unused data exports; stray `tender-crm/` scaffold and five template SVGs in `public/`; "needs attention" built in three places, which is how T3 and N2 diverged.
 - Duplicate files at repo root: `research-report.md` and `Government contractor operations and CRM market.md`.
 
