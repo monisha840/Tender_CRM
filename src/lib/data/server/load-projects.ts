@@ -1,7 +1,7 @@
 import type * as P from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
-import type { Database, Project, ProjectMember, ProjectProgressSnapshot, BoqItem, ProjectBudgetLine, CostEntry } from "@/types";
-import { base, day, dayOrNull, inIds, money, pct, pctOrNull, qty, liveWhere, type LoadScope } from "./convert";
+import type { Database, Project, ProjectStatus, ProjectMember, ProjectProgressSnapshot, BoqItem, ProjectBudgetLine, CostEntry } from "@/types";
+import { base, day, dayOrNull, inIds, parentIn, money, pct, pctOrNull, qty, liveWhere, type LoadScope } from "./convert";
 
 export const mapProject = (r: P.Project): Project => ({
   ...base(r),
@@ -16,6 +16,10 @@ export const mapProject = (r: P.Project): Project => ({
   securityDepositPercent: pctOrNull(r.securityDepositPercent), retentionPercent: pctOrNull(r.retentionPercent),
   defectLiabilityMonths: r.defectLiabilityMonths, sublettingAllowed: r.sublettingAllowed,
   deploymentNorms: r.deploymentNorms, clauseNotes: r.clauseNotes,
+});
+
+export const mapProjectStatus = (r: P.ProjectStatus): ProjectStatus => ({
+  ...base(r), name: r.name, sequence: r.sequence, systemKey: r.systemKey, isActive: r.isActive,
 });
 
 export const mapMember = (r: P.ProjectMember): ProjectMember => ({
@@ -41,24 +45,28 @@ export const mapCostEntry = (r: P.CostEntry): CostEntry => ({
   kind: r.kind, sourceType: r.sourceType, sourceId: r.sourceId, amount: money(r.amount), date: day(r.date),
 });
 
-export type ProjectTables = Pick<Database, "projects" | "projectMembers" | "progressSnapshots" | "boqItems" | "projectBudgetLines" | "costEntries">;
+export type ProjectTables = Pick<Database, "projectStatuses" | "projects" | "projectMembers" | "progressSnapshots" | "boqItems" | "projectBudgetLines" | "costEntries">;
 
 /** Scope: regionIds, projectIds (project id), siteIds (project.siteId). Child tables follow the loaded projects. */
 export async function loadProjectTables(prisma: PrismaClient, scope: LoadScope = {}): Promise<ProjectTables> {
   const lw = liveWhere(scope);
-  const projects = await prisma.project.findMany({
+  const projectsP = prisma.project.findMany({
     where: { ...lw, regionId: inIds(scope.regionIds), id: inIds(scope.projectIds), siteId: inIds(scope.siteIds) },
     orderBy: { id: "asc" },
   });
-  const byProject = { projectId: { in: projects.map((p) => p.id) } };
-  const [members, progress, boq, budgets, costs] = await Promise.all([
-    prisma.projectMember.findMany({ where: { ...byProject, ...lw }, orderBy: { id: "asc" } }),
-    prisma.projectProgressSnapshot.findMany({ where: { ...byProject, ...lw }, orderBy: { id: "asc" } }),
-    prisma.boqItem.findMany({ where: { ...byProject, ...lw }, orderBy: { id: "asc" } }),
-    prisma.projectBudgetLine.findMany({ where: { ...byProject, ...lw }, orderBy: { id: "asc" } }),
-    prisma.costEntry.findMany({ where: { ...byProject, ...lw }, orderBy: { id: "asc" } }),
+  const byProject = parentIn("projectId", projectsP, scope);
+  const forProject = <T,>(run: (w: Record<string, unknown>) => PromiseLike<T>) => byProject.then((f) => run({ ...f, ...lw }));
+  const [projects, members, progress, boq, budgets, costs, statuses] = await Promise.all([
+    projectsP,
+    forProject((w) => prisma.projectMember.findMany({ where: w, orderBy: { id: "asc" } })),
+    forProject((w) => prisma.projectProgressSnapshot.findMany({ where: w, orderBy: { id: "asc" } })),
+    forProject((w) => prisma.boqItem.findMany({ where: w, orderBy: { id: "asc" } })),
+    forProject((w) => prisma.projectBudgetLine.findMany({ where: w, orderBy: { id: "asc" } })),
+    forProject((w) => prisma.costEntry.findMany({ where: w, orderBy: { id: "asc" } })),
+    prisma.projectStatus.findMany({ where: lw, orderBy: { sequence: "asc" } }),
   ]);
   return {
+    projectStatuses: statuses.map(mapProjectStatus),
     projects: projects.map(mapProject),
     projectMembers: members.map(mapMember),
     progressSnapshots: progress.map(mapProgress),

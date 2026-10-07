@@ -1,10 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertTriangle, FileClock, HardHat, Plus, UserPlus, Wallet } from "lucide-react";
-import { toast } from "sonner";
-import { ImportExport } from "@/components/data/import-export";
-import { RecordForm, type FormField } from "@/components/data/record-form";
+import { useMemo } from "react";
+import { AlertTriangle, FileClock, HardHat, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { KpiTile } from "@/components/shared/kpi-tile";
@@ -13,8 +10,6 @@ import { listSubcontractorAssignments, listSubcontractors, type SubcontractorRow
 import { addDays, daysBetween, getToday } from "@/lib/dates";
 import { formatINR, moneyToNumber, sumMoney } from "@/lib/money";
 import { useUrlState } from "@/lib/use-url-param";
-import { buildAssignment, buildSubcontractor, buildSubcontractors, SUBCONTRACTOR_CSV_HEADERS, SUBCONTRACTOR_STATUSES } from "@/modules/subcontractors/entry";
-import { useDataStore } from "@/store/data-store";
 import { useRegionFilter } from "@/store/hooks";
 import { useAsOfDb } from "@/components/layout/use-as-of-db";
 
@@ -56,10 +51,7 @@ const columns: DataTableColumn<Row>[] = [
 
 export default function Page() {
   const db = useAsOfDb();
-  const upsert = useDataStore((s) => s.upsert);
   const { region } = useRegionFilter();
-  const [adding, setAdding] = useState(false);
-  const [assigning, setAssigning] = useState(false);
   const base = useMemo(() => listSubcontractors(db, region), [db, region]);
   const all = useMemo<Row[]>(() => {
     const today = getToday();
@@ -89,111 +81,16 @@ export default function Page() {
     [db, region],
   );
 
-  const stateOptions = db.states.map((s) => ({ value: s.id, label: s.name }));
-  const addFields: FormField[] = [
-    { name: "name", label: "Name", required: true },
-    { name: "contactName", label: "Contact person", required: true },
-    { name: "phone", label: "Phone", type: "tel", required: true },
-    { name: "email", label: "Email", type: "email" },
-    { name: "gstin", label: "GSTIN", hint: "Optional. 15 characters." },
-    { name: "pan", label: "PAN", required: true, placeholder: "ABCDE1234F" },
-    { name: "address", label: "Address", type: "textarea" },
-    { name: "state", label: "State", type: "select", required: true, options: stateOptions },
-    { name: "tradeCategory", label: "Trade category", required: true, placeholder: "Civil, Painting, Stone Picking" },
-    { name: "isLabourSupplier", label: "Labour supplier", type: "select", required: true, defaultValue: "No", options: [{ value: "Yes", label: "Yes" }, { value: "No", label: "No" }] },
-    { name: "status", label: "Status", type: "select", required: true, defaultValue: "ACTIVE", options: SUBCONTRACTOR_STATUSES },
-  ];
-  const assignFields = useMemo<FormField[]>(
-    () => [
-      {
-        name: "subcontractor",
-        label: "Subcontractor",
-        type: "select",
-        required: true,
-        options: db.subcontractors
-          .filter((s) => !s.deletedAt && s.status !== "BLACKLISTED")
-          .map((s) => ({ value: s.id, label: db.parties.find((p) => p.id === s.partyId)?.name ?? s.id }))
-          .sort((a, b) => a.label.localeCompare(b.label)),
-      },
-      {
-        name: "project",
-        label: "Project",
-        type: "select",
-        required: true,
-        options: db.projects.filter((p) => !p.deletedAt && (region === "ALL" || p.regionId === region)).map((p) => ({ value: p.id, label: `${p.code} · ${p.name}` })),
-      },
-      { name: "trade", label: "Trade", required: true, placeholder: "Civil, Painting, Stone Picking" },
-      { name: "scope", label: "Scope of work", type: "textarea" },
-      { name: "contractValue", label: "Contract value (INR)", type: "number", required: true },
-      { name: "startDate", label: "Start date", type: "date" },
-      { name: "endDate", label: "End date", type: "date" },
-      { name: "retentionPercent", label: "Retention (%)", type: "number", defaultValue: "5" },
-    ],
-    [db, region],
-  );
-
-  const save = (values: Record<string, string>) => {
-    const r = buildSubcontractor(db, values);
-    if (r.error !== null) return r.error;
-    upsert("parties", r.party);
-    upsert("subcontractors", r.subcontractor);
-    toast.success(`Added ${r.party.name}`);
-  };
-  const assign = (values: Record<string, string>) => {
-    const r = buildAssignment(db, values);
-    if (r.error !== null) return r.error;
-    upsert("workOrders", r.workOrder);
-    toast.success(`Assigned. Work order ${r.workOrder.workOrderNo}`);
-  };
-  const importRecords = (records: Record<string, string>[]) => {
-    const { parties, subcontractors, errors } = buildSubcontractors(db, records);
-    parties.forEach((p) => upsert("parties", p));
-    subcontractors.forEach((s) => upsert("subcontractors", s));
-    return { imported: subcontractors.length, errors };
-  };
-
-  const exportRows = rows.map((r) => [
-    r.party.name,
-    r.subcontractor.tradeCategory,
-    r.party.contactName,
-    r.party.phone,
-    r.party.email ?? "",
-    r.party.gstin ?? "",
-    r.party.pan,
-    r.party.address,
-    db.states.find((s) => s.id === r.party.stateId)?.name ?? "",
-    r.subcontractor.isLabourSupplier ? "Yes" : "No",
-    r.subcontractor.status,
-    r.projects.map((p) => p.code).join("; "),
-    r.contractValue,
-    r.billed,
-    r.outstanding,
-  ]);
-
   return (
     <>
       <PageHeader
         title="Subcontractors"
         description="Trade partners, their work orders, bills and payments."
-        primaryAction={{ label: "Add subcontractor", icon: Plus, onClick: () => setAdding(true) }}
-        secondaryActions={[{ label: "Assign to project", icon: UserPlus, onClick: () => setAssigning(true) }]}
       />
-      <RecordForm key={`add-${db.subcontractors.length}`} open={adding} onOpenChange={setAdding} title="Add subcontractor" fields={addFields} onSubmit={save} />
-      <RecordForm
-        key={`assign-${db.workOrders.length}-${db.subcontractors.length}`}
-        open={assigning}
-        onOpenChange={setAssigning}
-        title="Assign to project"
-        description="Creates a work order for the subcontractor on the project."
-        submitLabel="Assign"
-        fields={assignFields}
-        onSubmit={assign}
-      />
-      <ImportExport filename="subcontractors" headers={SUBCONTRACTOR_CSV_HEADERS} rows={exportRows} onImport={importRecords} />
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <KpiTile label="Payable" value={formatINR(sumMoney(rows.map((r) => r.outstanding)), { compact: true })} icon={Wallet} hint="Approved bills not yet paid" />
-        <KpiTile label="Work pending" value={formatINR(workPending, { compact: true })} icon={HardHat} hint="Unexecuted value on active work orders" />
-        <KpiTile label="Bills pending" value={String(rows.reduce((t, r) => t + r.billsAwaitingApproval, 0))} icon={FileClock} hint="Awaiting approval" />
+        <KpiTile testId="kpi-sub-payable" label="Payable" value={formatINR(sumMoney(rows.map((r) => r.outstanding)), { compact: true })} icon={Wallet} hint="Approved bills not yet paid" />
+        <KpiTile testId="kpi-sub-work-pending" label="Work pending" value={formatINR(workPending, { compact: true })} icon={HardHat} hint="Unexecuted value on active work orders" />
+        <KpiTile testId="kpi-sub-bills-pending" label="Bills pending" value={String(rows.reduce((t, r) => t + r.billsAwaitingApproval, 0))} icon={FileClock} hint="Awaiting approval" />
       </div>
       {overdueCount > 0 && (
         <button
@@ -221,9 +118,10 @@ export default function Page() {
         rows={rows}
         getRowId={(r) => r.subcontractor.id}
         getRowHref={(r) => `/subcontractors/${r.subcontractor.id}`}
+        getRowTestId={(r) => `subcontractor-row-${r.party.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`}
         getRowTone={rowTone}
         search={{ placeholder: "Search name, trade, contact", getText: (r) => `${r.party.name} ${r.party.contactName} ${r.trades.join(" ")} ${r.subcontractor.tradeCategory}` }}
-        emptyMessage={pendingOnly ? "No subcontractor payments are pending." : "No subcontractors in this region."}
+        emptyMessage={pendingOnly ? "No subcontractor payments are pending." : "No subcontractors yet."}
       />
     </>
   );

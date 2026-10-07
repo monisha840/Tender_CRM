@@ -18,9 +18,9 @@ describe("PHASE67 feature flag", () => {
   it("is on under the test environment by default", () => {
     expect(PHASE67_ENABLED).toBe(true);
   });
-  it("hides only employees and finance when disabled", () => {
+  it("hides employees, finance and daily work when disabled", () => {
     const hidden = NAV_MODULES.filter((m) => !isModuleEnabled(m.key, false)).map((m) => m.key);
-    expect(hidden.sort()).toEqual(["employees", "finance"]);
+    expect(hidden.sort()).toEqual(["daily_work", "employees", "finance"]);
     expect(NAV_MODULES.every((m) => isModuleEnabled(m.key, true))).toBe(true);
   });
 });

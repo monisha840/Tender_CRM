@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/server/prisma";
 import { AuthError, type SessionUser } from "@/lib/server/auth-types";
 import { assertCan } from "@/lib/server/permissions";
+import { invalidateServerDb } from "@/lib/server/invalidate";
 import { requireReason, writeAudit, type AuditInput, type Tx } from "@/lib/server/audit";
 
 /**
@@ -119,6 +120,8 @@ export function runAction<I, O>(opts: ActionOptions<I>, handler: (ctx: ActionCon
         },
         { timeout: opts.timeoutMs ?? 15000 },
       );
+      // Expire the cached server snapshot so the next render reads this write (no-op outside a Next request).
+      if (action !== "VIEW") invalidateServerDb();
       return { ok: true, data };
     } catch (e) {
       return { ok: false, error: toActionError(e) };

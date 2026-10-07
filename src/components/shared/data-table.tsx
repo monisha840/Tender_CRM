@@ -33,6 +33,8 @@ interface DataTableProps<T> {
   getRowId: (row: T) => string;
   /** Row (and card) navigates here when set. */
   getRowHref?: (row: T) => string;
+  /** data-testid for a row. The table row gets it as is; the mobile card gets it with a "-card" suffix (both exist in the DOM). */
+  getRowTestId?: (row: T) => string;
   /** Adds a search box that filters on this text. */
   search?: { placeholder?: string; getText: (row: T) => string };
   /** Filters (region, status, date range…) rendered beside the search box. */
@@ -63,6 +65,7 @@ export function DataTable<T>({
   rows,
   getRowId,
   getRowHref,
+  getRowTestId,
   search,
   toolbar,
   emptyMessage = "Nothing to show yet.",
@@ -176,7 +179,7 @@ export function DataTable<T>({
                   return (
                     <tr
                       key={getRowId(row)}
-                      data-testid={rowTestId}
+                      data-testid={getRowTestId?.(row) ?? rowTestId}
                       onClick={href ? () => router.push(href) : undefined}
                       className={cn("h-10 align-middle", href && "cursor-pointer hover:bg-accent-subtle", toneRow(getRowTone?.(row)))}
                     >
@@ -221,7 +224,7 @@ export function DataTable<T>({
                 </>
               );
               return (
-                <li key={getRowId(row)} data-testid={rowTestId ? `${rowTestId}-card` : undefined}>
+                <li key={getRowId(row)} data-testid={(getRowTestId?.(row) ?? rowTestId) ? `${getRowTestId?.(row) ?? rowTestId}-card` : undefined}>
                   {href ? (
                     <Link href={href} className={cn("flex min-h-11 items-center gap-2 rounded-lg border bg-surface p-3 active:bg-accent-subtle", toneCard(getRowTone?.(row)))}>
                       <div className="min-w-0 flex-1">{content}</div>

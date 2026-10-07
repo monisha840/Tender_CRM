@@ -137,7 +137,7 @@ function Briefing({ dashboard, queue }: { dashboard: Dashboard; queue: ReturnTyp
         </div>
         <div className="grid grid-cols-2 gap-1">
           <Ring pct={dashboard.wonLost.winRate} label="Win rate" caption={`${dashboard.wonLost.won} won · ${dashboard.wonLost.lost} lost`} href="/tenders?result=decided" />
-          <Ring pct={pctOf(health.byHealth.GREEN, health.count)} label="Projects on track" caption={`${health.byHealth.RED} delayed · ${health.byHealth.AMBER} at risk`} href="/projects" />
+          <Ring pct={pctOf(health.byHealth.GREEN, health.count)} label="Projects on track" caption={`${health.byHealth.RED} delayed · ${health.byHealth.AMBER} at risk`} href="/projects?status=RUNNING" />
           {PHASE67_ENABLED && <Ring pct={pctOf(total - overdue, total)} label="Collections healthy" caption={`${recv.overdueCount} overdue invoices`} href="/finance?view=receivables" />}
           {PHASE67_ENABLED && <Ring pct={pctOf(gst.filed, gst.filed + gst.pending)} label="GST filed" caption={`${gst.pending} due · ${gst.overdue} overdue`} href="/finance?view=gst" />}
         </div>

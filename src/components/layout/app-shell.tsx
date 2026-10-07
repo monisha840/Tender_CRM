@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthUser } from "@/components/auth/session-provider";
+import { useServerDb } from "@/components/auth/server-db-provider";
 import { isBarePath } from "@/lib/auth/public-paths";
 import { History, ShieldOff } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -36,6 +37,7 @@ function ShellInner({ children }: { children: ReactNode }) {
   const router = useRouter();
   const authUser = useAuthUser();
   const db = useDb();
+  const serverDb = useServerDb();
   const persona = useCurrentPersona();
   const hydrated = useHydrated();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -44,9 +46,10 @@ function ShellInner({ children }: { children: ReactNode }) {
 
   // Load persisted state after mount so the server render and first client render both use the seed.
   useEffect(() => {
-    void useDataStore.persist.rehydrate();
+    // The demo data store is only read when there is no server data (dev switcher, styleguide).
+    if (!serverDb) void useDataStore.persist.rehydrate();
     void useSessionStore.persist.rehydrate();
-  }, []);
+  }, [serverDb]);
 
   // The proxy already redirects anonymous requests; this covers a session that ends while the page is open.
   useEffect(() => {

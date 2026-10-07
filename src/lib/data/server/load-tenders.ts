@@ -1,7 +1,7 @@
 import type * as P from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import type { Database, Tender, TenderStage, TenderResult, TenderType, TenderPortal, TenderStageHistory, GoNoGoDecision, TenderDocumentItem, SecurityInstrument, SecurityInstrumentEvent, Bid, BidClarification, CompetitorBid, TenderAward, AwardCondition, ProjectConversion } from "@/types";
-import { base, day, dayOrNull, inIds, money, moneyOrNull, pct, ts, tsOrNull, liveWhere, type LoadScope } from "./convert";
+import { base, day, dayOrNull, inIds, parentIn, money, moneyOrNull, pct, ts, tsOrNull, liveWhere, type LoadScope } from "./convert";
 
 export const mapTender = (r: P.Tender): Tender => ({
   ...base(r),
@@ -96,28 +96,30 @@ export async function loadTenderTables(prisma: PrismaClient, scope: LoadScope = 
     siteId: inIds(scope.siteIds),
     ...(scope.projectIds ? { project: { is: { id: { in: scope.projectIds } } } } : {}),
   };
-  const [stages, results, types, portals] = await Promise.all([
+  // One round: the child tables only wait for their parents when the scope restricts rows (see parentIn).
+  const tendersP = prisma.tender.findMany({ where, orderBy: { id: "asc" } });
+  const byTender = parentIn("tenderId", tendersP, scope);
+  const forTender = <T,>(run: (w: Record<string, unknown>) => PromiseLike<T>) => byTender.then((f) => run({ ...f, ...lw }));
+  const instrumentsP = forTender((w) => prisma.securityInstrument.findMany({ where: w, orderBy: { id: "asc" } }));
+  const bidsP = forTender((w) => prisma.bid.findMany({ where: w, orderBy: { id: "asc" } }));
+  const awardsP = forTender((w) => prisma.tenderAward.findMany({ where: w, orderBy: { id: "asc" } }));
+  const [stages, results, types, portals, tenders, history, decisions, docs, instruments, bids, competitors, awards, conversions, events, clarifications, conditions] = await Promise.all([
     prisma.tenderStage.findMany({ where: lw, orderBy: { sequence: "asc" } }),
     prisma.tenderResult.findMany({ where: lw, orderBy: { id: "asc" } }),
     prisma.tenderType.findMany({ where: lw, orderBy: { id: "asc" } }),
     prisma.tenderPortal.findMany({ where: lw, orderBy: { id: "asc" } }),
-  ]);
-  const tenders = await prisma.tender.findMany({ where, orderBy: { id: "asc" } });
-  const byTender = { tenderId: { in: tenders.map((t) => t.id) } };
-  const [history, decisions, docs, instruments, bids, competitors, awards, conversions] = await Promise.all([
-    prisma.tenderStageHistory.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
-    prisma.goNoGoDecision.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
-    prisma.tenderDocumentItem.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
-    prisma.securityInstrument.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
-    prisma.bid.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
-    prisma.competitorBid.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
-    prisma.tenderAward.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
-    prisma.projectConversion.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
-  ]);
-  const [events, clarifications, conditions] = await Promise.all([
-    prisma.securityInstrumentEvent.findMany({ where: { ...lw, securityInstrumentId: { in: instruments.map((i) => i.id) } }, orderBy: { id: "asc" } }),
-    prisma.bidClarification.findMany({ where: { ...lw, bidId: { in: bids.map((b) => b.id) } }, orderBy: { id: "asc" } }),
-    prisma.awardCondition.findMany({ where: { ...lw, awardId: { in: awards.map((a) => a.id) } }, orderBy: { id: "asc" } }),
+    tendersP,
+    forTender((w) => prisma.tenderStageHistory.findMany({ where: w, orderBy: { id: "asc" } })),
+    forTender((w) => prisma.goNoGoDecision.findMany({ where: w, orderBy: { id: "asc" } })),
+    forTender((w) => prisma.tenderDocumentItem.findMany({ where: w, orderBy: { id: "asc" } })),
+    instrumentsP,
+    bidsP,
+    forTender((w) => prisma.competitorBid.findMany({ where: w, orderBy: { id: "asc" } })),
+    awardsP,
+    forTender((w) => prisma.projectConversion.findMany({ where: w, orderBy: { id: "asc" } })),
+    parentIn("securityInstrumentId", instrumentsP, scope).then((f) => prisma.securityInstrumentEvent.findMany({ where: { ...lw, ...f }, orderBy: { id: "asc" } })),
+    parentIn("bidId", bidsP, scope).then((f) => prisma.bidClarification.findMany({ where: { ...lw, ...f }, orderBy: { id: "asc" } })),
+    parentIn("awardId", awardsP, scope).then((f) => prisma.awardCondition.findMany({ where: { ...lw, ...f }, orderBy: { id: "asc" } })),
   ]);
   return {
     tenderStages: stages.map(mapTenderStage),

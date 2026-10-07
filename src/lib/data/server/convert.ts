@@ -92,6 +92,15 @@ export interface LoadScope {
   includeDeleted?: boolean;
 }
 
+/** True when no region/project/site restriction applies (every user in the 2-role version). Lets loaders fire child queries in the same round as their parents. */
+export const isUnscoped = (s?: LoadScope): boolean => !s?.regionIds && !s?.projectIds && !s?.siteIds;
+/**
+ * `where` fragment restricting a child table to its loaded parents. Unscoped: empty (no parent round trip needed,
+ * so the child query runs in parallel with the parent query). Scoped: `{ [key]: { in: parentIds } }`.
+ */
+export const parentIn = async (key: string, parents: PromiseLike<{ id: string }[]>, scope?: LoadScope): Promise<Record<string, unknown>> =>
+  isUnscoped(scope) ? {} : { [key]: { in: (await parents).map((p) => p.id) } };
+
 export const inIds = (ids?: string[]): { in: string[] } | undefined => (ids ? { in: ids } : undefined);
 /** Prisma `where` fragment for soft delete. */
 export const liveWhere = (scope?: LoadScope): { deletedAt?: null } => (scope?.includeDeleted ? {} : { deletedAt: null });
