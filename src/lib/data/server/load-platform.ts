@@ -28,7 +28,7 @@ import {
   type BaseRow,
   type DecimalLike,
   type LoadScope,
-} from "./convert-platform";
+} from "./convert";
 
 export interface SettingRecord {
   id: string;

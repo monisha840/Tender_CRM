@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Permission as PPermission, RolePermission as PRolePermission, Region as PRegion, GstRegistration as PGst } from "@prisma/client";
 import { mapAction, mapPermission, mapRolePermission, mapScope, mapProjectMember } from "../load-access";
 import { mapGstRegistration, mapRegion } from "../load-org";
-import { base, isoDate } from "../map-common";
+import { base, isoDate } from "../convert";
 import { buildLoadContext, emptyDatabase, mergeSlices } from "../compose";
 import { getScope } from "../../access";
 import type { Database } from "@/types";
@@ -16,28 +16,28 @@ describe("scope mapping", () => {
     ["OWN_REGION", "OWN_REGION"],
     ["OWN_PROJECTS", "OWN_PROJECTS"],
     ["OWN_SITES", "OWN_SITES"],
-    ["OWN_RECORDS", "OWN_SITES"],
+    ["OWN_RECORDS", "OWN_RECORDS"],
   ] as const)("%s -> %s", (from, to) => expect(mapScope(from)).toBe(to));
 
   it("maps a role grant and keeps ids", () => {
     const row = { id: "rp1", roleId: "r", permissionId: "p", scope: "OWN_RECORDS", ...audit } as PRolePermission;
-    expect(mapRolePermission(row)).toMatchObject({ id: "rp1", roleId: "r", permissionId: "p", scope: "OWN_SITES" });
+    expect(mapRolePermission(row)).toMatchObject({ id: "rp1", roleId: "r", permissionId: "p", scope: "OWN_RECORDS" });
   });
 });
 
 describe("action mapping", () => {
-  it("keeps UI actions and drops server-only ones", () => {
+  it("maps every action losslessly", () => {
     expect(mapAction("APPROVE")).toBe("APPROVE");
-    expect(mapAction("DELETE")).toBeNull();
-    expect(mapAction("REVIEW")).toBeNull();
-    expect(mapPermission({ id: "p", module: "tenders", action: "DELETE", ...audit } as PPermission)).toBeNull();
+    expect(mapAction("DELETE")).toBe("DELETE");
+    expect(mapAction("REVIEW")).toBe("REVIEW");
+    expect(mapPermission({ id: "p", module: "tenders", action: "DELETE", ...audit } as PPermission)).toMatchObject({ action: "DELETE" });
     expect(mapPermission({ id: "p", module: "tenders", action: "VIEW", ...audit } as PPermission)).toMatchObject({ module: "tenders", action: "VIEW" });
   });
 });
 
 describe("base / dates", () => {
   it("serialises timestamps and date-only values", () => {
-    expect(base({ id: "x", ...audit })).toEqual({ id: "x", createdAt: T.toISOString(), updatedAt: T.toISOString(), deletedAt: null });
+    expect(base({ id: "x", ...audit })).toEqual({ id: "x", createdAt: T.toISOString(), updatedAt: T.toISOString(), deletedAt: null, version: 1 });
     expect(isoDate(new Date("2026-03-31T00:00:00.000Z"))).toBe("2026-03-31");
   });
   it("maps org rows with nullable dates", () => {

@@ -40,6 +40,17 @@ export interface Project extends BaseEntity {
   statusId: Id;
   projectManagerId?: Id | null;
   healthOverride?: HealthStatus | null;
+  // Contract clauses (optional: absent on rows that predate them).
+  jurisdiction?: "CENTRAL" | "STATE" | null;
+  escalationType?: "FIRM" | "STATUTORY_VARIATION" | "PRICE_VARIATION" | null;
+  ldPercent?: Percent | null;
+  pbgPercent?: Percent | null;
+  securityDepositPercent?: Percent | null;
+  retentionPercent?: Percent | null;
+  defectLiabilityMonths?: number | null;
+  sublettingAllowed?: boolean;
+  deploymentNorms?: string | null;
+  clauseNotes?: string | null;
 }
 
 /** Provenance record written by the convert action. */

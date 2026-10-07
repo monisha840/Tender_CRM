@@ -3,7 +3,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { mapBill, mapPayment, mapWorkOrder, mapParty } from "../server/load-parties";
 import { mapApprovalRequest, mapApprovalAction, mapApprovalThreshold } from "../server/load-approvals";
 import { mapAuditLog, mapDeductionType, mapNotification, mapSetting } from "../server/load-platform";
-import { isoDate, liveWhere } from "../server/convert-platform";
+import { isoDate, liveWhere } from "../server/convert";
 
 const ts = new Date("2026-03-01T04:30:00.000Z");
 const b = { id: "x1", createdAt: ts, updatedAt: ts, deletedAt: null };

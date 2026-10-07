@@ -24,7 +24,7 @@ import {
   type DecimalLike,
   type BaseRow,
   type LoadScope,
-} from "./convert-platform";
+} from "./convert";
 
 type Dec = DecimalLike;
 

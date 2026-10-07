@@ -11,12 +11,18 @@ Run: build + test to production quality, no deployment. Orchestrator prompt: bui
 - D5: Dev Supabase project is in Tokyo (ap-northeast-1): fine for dev/test only. The production Supabase project MUST be created in Mumbai (ap-south-1).
 - D6: Business-unique keys on soft-deletable tables are partial unique indexes (hardening migration) and are not declared in schema.prisma (Prisma would report drift); use findFirst with deletedAt null. See docs/data-model.md.
 
+- D7 (S1b): One `LoadScope` and one conversion module (`src/lib/data/server/convert.ts`). `loadDatabaseForUser` derives scope from the user context and passes it to every loader. Types now carry `OWN_RECORDS`, `DELETE`, `REVIEW`, `Database.approvalThresholds`, Project clause fields and optional `version/createdById/updatedById/clientUuid`.
+- D8 (S1b): Dev DB is shared with parallel agents (Playwright global setup resets it). Do not run db:reset while another agent runs e2e. The loaders fan out many parallel queries; on the Supabase session pooler use `connection_limit` (about 4) in the Prisma URL or the pool times out.
+
+## Scope change (minimal 2-role version)
+Scope change from the user: ship a minimal version. Only two roles: System Admin (enters data, submits) and Director (views everything, approves). No region/project scope filtering and no approval thresholds; every approval is one step to the Director, maker-checker kept (Admin cannot approve). Modules in scope: Dashboard, Tenders end to end (create, edit, stages, GO/NO-GO approval, convert to project with Director approval), Projects and Subcontractors create/edit/view. Daily work, Finance/GST and Employees/Payroll hidden behind the feature flag. Deferred: subcontractor bills/payments, EMD/PBG lifecycle, document uploads, email, user admin screen, audit viewer, Excel import, user guides.
+
 ## Stages
 | Stage | Status | Branch | Commits | Notes |
 |---|---|---|---|---|
 | Setup baseline | done | main | see git log | WIP committed, docs moved |
 | S1a schema, migrations, seeds | done | main | 60fedc7 (design), see git log for migrations commit | Migrations init + hardening + align_schema_uniques applied to dev DB; seeds run; `npm run db:reset`, `npm run db:verify` added |
-| S1b data-layer swap | todo | | | Replace mock data layer with Prisma |
+| S1b loaders merged + unified | done | main | see git log (merges "Merge platform loaders" .. "Merge finance/workforce loaders", then "S1b: unify loaders") | Four loader branches merged, one convert module, DEFAULT_LOADERS wired (8 slots), integration test against dev DB. Screen-by-screen swap away from the Zustand store is NOT started (next stage). |
 | S2 auth/RBAC/audit/approvals | todo | | | |
 | S3-A tenders | todo | build/s3a-tenders | | |
 | S3-B projects+subs | todo | build/s3b-projects-subs | | |
@@ -31,4 +37,4 @@ Run: build + test to production quality, no deployment. Orchestrator prompt: bui
 - Real GSTINs needed: seed-base uses placeholder GSTINs (valid checksum, derived from company PAN). Replace before real use.
 
 ## Latest test run
-(none yet)
+S1b: lint clean, tsc clean, vitest 19 files / 247 passed + 6 todo (includes tests/integration/load-database.test.ts against the dev DB).

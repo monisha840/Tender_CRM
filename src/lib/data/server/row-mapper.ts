@@ -10,37 +10,8 @@
 //  - Soft delete: loaders only select rows with deletedAt = null, so mapped entities carry
 //    `deletedAt: null`. Audit columns (createdById, updatedById, version) are not exposed.
 
-export interface DecimalLike {
-  toFixed(digits?: number): string;
-}
-
-const isDecimalLike = (v: unknown): v is DecimalLike =>
-  typeof v === "object" && v !== null && typeof (v as DecimalLike).toFixed === "function";
-
-export function fixed(v: unknown, digits: number): string {
-  if (v === null || v === undefined) throw new Error("Expected a decimal value, got null");
-  if (isDecimalLike(v)) return v.toFixed(digits);
-  if (typeof v === "number") return v.toFixed(digits);
-  if (typeof v === "string") {
-    const n = Number(v);
-    if (!Number.isFinite(n)) throw new Error(`Invalid decimal: ${v}`);
-    return n.toFixed(digits);
-  }
-  throw new Error(`Invalid decimal: ${String(v)}`);
-}
-
-export const toMoney = (v: unknown): string => fixed(v, 2);
-export const toQty = (v: unknown): string => fixed(v, 3);
-export const toPercent = (v: unknown): string => fixed(v, 4);
-export const toNumber = (v: unknown): number => Number(fixed(v, 4));
-
-const asDate = (v: unknown): Date => {
-  const d = v instanceof Date ? v : new Date(v as string);
-  if (Number.isNaN(d.getTime())) throw new Error(`Invalid date: ${String(v)}`);
-  return d;
-};
-export const toIsoDate = (v: unknown): string => asDate(v).toISOString().slice(0, 10);
-export const toIsoDateTime = (v: unknown): string => asDate(v).toISOString();
+export { fixed, toMoney, toQty, toPercent, toNumber, toIsoDate, toIsoDateTime } from "./convert";
+import { toMoney, toQty, toPercent, toNumber, toIsoDate, toIsoDateTime } from "./convert";
 
 /** Per-entity field lists. Fields listed in `optional` map null/undefined to null. */
 export interface RowSpec {
@@ -85,16 +56,3 @@ export function mapRow<T>(row: Row, spec: RowSpec): T {
   return out as T;
 }
 
-/** Row selection scope. Omitted = everything (Director / admin). Filters only where the table has the column. */
-export interface LoadScope {
-  regionIds?: string[];
-  projectIds?: string[];
-}
-
-/** Always exclude soft-deleted rows. */
-export const live = { deletedAt: null } as const;
-
-export const byRegion = (scope?: LoadScope): Record<string, unknown> =>
-  scope?.regionIds ? { regionId: { in: scope.regionIds } } : {};
-export const byProject = (scope?: LoadScope): Record<string, unknown> =>
-  scope?.projectIds ? { projectId: { in: scope.projectIds } } : {};

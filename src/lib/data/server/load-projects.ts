@@ -1,9 +1,8 @@
 import type * as P from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import type { Database, Project, ProjectMember, ProjectProgressSnapshot, BoqItem, ProjectBudgetLine, CostEntry } from "@/types";
-import { base, day, dayOrNull, inIds, money, pct, qty, type LoadScope } from "./convert";
+import { base, day, dayOrNull, inIds, money, pct, pctOrNull, qty, liveWhere, type LoadScope } from "./convert";
 
-/** Clause fields (jurisdiction, ldPercent, ...) exist only in Postgres; the front-end `Project` type has no slot for them yet. */
 export const mapProject = (r: P.Project): Project => ({
   ...base(r),
   code: r.code, name: r.name, serviceLineId: r.serviceLineId, siteId: r.siteId, contractType: r.contractType,
@@ -12,6 +11,11 @@ export const mapProject = (r: P.Project): Project => ({
   gstRegistrationId: r.gstRegistrationId, contractValue: money(r.contractValue),
   startDate: dayOrNull(r.startDate), plannedEndDate: dayOrNull(r.plannedEndDate),
   statusId: r.statusId, projectManagerId: r.projectManagerId, healthOverride: r.healthOverride,
+  jurisdiction: r.jurisdiction, escalationType: r.escalationType,
+  ldPercent: pctOrNull(r.ldPercent), pbgPercent: pctOrNull(r.pbgPercent),
+  securityDepositPercent: pctOrNull(r.securityDepositPercent), retentionPercent: pctOrNull(r.retentionPercent),
+  defectLiabilityMonths: r.defectLiabilityMonths, sublettingAllowed: r.sublettingAllowed,
+  deploymentNorms: r.deploymentNorms, clauseNotes: r.clauseNotes,
 });
 
 export const mapMember = (r: P.ProjectMember): ProjectMember => ({
@@ -41,17 +45,18 @@ export type ProjectTables = Pick<Database, "projects" | "projectMembers" | "prog
 
 /** Scope: regionIds, projectIds (project id), siteIds (project.siteId). Child tables follow the loaded projects. */
 export async function loadProjectTables(prisma: PrismaClient, scope: LoadScope = {}): Promise<ProjectTables> {
+  const lw = liveWhere(scope);
   const projects = await prisma.project.findMany({
-    where: { regionId: inIds(scope.regionIds), id: inIds(scope.projectIds), siteId: inIds(scope.siteIds) },
+    where: { ...lw, regionId: inIds(scope.regionIds), id: inIds(scope.projectIds), siteId: inIds(scope.siteIds) },
     orderBy: { id: "asc" },
   });
   const byProject = { projectId: { in: projects.map((p) => p.id) } };
   const [members, progress, boq, budgets, costs] = await Promise.all([
-    prisma.projectMember.findMany({ where: byProject, orderBy: { id: "asc" } }),
-    prisma.projectProgressSnapshot.findMany({ where: byProject, orderBy: { id: "asc" } }),
-    prisma.boqItem.findMany({ where: byProject, orderBy: { id: "asc" } }),
-    prisma.projectBudgetLine.findMany({ where: byProject, orderBy: { id: "asc" } }),
-    prisma.costEntry.findMany({ where: byProject, orderBy: { id: "asc" } }),
+    prisma.projectMember.findMany({ where: { ...byProject, ...lw }, orderBy: { id: "asc" } }),
+    prisma.projectProgressSnapshot.findMany({ where: { ...byProject, ...lw }, orderBy: { id: "asc" } }),
+    prisma.boqItem.findMany({ where: { ...byProject, ...lw }, orderBy: { id: "asc" } }),
+    prisma.projectBudgetLine.findMany({ where: { ...byProject, ...lw }, orderBy: { id: "asc" } }),
+    prisma.costEntry.findMany({ where: { ...byProject, ...lw }, orderBy: { id: "asc" } }),
   ]);
   return {
     projects: projects.map(mapProject),

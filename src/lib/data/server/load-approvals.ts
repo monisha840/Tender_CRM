@@ -22,7 +22,7 @@ import {
   type BaseRow,
   type DecimalLike,
   type LoadScope,
-} from "./convert-platform";
+} from "./convert";
 
 export interface ApprovalFlowRecord {
   id: string;
@@ -48,15 +48,7 @@ export interface ApprovalFlowLevelRecord {
   allowSelfApproval: boolean;
   slaHours?: number | null;
 }
-export interface ApprovalThresholdRecord {
-  id: string;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt?: string | null;
-  flowId: string;
-  roleId: string;
-  maxAmount: string;
-}
+export type ApprovalThresholdRecord = Database["approvalThresholds"][number];
 
 export type ApprovalsSlice = Pick<Database, "approvalRequests" | "approvalSteps" | "approvalActions"> & {
   approvalFlows: ApprovalFlowRecord[];

@@ -9,9 +9,11 @@ export type PermissionAction =
   | "ASSIGN_WORK"
   | "SUBMIT"
   | "REJECT"
-  | "MANAGE_FINANCE";
+  | "MANAGE_FINANCE"
+  | "DELETE"
+  | "REVIEW";
 
-export type PermissionScope = "ALL" | "OWN_REGION" | "OWN_PROJECTS" | "OWN_SITES";
+export type PermissionScope = "ALL" | "OWN_REGION" | "OWN_PROJECTS" | "OWN_SITES" | "OWN_RECORDS";
 
 /**
  * Roles are data, not code. `layout` decides which app shell a role gets

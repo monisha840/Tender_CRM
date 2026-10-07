@@ -17,7 +17,7 @@ import { useDb } from "@/store/hooks";
 
 type Tab = "stages" | "services" | "expenses" | "roles" | "regions";
 
-const SCOPE_LABEL: Record<PermissionScope, string> = { ALL: "All regions", OWN_REGION: "Own region", OWN_PROJECTS: "Own projects", OWN_SITES: "Own sites" };
+const SCOPE_LABEL: Record<PermissionScope, string> = { ALL: "All regions", OWN_REGION: "Own region", OWN_PROJECTS: "Own projects", OWN_SITES: "Own sites", OWN_RECORDS: "Own records" };
 const KIND_LABEL: Record<TenderStage["kind"], string> = { OPEN: "In progress", WON: "Won", LOST: "Lost", NO_GO: "No-Go", TERMINAL: "Closed" };
 
 /** Read-only settings: tender stages, service lines, roles and regions (they are configuration, not code). */

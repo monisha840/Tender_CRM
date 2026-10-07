@@ -23,4 +23,10 @@ export interface BaseEntity {
   updatedAt: IsoDateTime;
   /** Soft delete. */
   deletedAt?: IsoDateTime | null;
+  /** Optimistic-lock counter, present on rows loaded from Postgres. */
+  version?: number;
+  createdById?: Id | null;
+  updatedById?: Id | null;
+  /** Client-generated id for offline-created rows (idempotent sync). */
+  clientUuid?: string | null;
 }

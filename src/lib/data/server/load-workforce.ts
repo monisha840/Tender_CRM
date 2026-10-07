@@ -11,7 +11,8 @@ import type {
   Payslip,
   SiteAssignment,
 } from "@/types";
-import { byProject, byRegion, live, mapRow, type LoadScope, type RowSpec } from "./row-mapper";
+import { byProject, byRegion, live, type LoadScope } from "./convert";
+import { mapRow, type RowSpec } from "./row-mapper";
 
 export type WorkforceSlice = Pick<
   Database,

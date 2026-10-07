@@ -1,7 +1,7 @@
 import type * as P from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
-import type { Database, Tender, TenderStageHistory, GoNoGoDecision, TenderDocumentItem, SecurityInstrument, SecurityInstrumentEvent, Bid, BidClarification, CompetitorBid, TenderAward, AwardCondition, ProjectConversion } from "@/types";
-import { base, day, dayOrNull, inIds, money, moneyOrNull, pct, ts, tsOrNull, type LoadScope } from "./convert";
+import type { Database, Tender, TenderStage, TenderResult, TenderType, TenderPortal, TenderStageHistory, GoNoGoDecision, TenderDocumentItem, SecurityInstrument, SecurityInstrumentEvent, Bid, BidClarification, CompetitorBid, TenderAward, AwardCondition, ProjectConversion } from "@/types";
+import { base, day, dayOrNull, inIds, money, moneyOrNull, pct, ts, tsOrNull, liveWhere, type LoadScope } from "./convert";
 
 export const mapTender = (r: P.Tender): Tender => ({
   ...base(r),
@@ -74,7 +74,14 @@ export const mapConversion = (r: P.ProjectConversion): ProjectConversion => ({
   overrideReason: r.overrideReason, approvalRequestId: r.approvalRequestId,
 });
 
-export type TenderTables = Pick<Database, "tenders" | "tenderStageHistory" | "goNoGoDecisions" | "tenderDocumentItems" | "securityInstruments" | "securityInstrumentEvents" | "bids" | "bidClarifications" | "competitorBids" | "tenderAwards" | "awardConditions" | "projectConversions">;
+export const mapTenderStage = (r: P.TenderStage): TenderStage => ({
+  ...base(r), name: r.name, sequence: r.sequence, kind: r.kind, systemKey: r.systemKey, isActive: r.isActive,
+});
+export const mapTenderResult = (r: P.TenderResult): TenderResult => ({ ...base(r), name: r.name, outcome: r.outcome, isActive: r.isActive });
+export const mapTenderType = (r: P.TenderType): TenderType => ({ ...base(r), name: r.name, isActive: r.isActive });
+export const mapTenderPortal = (r: P.TenderPortal): TenderPortal => ({ ...base(r), name: r.name, url: r.url });
+
+export type TenderTables = Pick<Database, "tenderStages" | "tenderResults" | "tenderTypes" | "tenderPortals" | "tenders" | "tenderStageHistory" | "goNoGoDecisions" | "tenderDocumentItems" | "securityInstruments" | "securityInstrumentEvents" | "bids" | "bidClarifications" | "competitorBids" | "tenderAwards" | "awardConditions" | "projectConversions">;
 
 /**
  * Loads every tender-domain table as `Database` slices. Soft-deleted rows are included (readers use `live()`).
@@ -82,29 +89,41 @@ export type TenderTables = Pick<Database, "tenders" | "tenderStageHistory" | "go
  * Child tables are restricted to the loaded tenders.
  */
 export async function loadTenderTables(prisma: PrismaClient, scope: LoadScope = {}): Promise<TenderTables> {
+  const lw = liveWhere(scope);
   const where: P.Prisma.TenderWhereInput = {
+    ...lw,
     regionId: inIds(scope.regionIds),
     siteId: inIds(scope.siteIds),
     ...(scope.projectIds ? { project: { is: { id: { in: scope.projectIds } } } } : {}),
   };
+  const [stages, results, types, portals] = await Promise.all([
+    prisma.tenderStage.findMany({ where: lw, orderBy: { sequence: "asc" } }),
+    prisma.tenderResult.findMany({ where: lw, orderBy: { id: "asc" } }),
+    prisma.tenderType.findMany({ where: lw, orderBy: { id: "asc" } }),
+    prisma.tenderPortal.findMany({ where: lw, orderBy: { id: "asc" } }),
+  ]);
   const tenders = await prisma.tender.findMany({ where, orderBy: { id: "asc" } });
   const byTender = { tenderId: { in: tenders.map((t) => t.id) } };
   const [history, decisions, docs, instruments, bids, competitors, awards, conversions] = await Promise.all([
-    prisma.tenderStageHistory.findMany({ where: byTender, orderBy: { id: "asc" } }),
-    prisma.goNoGoDecision.findMany({ where: byTender, orderBy: { id: "asc" } }),
-    prisma.tenderDocumentItem.findMany({ where: byTender, orderBy: { id: "asc" } }),
-    prisma.securityInstrument.findMany({ where: byTender, orderBy: { id: "asc" } }),
-    prisma.bid.findMany({ where: byTender, orderBy: { id: "asc" } }),
-    prisma.competitorBid.findMany({ where: byTender, orderBy: { id: "asc" } }),
-    prisma.tenderAward.findMany({ where: byTender, orderBy: { id: "asc" } }),
-    prisma.projectConversion.findMany({ where: byTender, orderBy: { id: "asc" } }),
+    prisma.tenderStageHistory.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
+    prisma.goNoGoDecision.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
+    prisma.tenderDocumentItem.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
+    prisma.securityInstrument.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
+    prisma.bid.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
+    prisma.competitorBid.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
+    prisma.tenderAward.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
+    prisma.projectConversion.findMany({ where: { ...byTender, ...lw }, orderBy: { id: "asc" } }),
   ]);
   const [events, clarifications, conditions] = await Promise.all([
-    prisma.securityInstrumentEvent.findMany({ where: { securityInstrumentId: { in: instruments.map((i) => i.id) } }, orderBy: { id: "asc" } }),
-    prisma.bidClarification.findMany({ where: { bidId: { in: bids.map((b) => b.id) } }, orderBy: { id: "asc" } }),
-    prisma.awardCondition.findMany({ where: { awardId: { in: awards.map((a) => a.id) } }, orderBy: { id: "asc" } }),
+    prisma.securityInstrumentEvent.findMany({ where: { ...lw, securityInstrumentId: { in: instruments.map((i) => i.id) } }, orderBy: { id: "asc" } }),
+    prisma.bidClarification.findMany({ where: { ...lw, bidId: { in: bids.map((b) => b.id) } }, orderBy: { id: "asc" } }),
+    prisma.awardCondition.findMany({ where: { ...lw, awardId: { in: awards.map((a) => a.id) } }, orderBy: { id: "asc" } }),
   ]);
   return {
+    tenderStages: stages.map(mapTenderStage),
+    tenderResults: results.map(mapTenderResult),
+    tenderTypes: types.map(mapTenderType),
+    tenderPortals: portals.map(mapTenderPortal),
     tenders: tenders.map(mapTender),
     tenderStageHistory: history.map(mapStageHistory),
     goNoGoDecisions: decisions.map(mapGoNoGo),

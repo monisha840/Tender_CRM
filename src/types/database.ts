@@ -2,6 +2,7 @@ import type {
   Attendance,
   AuditLog,
   ApprovalAction,
+  ApprovalThreshold,
   ApprovalRequest,
   ApprovalStep,
   AwardCondition,
@@ -157,6 +158,7 @@ export interface Database {
   retentionEntries: RetentionEntry[];
   gstTransactions: GstTransaction[];
   // Platform
+  approvalThresholds: ApprovalThreshold[];
   approvalRequests: ApprovalRequest[];
   approvalSteps: ApprovalStep[];
   approvalActions: ApprovalAction[];

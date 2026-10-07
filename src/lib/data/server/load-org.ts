@@ -16,7 +16,7 @@ import type {
   State as PState,
 } from "@prisma/client";
 import type { Database, GstRegistration, Office, Organisation, Region, RegionGstRegistration, ServiceLine, State } from "@/types";
-import { base, isoDateOrNull, LIVE, STABLE_ORDER } from "./map-common";
+import { base, isoDateOrNull, LIVE, STABLE_ORDER } from "./convert";
 
 export const mapState = (r: PState): State => ({ ...base(r), code: r.code, name: r.name, gstStateCode: r.gstStateCode });
 

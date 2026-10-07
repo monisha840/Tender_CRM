@@ -120,6 +120,7 @@ export function emptyDatabase(): Database {
     payments: [],
     retentionEntries: [],
     gstTransactions: [],
+    approvalThresholds: [],
     approvalRequests: [],
     approvalSteps: [],
     approvalActions: [],

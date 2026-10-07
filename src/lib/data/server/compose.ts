@@ -15,7 +15,16 @@ import type { Database, Id } from "@/types";
 import { getAllowedRegionIds, getPersona } from "../access";
 import { loadAccess, loadApprovalThresholds, type ApprovalThresholdRow } from "./load-access";
 import { loadOrg } from "./load-org";
-import { LIVE } from "./map-common";
+import { LIVE, type LoadScope } from "./convert";
+import { loadTenderTables } from "./load-tenders";
+import { loadProjectTables } from "./load-projects";
+import { loadSiteTables } from "./load-sites";
+import { loadParties } from "./load-parties";
+import { loadApprovals } from "./load-approvals";
+import { loadPlatform } from "./load-platform";
+import { loadFinance } from "./load-finance";
+import { loadWorkforce } from "./load-workforce";
+
 
 export interface LoadContext {
   userId: Id;
@@ -34,25 +43,29 @@ export const LOADER_NAMES = ["tenders", "projects", "sites", "parties", "approva
 export type LoaderName = (typeof LOADER_NAMES)[number];
 export type LoaderRegistry = Partial<Record<LoaderName, Loader>>;
 
-/**
- * TODO(S1 merge): once the sibling loaders land, replace the empty registry with the real one and delete this note:
- *
- *   import { loadTenders } from "./load-tenders";
- *   import { loadProjects } from "./load-projects";
- *   import { loadSites } from "./load-sites";
- *   import { loadParties } from "./load-parties";
- *   import { loadApprovals } from "./load-approvals";
- *   import { loadPlatform } from "./load-platform";
- *   import { loadFinance } from "./load-finance";
- *   import { loadWorkforce } from "./load-workforce";
- *   export const DEFAULT_LOADERS: LoaderRegistry = {
- *     tenders: loadTenders, projects: loadProjects, sites: loadSites, parties: loadParties,
- *     approvals: loadApprovals, platform: loadPlatform, finance: loadFinance, workforce: loadWorkforce,
- *   };
- *
- * (Export names are the agreed convention `load<Name>`; adjust if a sibling exported differently.)
- */
-export const DEFAULT_LOADERS: LoaderRegistry = {};
+/** Derive the query scope from the user context (null = unrestricted = no filter). */
+export function scopeFromContext(ctx: LoadContext): LoadScope {
+  return {
+    ...(ctx.allowedRegionIds ? { regionIds: ctx.allowedRegionIds } : {}),
+    ...(ctx.ownProjectIds ? { projectIds: ctx.ownProjectIds } : {}),
+  };
+}
+
+const withScope =
+  (fn: (prisma: PrismaClient, scope: LoadScope, ctx: LoadContext) => Promise<unknown>): Loader =>
+  async (prisma, ctx) => (await fn(prisma, scopeFromContext(ctx), ctx)) as Partial<Database>;
+
+/** All eight slots. Each receives the scope derived from the user context. */
+export const DEFAULT_LOADERS: LoaderRegistry = {
+  tenders: withScope(loadTenderTables),
+  projects: withScope(loadProjectTables),
+  sites: withScope(loadSiteTables),
+  parties: withScope((p, scope) => loadParties(p, scope)),
+  approvals: withScope(loadApprovals),
+  platform: withScope((p, scope, ctx) => loadPlatform(p, scope, { userId: ctx.userId })),
+  finance: withScope(loadFinance),
+  workforce: withScope(loadWorkforce),
+};
 
 /** Every Database key, typed so a new table in `Database` fails compilation here until added. */
 const EMPTY: { [K in keyof Database]: [] } = {
@@ -66,7 +79,7 @@ const EMPTY: { [K in keyof Database]: [] } = {
   attendance: [], payrollRuns: [], payslips: [], parties: [], subcontractors: [], vendors: [], workOrders: [], subcontractorBills: [],
   subcontractorBillDeductions: [], purchaseRequests: [], purchaseRequestItems: [], purchaseOrders: [], vendorInvoices: [],
   stockTransactions: [], invoices: [], invoiceDeductions: [], payments: [], retentionEntries: [], gstTransactions: [],
-  approvalRequests: [], approvalSteps: [], approvalActions: [], documents: [], documentLinks: [], notifications: [], auditLogs: [],
+  approvalThresholds: [], approvalRequests: [], approvalSteps: [], approvalActions: [], documents: [], documentLinks: [], notifications: [], auditLogs: [],
 };
 
 export function emptyDatabase(): Database {
@@ -75,7 +88,10 @@ export function emptyDatabase(): Database {
 
 /** Merge partial slices over an empty Database; later slices win per table. Pure. */
 export function mergeSlices(...slices: Partial<Database>[]): Database {
-  return Object.assign(emptyDatabase(), ...slices) as Database;
+  const db = emptyDatabase();
+  // Only Database tables: loaders may return extra keys (flows, settings, ...) that are not part of the snapshot.
+  for (const slice of slices) for (const k of Object.keys(slice)) if (k in db) (db as unknown as Record<string, unknown>)[k] = (slice as Record<string, unknown>)[k];
+  return db;
 }
 
 /**

@@ -30,7 +30,7 @@ export function listPersonas(db: Database): Persona[] {
     .sort((a, b) => (order.get(a.role.id)! - order.get(b.role.id)!) || a.user.name.localeCompare(b.user.name));
 }
 
-const SCOPE_RANK: Record<PermissionScope, number> = { OWN_SITES: 0, OWN_PROJECTS: 1, OWN_REGION: 2, ALL: 3 };
+const SCOPE_RANK: Record<PermissionScope, number> = { OWN_RECORDS: 0, OWN_SITES: 1, OWN_PROJECTS: 2, OWN_REGION: 3, ALL: 4 };
 
 /** Widest scope granted for an action on a module, or null when not granted at all. */
 export function getScope(db: Database, userId: Id, module: string, action: PermissionAction = "VIEW"): PermissionScope | null {

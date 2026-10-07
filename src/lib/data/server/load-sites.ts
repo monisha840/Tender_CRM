@@ -1,7 +1,7 @@
 import type * as P from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import type { Database, Site, DailyWorkReport, DailyWorkItem, SiteIssue } from "@/types";
-import { base, day, inIds, qty, tsOrNull, type LoadScope } from "./convert";
+import { base, day, inIds, qty, tsOrNull, liveWhere, type LoadScope } from "./convert";
 
 export const mapSite = (r: P.Site): Site => ({
   ...base(r), organisationId: r.organisationId, regionId: r.regionId, stateId: r.stateId, code: r.code, name: r.name,
@@ -32,13 +32,14 @@ export type SiteTables = Pick<Database, "sites" | "dailyReports" | "dailyWorkIte
  * sites are not filtered by project). Work items follow the loaded reports.
  */
 export async function loadSiteTables(prisma: PrismaClient, scope: LoadScope = {}): Promise<SiteTables> {
-  const rowScope = { regionId: inIds(scope.regionIds), siteId: inIds(scope.siteIds), projectId: inIds(scope.projectIds) };
+  const lw = liveWhere(scope);
+  const rowScope = { ...lw, regionId: inIds(scope.regionIds), siteId: inIds(scope.siteIds), projectId: inIds(scope.projectIds) };
   const [sites, reports, issues] = await Promise.all([
-    prisma.site.findMany({ where: { regionId: inIds(scope.regionIds), id: inIds(scope.siteIds) }, orderBy: { id: "asc" } }),
+    prisma.site.findMany({ where: { ...lw, regionId: inIds(scope.regionIds), id: inIds(scope.siteIds) }, orderBy: { id: "asc" } }),
     prisma.dailyWorkReport.findMany({ where: rowScope, orderBy: { id: "asc" } }),
     prisma.siteIssue.findMany({ where: rowScope, orderBy: { id: "asc" } }),
   ]);
-  const items = await prisma.dailyWorkItem.findMany({ where: { reportId: { in: reports.map((r) => r.id) } }, orderBy: { id: "asc" } });
+  const items = await prisma.dailyWorkItem.findMany({ where: { ...lw, reportId: { in: reports.map((r) => r.id) } }, orderBy: { id: "asc" } });
   return {
     sites: sites.map(mapSite),
     dailyReports: reports.map(mapDailyReport),

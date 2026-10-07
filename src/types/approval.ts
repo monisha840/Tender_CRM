@@ -49,3 +49,10 @@ export interface ApprovalAction extends BaseEntity {
   comment?: string | null;
   at: IsoDateTime;
 }
+
+/** Approval routing threshold: the role that may approve a flow up to `maxAmount`. (Unused by the minimal 2-role version.) */
+export interface ApprovalThreshold extends BaseEntity {
+  flowId: Id;
+  roleId: Id;
+  maxAmount: Money;
+}
