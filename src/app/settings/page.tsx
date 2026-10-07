@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { ModulePlaceholder } from "@/components/layout/module-placeholder";
+import { SettingsView } from "@/components/settings/settings-view";
 
 export const metadata: Metadata = { title: "Settings" };
 
 export default function Page() {
-  return <ModulePlaceholder moduleKey="settings" />;
+  return <SettingsView />;
 }

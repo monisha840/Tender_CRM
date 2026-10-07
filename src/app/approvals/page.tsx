@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { ModulePlaceholder } from "@/components/layout/module-placeholder";
+import { ApprovalsInbox } from "@/components/approvals/approvals-inbox";
 
 export const metadata: Metadata = { title: "Approvals" };
 
 export default function Page() {
-  return <ModulePlaceholder moduleKey="approvals" />;
+  return <ApprovalsInbox />;
 }

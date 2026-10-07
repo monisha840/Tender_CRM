@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { ModulePlaceholder } from "@/components/layout/module-placeholder";
+import { NotificationsPanel } from "@/components/notifications/notifications-panel";
 
 export const metadata: Metadata = { title: "Notifications" };
 
 export default function Page() {
-  return <ModulePlaceholder moduleKey="notifications" />;
+  return <NotificationsPanel />;
 }
