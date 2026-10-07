@@ -6,13 +6,12 @@
  *
  * The demo dataset is the existing mock seed (src/lib/data/seed, PRNG seed 20261007, fixed demo "today"),
  * ported table by table so the dashboard and every screen look realistic on a dev/test database.
- * Refuses to run the demo part when APP_ENV=production.
+ * (Ships with demo data; a later isDemo marker + db:clear-demo removes it. Only db-reset is guarded.)
  *
  * Mapping notes
  *  - Tables owned by seed-base (states, regions, GSTINs, roles, permissions, stages, masters) are skipped here.
- *  - The mock seed had 8 roles; production has 6. Demo users map: legal_admin -> tender_exec;
- *    site_engineer / supervisor -> two demo-only SITE roles (daily reports only, own sites).
- *    One demo System Admin user is added. Demo users have no Supabase Auth account (authUserId null);
+ *  - Minimal 2-role scope: only the mock Director users are kept, plus one demo System Admin (usr_admin).
+ *    Other personas are dropped; records they owned are re-pointed to the admin/director (see KEPT_ROLES). Demo users have no Supabase Auth account (authUserId null);
  *    S2 creates real logins for the six production users.
  *  - Field names in the mock types equal the Prisma field names, so rows are inserted as-is; only
  *    DateTime fields are converted from ISO strings to Date (driven by Prisma's datamodel metadata).
@@ -84,20 +83,15 @@ const DEMO_TABLES: [keyof Database, Prisma.ModelName][] = [
   ["auditLogs", "AuditLog"],
 ];
 
-/** Mock-seed role keys that no longer exist in the production role set. */
-const LEGACY_ROLE_MAP: Record<string, string> = {
-  legal_admin: "tender_exec",
-  site_engineer: "demo_site_engineer",
-  supervisor: "demo_supervisor",
-};
-
-const SITE_ROLE_GRANTS: [module: string, action: string][] = [
-  ["daily_reports", "VIEW"],
-  ["daily_reports", "CREATE"],
-  ["daily_reports", "EDIT"],
-  ["daily_reports", "SUBMIT"],
-  ["notifications", "VIEW"],
-];
+/**
+ * Minimal 2-role scope: only Director and System Admin demo users are kept. The mock seed's other personas
+ * (tender exec, regional heads, PMs, accounts, site staff) are dropped as login users; their employee records stay
+ * (userId set to null) and every user reference they owned is re-pointed to the demo admin (data entry) or to the
+ * first kept Director (approver/decider fields).
+ */
+const KEPT_ROLES = new Set(["director"]);
+const ADMIN_USER = "usr_admin";
+const APPROVER_FIELD = /^(assignedUserId|decidedById|reviewedById|convertedById|approverId|actorId)$/;
 
 function toPrismaRow(model: Prisma.ModelName, row: Record<string, unknown>): Record<string, unknown> {
   const meta = Prisma.dmmf.datamodel.models.find((m) => m.name === model)!;
@@ -118,25 +112,16 @@ function delegateOf(prisma: PrismaClient, model: Prisma.ModelName) {
 async function seedDemo(prisma: PrismaClient) {
   const db = buildSeedDatabase();
 
-  // Demo-only SITE roles and a demo System Admin.
-  const siteRoles = [
-    { key: "demo_site_engineer", name: "Site Engineer (demo)" },
-    { key: "demo_supervisor", name: "Supervisor (demo)" },
-  ];
-  for (const r of siteRoles) {
-    await prisma.role.upsert({
-      where: { id: roleId(r.key) },
-      update: {},
-      create: { id: roleId(r.key), key: r.key, name: r.name, description: "Demo-only site role (Phase 3 roles are not part of go-live).", isSystem: false, layout: "SITE", homePath: "/daily-work" },
-    });
-    for (const [module, action] of SITE_ROLE_GRANTS) {
-      await prisma.rolePermission.upsert({
-        where: { id: `rp_${r.key}_${module}_${action}` },
-        update: {},
-        create: { id: `rp_${r.key}_${module}_${action}`, roleId: roleId(r.key), permissionId: `perm_${module}_${action}`, scope: "OWN_SITES" },
-      });
-    }
-  }
+  const keptDirectors = db.users.filter((u) => {
+    const ur = db.userRoles.find((r) => r.userId === u.id);
+    return ur && KEPT_ROLES.has(String(ur.roleId).replace(/^role_/, ""));
+  });
+  const keptIds = new Set<string>([ADMIN_USER, ...keptDirectors.map((u) => u.id as string)]);
+  const directorId = keptDirectors[0].id as string;
+  /** Re-point a reference to a dropped persona at a kept user. */
+  const remap = (field: string, v: unknown) =>
+    typeof v === "string" && v.startsWith("usr_") && !keptIds.has(v) ? (APPROVER_FIELD.test(field) ? directorId : ADMIN_USER) : v;
+
   await prisma.user.upsert({
     where: { id: "usr_admin" },
     update: {},
@@ -150,11 +135,12 @@ async function seedDemo(prisma: PrismaClient) {
 
   for (const [dbKey, model] of DEMO_TABLES) {
     let rows = (db[dbKey] as unknown as Record<string, unknown>[]).map((r) => ({ ...r }));
-    if (dbKey === "userRoles") {
-      rows = rows.map((r) => {
-        const key = String(r.roleId).replace(/^role_/, "");
-        return { ...r, roleId: roleId(LEGACY_ROLE_MAP[key] ?? key) };
-      });
+    if (dbKey === "users") rows = rows.filter((r) => keptIds.has(r.id as string));
+    if (dbKey === "userRoles") rows = rows.filter((r) => keptIds.has(r.userId as string) && KEPT_ROLES.has(String(r.roleId).replace(/^role_/, "")));
+    if (dbKey === "userRegions") rows = rows.filter((r) => keptIds.has(r.userId as string));
+    if (dbKey === "employees") rows = rows.map((r) => (keptIds.has(r.userId as string) ? r : { ...r, userId: null }));
+    if (dbKey !== "users" && dbKey !== "userRoles" && dbKey !== "userRegions") {
+      rows = rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, remap(k, v)])));
     }
     if (dbKey === "auditLogs") rows.forEach((r) => delete r.id);
 
@@ -172,7 +158,6 @@ export async function seedAll(prisma: PrismaClient, opts: { demo: boolean }) {
   console.log("Seeding base masters...");
   await seedBase(prisma);
   if (opts.demo) {
-    if (process.env.APP_ENV === "production") throw new Error("Refusing to load demo data when APP_ENV=production.");
     console.log("Seeding demo data (SEED_DEMO=true)...");
     await seedDemo(prisma);
   } else {

@@ -218,6 +218,20 @@ docs/
 ### Seed data
 Seed the four regions and offices, a GSTIN per office state, default roles/permissions, the six tender stages (New, Under Evaluation, Bid Preparing, Submitted, Won, Lost), the document checklist and the six service lines — plus the client's example: a **₹50 L project (KPCL Raichur) with Civil, Stone Picking and Painting subcontractors** — and enough tenders, plant-site projects (multi-year monthly-billed service contracts and fixed-scope jobs), about 150 employees and GST invoices that the dashboard charts look realistic. Seed data is deterministic (see `npm run seed:check`).
 
+## Service pattern (server code)
+
+Minimal scope: two roles (`system_admin` enters data and submits; `director` views everything and approves). No region/project scoping and no thresholds; every approval is ONE step to the Director; the requester can never decide their own request.
+
+```
+server action -> runAction -> user -> zod parse -> assertCan(module, action) -> prisma.$transaction(handler) -> {ok,data} | {ok:false,error}
+```
+
+- `src/lib/server/permissions.ts`: `can(user, module, action)`, `assertCan(...)` (throws `AuthError("FORBIDDEN")`), `scopeFilter(user, module)` (returns `{}` now; merge it into every list/read `where` so scope can be added later in one place). Grants come from the Role/Permission/RolePermission tables, never from `if (role === ...)`.
+- `src/lib/server/audit.ts`: `writeAudit(tx, {...})` inside the SAME transaction as the write. A reason is required (`REASON_REQUIRED`) for approval, result, stage-result and amount changes (`needsReason`/`requireReason`). The AuditLog table is append-only (DB trigger).
+- `src/lib/server/service.ts`: `runAction({ schema, module, action, reasonRequired? }, async ({ tx, user, input, audit }) => ...)` returns a server action. A non-VIEW handler that writes no audit entry fails and rolls back. Business rule errors: throw `ServiceError("NOT_FOUND" | "CONFLICT" | "VALIDATION", msg)`. Optimistic locking: `updateWithVersion(tx.tender, id, input.version, data)` (throws `VersionConflictError`). The user comes from `getUser` / `setUserResolver` until wired to `requireUserForAction`.
+- `src/modules/approvals/service.ts`: the only approval engine. A module calls `submitForApproval(tx, user, { flowKey, entityType, entityId, summary, amount })` from its own service and registers once `registerApprovalHandler(entityType, { onApproved, onRejected })`, which updates the source record in the same transaction as the Director's `decide(user, { requestId, decision, reason })`. Reject (and every NO-GO) needs a reason.
+- Tests: DB-backed integration tests create their own rows (unique ids) and delete only those; never truncate or reset the shared dev DB.
+
 ## How to Work in This Repo
 
 - **Plan before coding** any module or schema change: list model changes, routes, screens (desktop + mobile layout) and tests, and wait for approval.

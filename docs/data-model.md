@@ -60,6 +60,8 @@ Role 1-n RolePermission(scope) n-1 Permission;  User n-n Role (UserRole), n-n Re
 ApprovalFlow 1-n Level (role) + Threshold (flow, role, maxAmount);  Request 1-n Step 1-n Action
 ```
 
+> Minimal 2-role scope (see docs/progress.md): seed-base seeds only `system_admin` and `director`; every flow has one Director level and no `ApprovalThreshold` rows. The tables below stay so multi-level routing can return without a schema change.
+
 ## Approval routing (thresholds as data)
 
 A flow lists candidate approver roles in order (`ApprovalFlowLevel`). `ApprovalThreshold(flow, role)` is the highest amount that role may finally approve; no row means unlimited. The engine picks the first level whose role can cover the amount (Regional Head levels also require the request's region in the approver's regions); maker-checker applies unless `allowSelfApproval`.
