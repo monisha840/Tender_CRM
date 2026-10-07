@@ -1,0 +1,62 @@
+/*
+ * Design tokens — the ONLY place raw colour values live (CLAUDE.md → UI/UX Design Guidelines).
+ * Components use the Tailwind names below (bg-surface, text-accent, bg-status-success-tint …), never hex.
+ *
+ * Note: `accent` is the deep navy brand colour, as in CLAUDE.md. shadcn's "accent" (a hover tint)
+ * is therefore expressed as `accent-tint`, and the generated shadcn components are patched to match.
+ */
+:root {
+  /* Core palette */
+  --background: #f8f8f7;
+  --surface: #ffffff;
+  --text: #171717;
+  --text-secondary: #737373;
+  --border: #e5e5e5;
+  --accent: #1e3a5f;
+  --accent-foreground: #ffffff;
+  --accent-tint: #eaeef3; /* light navy tint: active nav, hovered rows/items */
+
+  /* Status — muted, for status indicators only. Always pair with a label or icon. */
+  --status-success: #2f6b4a;
+  --status-success-tint: #e8f2ec;
+  --status-warning: #8a5d12;
+  --status-warning-tint: #faf1de;
+  --status-danger: #a13a3a;
+  --status-danger-tint: #f9e9e9;
+  --status-neutral: #6b6b6b;
+  --status-neutral-tint: #efefee;
+
+  /* Chart series: navy first, then tints/greys of the same palette */
+  --chart-1: #1e3a5f;
+  --chart-2: #5b7a9e;
+  --chart-3: #9db1c7;
+  --chart-4: #a3a3a3;
+  --chart-5: #d4d4d4;
+
+  --radius: 0.5rem;
+
+  /* shadcn semantic aliases → tokens above */
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: var(--accent-foreground);
+  --muted: #f1f1f0;
+  --muted-foreground: var(--text-secondary);
+  --secondary: var(--muted);
+  --secondary-foreground: var(--text);
+  --destructive: var(--status-danger);
+  --input: var(--border);
+  --ring: var(--accent);
+
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--accent-foreground);
+  --sidebar-accent: var(--accent-tint);
+  --sidebar-accent-foreground: var(--accent);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--accent);
+}
