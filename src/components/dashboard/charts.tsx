@@ -97,7 +97,7 @@ export function ProjectProgressChart({ data }: { data: Dashboard["activeProjects
     <ChartCard
       title="Project progress: planned vs actual"
       unit={`% complete, average of ${data.count} active projects`}
-      action={<ViewAll href="/projects" />}
+      action={<ViewAll href="/projects?status=RUNNING" />}
       isEmpty={rows.length === 0}
       legend={
         <>
@@ -224,7 +224,7 @@ export function ServiceLineValueChart({ data }: { data: Dashboard["projectValue"
     <ChartCard
       title="Project value by service line"
       unit="Contract value, ₹"
-      action={<ViewAll href="/projects" />}
+      action={<ViewAll href="/projects?status=RUNNING" />}
       isEmpty={data.byServiceLine.length === 0}
       legend={<LegendItem color="var(--chart-1)" label="Contract value" />}
     >

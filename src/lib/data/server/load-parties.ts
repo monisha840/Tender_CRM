@@ -16,6 +16,7 @@ import type { Database } from "@/types/database";
 import {
   base,
   inIds,
+  parentIn,
   isoDate,
   isoDateOrNull,
   liveWhere,
@@ -260,20 +261,17 @@ export async function loadParties(
   const projectId = inIds(scope?.projectIds);
   const scoped = { ...live, regionId, projectId };
 
-  const [parties, subcontractors, vendors, workOrders, bills, payments, banks] = await Promise.all([
+  const billsP = prisma.subcontractorBill.findMany({ where: scoped, orderBy: [{ billDate: "asc" }, { billNo: "asc" }] });
+  const [parties, subcontractors, vendors, workOrders, bills, payments, banks, deductions] = await Promise.all([
     prisma.party.findMany({ where: live, orderBy: { name: "asc" } }),
     prisma.subcontractor.findMany({ where: live }),
     prisma.vendor.findMany({ where: live }),
     prisma.subcontractorWorkOrder.findMany({ where: scoped, orderBy: { workOrderNo: "asc" } }),
-    prisma.subcontractorBill.findMany({ where: scoped, orderBy: [{ billDate: "asc" }, { billNo: "asc" }] }),
+    billsP,
     prisma.payment.findMany({ where: scoped, orderBy: { paidOn: "asc" } }),
     options.includeBankAccounts ? prisma.partyBankAccount.findMany({ where: live }) : Promise.resolve(undefined),
+    parentIn("billId", billsP, scope).then((f) => prisma.subcontractorBillDeduction.findMany({ where: { ...live, ...f } })),
   ]);
-
-  const billIds = bills.map((b) => b.id);
-  const deductions = await prisma.subcontractorBillDeduction.findMany({
-    where: { ...live, billId: { in: billIds } },
-  });
 
   const slice: PartiesSlice = {
     parties: parties.map(mapParty),

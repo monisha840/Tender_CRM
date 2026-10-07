@@ -1,10 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertTriangle, Banknote, FolderKanban, IndianRupee, Plus } from "lucide-react";
-import { toast } from "sonner";
-import { ImportExport } from "@/components/data/import-export";
-import { RecordForm, type FormField } from "@/components/data/record-form";
+import { useMemo } from "react";
+import { AlertTriangle, Banknote, FolderKanban, IndianRupee } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { KpiTile } from "@/components/shared/kpi-tile";
@@ -12,10 +9,9 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { FilterPills, ProgressBar } from "@/components/work/parts";
 import { listProjects, type ProjectRow } from "@/lib/data";
 import { formatDate } from "@/lib/dates";
+import { PHASE67_ENABLED } from "@/lib/features";
 import { formatINR, sumMoney } from "@/lib/money";
 import { useUrlParam, useUrlState } from "@/lib/use-url-param";
-import { BILLING_CYCLES, buildProject, buildProjects, CONTRACT_TYPES, defaultProjectStatusId, nextProjectCode, PROJECT_CSV_HEADERS } from "@/modules/projects/entry";
-import { useDataStore } from "@/store/data-store";
 import { useRegionFilter } from "@/store/hooks";
 import { useAsOfDb } from "@/components/layout/use-as-of-db";
 
@@ -63,9 +59,7 @@ const columns: DataTableColumn<ProjectRow>[] = [
 
 export default function Page() {
   const db = useAsOfDb();
-  const upsert = useDataStore((s) => s.upsert);
-  const { region, options: regionOptions } = useRegionFilter();
-  const [adding, setAdding] = useState(false);
+  const { region } = useRegionFilter();
   // The status pill lives in the URL (?status=RED) so it survives navigation and can be linked to.
   const [filterParam, setFilterParam] = useUrlState("status", "ALL");
   const filter: Filter = (["ALL", "RUNNING", "COMPLETED", "RED"] as const).find((f) => f === filterParam) ?? "ALL";
@@ -79,101 +73,17 @@ export default function Page() {
   const outstanding = sumMoney(all.map((r) => r.billing.outstanding));
   const delayed = all.filter(isDelayed).length;
 
-  const fields = useMemo<FormField[]>(() => {
-    const allowed = new Set(regionOptions.map((o) => o.id));
-    const sites = db.sites.filter((s) => !s.deletedAt && allowed.has(s.regionId) && (region === "ALL" || s.regionId === region));
-    const orgShort = (id: string) => db.organisations.find((o) => o.id === id)?.shortName ?? "";
-    const regionCode = (id: string) => db.regions.find((x) => x.id === id)?.code ?? "";
-    return [
-      { name: "name", label: "Project name", required: true },
-      { name: "code", label: "Project code", defaultValue: nextProjectCode(db, region === "ALL" ? undefined : region), hint: "Suggested next code; edit if needed." },
-      { name: "customer", label: "Customer organisation", type: "select", options: db.organisations.filter((o) => !o.deletedAt).map((o) => ({ value: o.id, label: o.name })), hint: "Leave blank to use the plant site's customer." },
-      {
-        name: "site",
-        label: "Plant site",
-        type: "select",
-        required: true,
-        options: sites.map((s) => ({ value: s.id, label: `${s.name} (${orgShort(s.organisationId)}, ${regionCode(s.regionId)})` })),
-        hint: region === "ALL" ? undefined : "Showing sites in the selected region.",
-      },
-      { name: "serviceLine", label: "Service line", type: "select", required: true, options: db.serviceLines.filter((l) => l.isActive).map((l) => ({ value: l.id, label: l.name })) },
-      { name: "contractType", label: "Contract type", type: "select", required: true, options: CONTRACT_TYPES },
-      { name: "billingCycle", label: "Billing cycle", type: "select", required: true, options: BILLING_CYCLES },
-      { name: "workOrderNo", label: "Work order no.", hint: "Defaults to WO-<code>." },
-      { name: "workOrderDate", label: "Work order date", type: "date" },
-      { name: "paymentTermsDays", label: "Payment terms (days)", type: "number", defaultValue: "30" },
-      { name: "contractValue", label: "Contract value (INR)", type: "number", required: true },
-      { name: "startDate", label: "Start date", type: "date" },
-      { name: "plannedEndDate", label: "Planned end date", type: "date" },
-      { name: "gstin", label: "GSTIN", type: "select", options: db.gstRegistrations.map((g) => ({ value: g.id, label: g.gstin })), hint: "Blank uses the region's default GSTIN." },
-      {
-        name: "status",
-        label: "Status",
-        type: "select",
-        required: true,
-        defaultValue: defaultProjectStatusId(db),
-        options: db.projectStatuses.filter((s) => s.isActive).sort((a, b) => a.sequence - b.sequence).map((s) => ({ value: s.id, label: s.name })),
-      },
-      { name: "projectManager", label: "Project manager", type: "select", options: db.employees.filter((e) => e.userId && !e.deletedAt).map((e) => ({ value: e.id, label: e.name })) },
-    ];
-  }, [db, region, regionOptions]);
-
-  const save = (values: Record<string, string>) => {
-    const r = buildProject(db, values);
-    if (r.error !== null) return r.error;
-    upsert("projects", r.project);
-    toast.success(`Added project ${r.project.code}`);
-  };
-
-  const importRecords = (records: Record<string, string>[]) => {
-    const { projects, errors } = buildProjects(db, records);
-    projects.forEach((p) => upsert("projects", p));
-    return { imported: projects.length, errors };
-  };
-
-  const exportRows = rows.map((r) => [
-    r.project.code,
-    r.project.name,
-    r.organisationName,
-    r.site?.name ?? "",
-    r.serviceLineName,
-    r.project.contractType,
-    r.project.billingCycle,
-    r.project.workOrderNo,
-    formatDate(r.project.workOrderDate),
-    r.project.paymentTermsDays,
-    r.project.contractValue,
-    formatDate(r.project.startDate),
-    formatDate(r.project.plannedEndDate),
-    db.gstRegistrations.find((g) => g.id === r.project.gstRegistrationId)?.gstin ?? "",
-    r.status.name,
-    r.managerName === "—" ? "" : r.managerName,
-    r.progressPct.toFixed(1),
-    r.health,
-  ]);
-
   return (
     <>
       <PageHeader
         title="Projects"
         description="Work orders from customers, by plant site."
-        primaryAction={{ label: "Add project", icon: Plus, onClick: () => setAdding(true) }}
       />
-      <RecordForm
-        key={db.projects.length}
-        open={adding}
-        onOpenChange={setAdding}
-        title="Add project"
-        description="BOQ and daily reports can be added from the project page."
-        fields={fields}
-        onSubmit={save}
-      />
-      <ImportExport filename="projects" headers={PROJECT_CSV_HEADERS} rows={exportRows} onImport={importRecords} />
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiTile label="Projects" value={String(all.length)} icon={FolderKanban} hint={`${all.filter((r) => !isCompleted(r)).length} running`} />
+        <KpiTile testId="kpi-projects-total" label="Projects" value={String(all.length)} icon={FolderKanban} hint={`${all.filter((r) => !isCompleted(r)).length} running`} />
         <KpiTile label="Contract value" value={formatINR(sumMoney(all.map((r) => r.project.contractValue)), { compact: true })} icon={IndianRupee} />
-        <KpiTile label="Outstanding" value={formatINR(outstanding, { compact: true })} icon={Banknote} hint="Invoiced incl. GST, not yet received" />
-        <KpiTile label="Delayed" value={String(delayed)} icon={AlertTriangle} hint="Behind plan or past end date" />
+        {PHASE67_ENABLED && <KpiTile label="Outstanding" value={formatINR(outstanding, { compact: true })} icon={Banknote} hint="Invoiced incl. GST, not yet received" />}
+        <KpiTile testId="kpi-projects-delayed" label="Delayed" value={String(delayed)} icon={AlertTriangle} hint="Behind plan or past end date" />
       </div>
       {delayed > 0 && filter !== "RED" && (
         <button
@@ -191,6 +101,7 @@ export default function Page() {
         rows={rows}
         getRowId={(r) => r.project.id}
         getRowHref={(r) => `/projects/${r.project.id}`}
+        getRowTestId={(r) => `project-row-${r.project.code}`}
         getRowTone={rowTone}
         search={{ placeholder: "Search projects, sites, work orders", getText: (r) => `${r.project.name} ${r.project.code} ${r.project.workOrderNo} ${r.site?.name ?? ""} ${r.organisationName}` }}
         toolbar={
@@ -205,7 +116,7 @@ export default function Page() {
             ]}
           />
         }
-        emptyMessage="No projects match this filter."
+        emptyMessage={all.length === 0 ? "No projects yet. A won tender is converted into a project from the tender page." : "No projects match this filter."}
       />
     </>
   );

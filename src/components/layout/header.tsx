@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Menu } from "lucide-react";
+import { useServerDb } from "@/components/auth/server-db-provider";
 import { NotificationsMenu } from "@/components/notifications/notifications-menu";
 import { Button } from "@/components/ui/button";
 import { Brand } from "./brand";
@@ -21,6 +22,8 @@ const RoleSwitcher =
 
 /** Top bar: menu (mobile), region filter, notifications, optional dev role switcher and the user menu. */
 export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
+  // The demo role switcher only makes sense on the demo store; with real data the signed-in user is the persona.
+  const hasRealData = useServerDb() !== null;
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-surface px-3 md:px-6">
       <Button variant="ghost" size="icon" className="md:hidden" onClick={onOpenMenu} aria-label="Open menu">
@@ -31,7 +34,7 @@ export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
       <RegionFilterControl />
       <DateFilterControl />
       <NotificationsMenu />
-      {RoleSwitcher && <RoleSwitcher />}
+      {RoleSwitcher && !hasRealData && <RoleSwitcher />}
       <UserMenu />
     </header>
   );

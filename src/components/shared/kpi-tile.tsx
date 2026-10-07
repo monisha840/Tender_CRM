@@ -16,6 +16,8 @@ interface KpiTileProps {
   /** Makes the whole tile a link (drill-down). */
   href?: string;
   className?: string;
+  /** data-testid on the tile (e.g. "kpi-active-tenders"). */
+  testId?: string;
 }
 
 function Sparkline({ values }: { values: number[] }) {
@@ -34,7 +36,7 @@ function Sparkline({ values }: { values: number[] }) {
 }
 
 /** Summary tile for genuinely separate headline numbers (the one place cards are appropriate). */
-export function KpiTile({ label, value, hint, icon: Icon, delta, trend, href, className }: KpiTileProps) {
+export function KpiTile({ label, value, hint, icon: Icon, delta, trend, href, className, testId }: KpiTileProps) {
   const body = (
     <>
       <div className="flex items-start justify-between gap-2">
@@ -60,10 +62,10 @@ export function KpiTile({ label, value, hint, icon: Icon, delta, trend, href, cl
   );
   const base = "block rounded-lg border bg-surface p-4";
   return href ? (
-    <Link href={href} className={cn(base, "transition-colors hover:bg-accent-subtle", className)}>
+    <Link href={href} data-testid={testId} className={cn(base, "transition-colors hover:bg-accent-subtle", className)}>
       {body}
     </Link>
   ) : (
-    <div className={cn(base, className)}>{body}</div>
+    <div data-testid={testId} className={cn(base, className)}>{body}</div>
   );
 }

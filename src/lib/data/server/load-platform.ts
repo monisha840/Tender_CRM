@@ -66,6 +66,8 @@ export type PlatformSlice = Pick<
 export interface LoadPlatformOptions {
   userId?: string;
   auditLimit?: number;
+  /** Skip notifications and audit logs (stored notifications are dropped; the audit viewer is deferred). */
+  lean?: boolean;
 }
 
 // ---- Row shapes -------------------------------------------------------------
@@ -246,15 +248,12 @@ export async function loadPlatform(
 
   const [notifications, audit, documents, links, docTypes, expenseCats, deductionTypes, materials, settings, series] =
     await Promise.all([
-      prisma.notification.findMany({
-        where: { ...live, userId: options.userId },
-        orderBy: { createdAt: "asc" },
-      }),
-      prisma.auditLog.findMany({
-        where: auditWhere,
-        orderBy: { occurredAt: "desc" },
-        take: options.auditLimit ?? 2000,
-      }),
+      options.lean
+        ? Promise.resolve([])
+        : prisma.notification.findMany({ where: { ...live, userId: options.userId }, orderBy: { createdAt: "asc" } }),
+      options.lean
+        ? Promise.resolve([])
+        : prisma.auditLog.findMany({ where: auditWhere, orderBy: { occurredAt: "desc" }, take: options.auditLimit ?? 2000 }),
       prisma.document.findMany({ where: live, orderBy: { createdAt: "asc" } }),
       prisma.documentLink.findMany({ where: live }),
       prisma.documentType.findMany({ where: live, orderBy: { name: "asc" } }),

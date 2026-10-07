@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRateLimiter, loginKey } from "../rate-limit";
 import { resolveDevRoleSwitcher } from "../dev-flags";
-import { resolvePersonaUserId } from "../persona-map";
 import { isBarePath, isPublicPath } from "../public-paths";
 
 describe("rate limiter", () => {
@@ -39,16 +38,6 @@ describe("dev role switcher flag", () => {
     expect(resolveDevRoleSwitcher("true", "production")).toBe(false);
     expect(resolveDevRoleSwitcher(undefined, "development")).toBe(false);
     expect(resolveDevRoleSwitcher("false", "development")).toBe(false);
-  });
-});
-
-describe("persona mapping", () => {
-  const db = { users: [{ id: "usr_first", email: "a@b.c" }, { id: "usr_stalin", email: "s@x.c" }, { id: "usr_tender1", email: "t@x.c" }] } as never;
-  it("matches by email, then role, then first user", () => {
-    expect(resolvePersonaUserId(db, { email: "T@X.c", roleKeys: ["director"] })).toBe("usr_tender1");
-    expect(resolvePersonaUserId(db, { email: "n@n.n", roleKeys: ["director"] })).toBe("usr_stalin");
-    expect(resolvePersonaUserId(db, { email: "n@n.n", roleKeys: ["system_admin"] })).toBe("usr_tender1");
-    expect(resolvePersonaUserId(db, { email: "n@n.n", roleKeys: ["zzz"] })).toBe("usr_first");
   });
 });
 

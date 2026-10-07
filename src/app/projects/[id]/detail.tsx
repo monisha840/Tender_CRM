@@ -13,17 +13,23 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { FieldGrid, ProgressBar, Section, Tabs } from "@/components/work/parts";
 import { getDailyReports, getProject, getProjectBilling, listInvoices, listSubcontractorAssignments, type AssignmentRow, type InvoiceRow } from "@/lib/data";
 import { formatDate, formatMonth } from "@/lib/dates";
+import { PHASE67_ENABLED } from "@/lib/features";
 import { formatINR, formatINRAxis, moneyToNumber } from "@/lib/money";
 import { useDb } from "@/store/hooks";
 import type { DailyWorkReport } from "@/types";
 
 type Tab = "overview" | "progress" | "subs" | "billing" | "reports";
+/** Billing (invoices) and daily reports belong to the finance / daily-work modules, hidden behind the PHASE67 flag. */
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "progress", label: "Progress" },
   { key: "subs", label: "Subcontractors" },
-  { key: "billing", label: "Billing & Payment" },
-  { key: "reports", label: "Daily reports" },
+  ...(PHASE67_ENABLED
+    ? [
+        { key: "billing" as const, label: "Billing & Payment" },
+        { key: "reports" as const, label: "Daily reports" },
+      ]
+    : []),
 ];
 
 const axis = { fontSize: 11, fill: "var(--text-secondary)" };
@@ -118,8 +124,8 @@ export function Detail({ id }: { id: string }) {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KpiTile label="Contract value" value={formatINR(project.contractValue, { compact: true })} />
             <KpiTile label="Progress" value={`${Math.round(row.progressPct)}%`} hint={`Plan ${Math.round(row.plannedPct)}%`} />
-            <KpiTile label="Billed (excl. GST)" value={formatINR(billing.billed, { compact: true })} />
-            <KpiTile label="Outstanding" value={formatINR(billing.outstanding, { compact: true })} />
+            {PHASE67_ENABLED && <KpiTile label="Billed (excl. GST)" value={formatINR(billing.billed, { compact: true })} />}
+            {PHASE67_ENABLED && <KpiTile label="Outstanding" value={formatINR(billing.outstanding, { compact: true })} />}
           </div>
           <Section title="Project details">
             <div className="rounded-lg border bg-surface p-4">

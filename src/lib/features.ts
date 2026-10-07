@@ -12,7 +12,7 @@ export function resolvePhase67(flag: string | undefined, appEnv: string | undefi
 }
 
 /**
- * GST/invoices ("finance") and Employees/payroll screens (Phases 6 and 7). Built, but hidden from production users
+ * GST/invoices ("finance"), Employees/payroll and Daily work screens (Phases 2, 6 and 7). Built, but hidden from production users
  * until switched on with NEXT_PUBLIC_FEATURE_FINANCE_PAYROLL=true (see docs/go-live-plan.md scope).
  * Default: false when APP_ENV=production, true in development and test unless set to false.
  * `NEXT_PUBLIC_APP_ENV` mirrors APP_ENV for the client (set in next.config.ts).
@@ -23,6 +23,6 @@ export const PHASE67_ENABLED: boolean = resolvePhase67(
 );
 
 /** Nav module keys that belong to the flagged phases. */
-export const PHASE67_MODULE_KEYS: readonly string[] = ["employees", "finance"];
+export const PHASE67_MODULE_KEYS: readonly string[] = ["employees", "finance", "daily_work"];
 
 export const isModuleEnabled = (key: string, enabled: boolean = PHASE67_ENABLED): boolean => enabled || !PHASE67_MODULE_KEYS.includes(key);

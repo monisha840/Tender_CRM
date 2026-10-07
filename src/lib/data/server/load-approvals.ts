@@ -15,6 +15,7 @@ import {
   base,
   inIds,
   iso,
+  parentIn,
   isoOrNull,
   liveWhere,
   money,
@@ -175,22 +176,18 @@ export async function loadApprovals(prisma: PrismaClient, scope?: LoadScope): Pr
   const live = liveWhere(scope);
   const reqWhere = { ...live, regionId: inIds(scope?.regionIds), projectId: inIds(scope?.projectIds) };
 
-  const [flows, levels, thresholds, requests] = await Promise.all([
+  const requestsP = prisma.approvalRequest.findMany({ where: reqWhere, orderBy: { submittedAt: "asc" } });
+  const stepsP = parentIn("requestId", requestsP, scope).then((f) =>
+    prisma.approvalStep.findMany({ where: { ...live, ...f }, orderBy: [{ requestId: "asc" }, { sequence: "asc" }] }),
+  );
+  const [flows, levels, thresholds, requests, steps, actions] = await Promise.all([
     prisma.approvalFlow.findMany({ where: live, orderBy: { key: "asc" } }),
     prisma.approvalFlowLevel.findMany({ where: live, orderBy: [{ flowId: "asc" }, { sequence: "asc" }] }),
     prisma.approvalThreshold.findMany({ where: live }),
-    prisma.approvalRequest.findMany({ where: reqWhere, orderBy: { submittedAt: "asc" } }),
+    requestsP,
+    stepsP,
+    parentIn("stepId", stepsP, scope).then((f) => prisma.approvalAction.findMany({ where: { ...live, ...f }, orderBy: { at: "asc" } })),
   ]);
-
-  const requestIds = requests.map((r) => r.id);
-  const steps = await prisma.approvalStep.findMany({
-    where: { ...live, requestId: { in: requestIds } },
-    orderBy: [{ requestId: "asc" }, { sequence: "asc" }],
-  });
-  const actions = await prisma.approvalAction.findMany({
-    where: { ...live, stepId: { in: steps.map((s) => s.id) } },
-    orderBy: { at: "asc" },
-  });
 
   return {
     approvalFlows: flows.map(mapApprovalFlow),

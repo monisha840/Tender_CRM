@@ -53,3 +53,19 @@ S1b: lint clean, tsc clean, vitest 19 files / 247 passed + 6 todo (includes test
 - Review: one final review agent only.
 - Playwright smoke suite only: login Admin+Director; Admin blocked from approving incl. direct server call; tender create -> GO approved by Director -> Won -> convert -> project visible; dashboard loads with active-tenders count == DB; desktop crawl of every page for console errors; mobile 360px check of dashboard + tender list only.
 - Bug loop: fix high-severity/blocking only, log the rest; exit after one fully green run. Test report short.
+
+## S3-B: real data in the shell (notes and timings)
+Dev DB is Supabase session pooler in Tokyo from India: about 190-230 ms per round trip, 8 pooled connections (the session pooler refused 16+ with P1001). Measured with `npm run db:measure` and a production build (`next build` + `next start`, flag off, admin cookie via `scripts/smoke-cookie.mjs`):
+| What | Time |
+|---|---|
+| Old `loadDatabaseForUser` (all 8 loaders, 27k rows) | 5.3 s (tenders loader alone 3.8 s, workforce 2.7 s) |
+| New lean snapshot, flag off (2.8k rows, ~60 queries, one parallel round) | 3.1-3.4 s warm connections, 4.7 s first run (opens connections) |
+| Lean snapshot, flag on (27k rows) | 5.3-6.9 s |
+| `/dashboard` HTML, cache hit (curl, 1.07 MB) | 1.1 s (includes Supabase `getUser` and session lookup) |
+| `/dashboard` first request after start (cache fill) | 9.9 s curl, 7 s browser |
+| Page `goto` load in Chromium, cache hit (dashboard, projects, subcontractors, tenders, approvals) | 2.1-2.9 s |
+- Cache: the snapshot is a `"use cache"` function (revalidate 30 s, expire 10 min, tag `server-db`). `runAction` expires it with `updateTag`, so the first render after any write pays the cold cost (about 3 s in dev, much less in production where DB and app share a region and RTT is a few ms).
+- Cost driver in dev is round trips x pool size, not rows. Possible next step if 3 s after a write is too slow: one raw `json_agg` query for the reference tables (single round trip).
+- The root layout embeds the Database in the HTML (about 1 MB for 2.8k rows); it is not resent on client navigations, only after `router.refresh()`.
+- Zustand demo store still builds the full seed at import time on the client (`buildSeedDatabase()` in `src/store/data-store.ts`). It is no longer read when real data is provided. Making that lazy is the next client-side win.
+- Verified: lint, `tsc`, vitest (all pass; two `load-database` integration assertions failed once only because other agents changed the shared dev DB during the run, green when re-run alone), `next build`, Chromium smoke at 1280 and 360 px with no console errors; admin@sprince.example logs in and is linked.

@@ -5,26 +5,37 @@ import { effectiveRegionFilter, getAllowedRegionIds, getPersona, type Persona } 
 import type { RegionFilter } from "@/lib/data/shared";
 import type { Database, Region } from "@/types";
 import { useAuthUser } from "@/components/auth/session-provider";
-import { DEV_ROLE_SWITCHER } from "@/lib/auth/dev-flags";
-import { resolvePersonaUserId } from "@/lib/auth/persona-map";
+import { useServerDb } from "@/components/auth/server-db-provider";
+import { matchDbUserId } from "@/lib/auth/persona-map";
 import { useDataStore } from "./data-store";
 import { useSessionStore } from "./session-store";
 
-export const useDb = (): Database => useDataStore((s) => s.db);
+/**
+ * The database every screen reads. With a server provider (every signed-in page) this is the REAL data loaded on the
+ * server for the signed-in user; server actions followed by router.refresh() deliver the new snapshot. Without a
+ * provider (dev role switcher, styleguide) it falls back to the Zustand demo store.
+ */
+export function useDb(): Database {
+  const server = useServerDb();
+  const local = useDataStore((s) => s.db);
+  return server ?? local;
+}
 
-/** Current persona. Falls back to the first user if a stored id no longer exists (e.g. after a reseed). */
+/**
+ * Current persona. With real data it is the signed-in user's own row (matched by id, then e-mail); there is no
+ * stand-in persona. Without a server db (dev switcher, styleguide) the stored demo user is used.
+ */
 export function useCurrentPersona(): Persona {
   const db = useDb();
+  const serverDb = useServerDb();
   const storedId = useSessionStore((s) => s.currentUserId);
   const authUser = useAuthUser();
-  // Real login decides the persona (matched to a seed persona until screens move off the mock data).
-  // Only the dev-only role switcher may override it.
-  const userId = DEV_ROLE_SWITCHER || !authUser ? storedId : resolvePersonaUserId(db, authUser);
+  const userId = serverDb && authUser ? (matchDbUserId(db, authUser) ?? "") : storedId;
   return useMemo(() => {
-    const persona = getPersona(db, userId) ?? getPersona(db, db.users[0].id);
-    if (!persona) throw new Error("Seed data has no users");
+    const persona = getPersona(db, userId) ?? (serverDb ? null : getPersona(db, db.users[0]?.id ?? ""));
+    if (!persona) throw new Error("The signed-in user has no active role in the database");
     return persona;
-  }, [db, userId]);
+  }, [db, userId, serverDb]);
 }
 
 /** Region filter after clamping to the persona's allowed regions. */
@@ -46,15 +57,18 @@ export function useRegionFilter(): { region: RegionFilter; setRegion: (r: Region
 /** True once persisted state has been loaded from localStorage on the client. */
 export function useHydrated(): boolean {
   const [hydrated, setHydrated] = useState(false);
+  // With real data the demo store is not read, so only the (small) session store has to be restored.
+  const realData = useServerDb() !== null;
   useEffect(() => {
     const done = () => setHydrated(true);
-    if (useDataStore.persist.hasHydrated() && useSessionStore.persist.hasHydrated()) done();
+    const dataReady = () => realData || useDataStore.persist.hasHydrated();
+    if (dataReady() && useSessionStore.persist.hasHydrated()) done();
     const offA = useDataStore.persist.onFinishHydration(() => useSessionStore.persist.hasHydrated() && done());
-    const offB = useSessionStore.persist.onFinishHydration(() => useDataStore.persist.hasHydrated() && done());
+    const offB = useSessionStore.persist.onFinishHydration(() => dataReady() && done());
     return () => {
       offA();
       offB();
     };
-  }, []);
+  }, [realData]);
   return hydrated;
 }
