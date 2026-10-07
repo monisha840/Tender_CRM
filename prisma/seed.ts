@@ -17,6 +17,7 @@
  *    DateTime fields are converted from ISO strings to Date (driven by Prisma's datamodel metadata).
  *  - AuditLog.id is auto-increment (BigInt), so the mock string id is dropped.
  */
+import { assertNotProductionDb } from "../scripts/prod-guard";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { buildSeedDatabase } from "../src/lib/data/seed";
 import type { Database } from "../src/types";
@@ -167,6 +168,7 @@ export async function seedAll(prisma: PrismaClient, opts: { demo: boolean }) {
 }
 
 async function main() {
+  assertNotProductionDb("db:seed");
   const prisma = new PrismaClient();
   try {
     await seedAll(prisma, { demo: process.env.SEED_DEMO === "true" });

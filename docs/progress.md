@@ -71,3 +71,10 @@ Dev DB is Supabase session pooler in Tokyo from India: about 190-230 ms per roun
 - The root layout embeds the Database in the HTML (about 1 MB for 2.8k rows); it is not resent on client navigations, only after `router.refresh()`.
 - Zustand demo store still builds the full seed at import time on the client (`buildSeedDatabase()` in `src/store/data-store.ts`). It is no longer read when real data is provided. Making that lazy is the next client-side win.
 - Verified: lint, `tsc`, vitest (all pass; two `load-database` integration assertions failed once only because other agents changed the shared dev DB during the run, green when re-run alone), `next build`, Chromium smoke at 1280 and 360 px with no console errors; admin@sprince.example logs in and is linked.
+
+## Production database guard (2026-10-08)
+The live site https://tender-crm.vercel.app (Vercel project `tender-crm`, team Monisha Sridjar's projects, deployed from `main`) runs on the SAME Supabase project as dev/test (ref `zbpshjwfdovoislemhmi`). Until the owner says otherwise:
+- NEVER run `db:reset`, `db:seed`, `db:seed:base`, `db:measure`, `e2e:users` or the Playwright suite against it.
+- `scripts/prod-guard.ts` (`assertNotProductionDb`) makes all of those refuse when `DATABASE_URL` contains a protected project ref (`PROTECTED_PROJECT_REFS`, plus optional `PRODUCTION_DB_MARKERS`). It is called from `assertSafeToReset` (db-reset, e2e-users, db-verify, Playwright global setup) and from the mains of `prisma/seed.ts`, `prisma/seed-base.ts` and `scripts/measure-load.ts`. Verified: each refuses with the current `.env.local`.
+- There is no override flag. To get a separate dev/test database later: create a second Supabase project, point `.env.local` at it, and remove the old ref from the guard only if that is intended.
+- Migrations still go through `npm run db:deploy` (additive, not guarded).

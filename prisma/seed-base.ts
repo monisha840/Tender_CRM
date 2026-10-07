@@ -12,6 +12,7 @@
  * NOTE: GSTINs below are PLACEHOLDERS derived from the company PAN with a valid checksum.
  * Replace them with the registered GSTINs before real use (Settings > GSTINs, or edit here).
  */
+import { assertNotProductionDb } from "../scripts/prod-guard";
 import { PrismaClient, type PermissionAction, type PermissionScope } from "@prisma/client";
 import { makeGstin } from "../src/lib/gst-validation";
 import { DEDUCTION_TYPES, DOC_TYPES, docTypeId, EXPENSE_CATEGORIES, SERVICE_LINES, STAGE_DEFS, stageId, TENDER_TYPES, tenderTypeId } from "../src/lib/data/seed/masters";
@@ -287,6 +288,7 @@ export async function seedBase(prisma: PrismaClient) {
 }
 
 async function main() {
+  assertNotProductionDb("db:seed:base");
   const prisma = new PrismaClient();
   try {
     await seedBase(prisma);

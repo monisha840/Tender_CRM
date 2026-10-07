@@ -3,11 +3,13 @@
  *   npm run db:measure            lean (flag-aware) load, 3 runs per flag setting
  *   npm run db:measure -- --full  also times each full loader and the old full load
  */
+import { assertNotProductionDb } from "./prod-guard";
 import { PrismaClient } from "@prisma/client";
 import { DEFAULT_LOADERS, LOADER_NAMES, loadDatabaseForUser } from "../src/lib/data/server/compose";
 import { loadDatabaseLean } from "../src/lib/data/server/snapshot";
 
 async function main() {
+  assertNotProductionDb("db:measure");
   const url = process.env.DATABASE_URL ?? "";
   const prisma = new PrismaClient({ datasourceUrl: url + (url.includes("?") ? "&" : "?") + `connection_limit=${process.env.CL ?? 8}&pool_timeout=60` });
   const ur = await prisma.userRole.findFirst({ where: { deletedAt: null, role: { key: "director" }, user: { isActive: true, deletedAt: null } } });

@@ -15,8 +15,10 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { seedAll } from "../prisma/seed";
+import { assertNotProductionDb } from "./prod-guard";
 
 export function assertSafeToReset(env: NodeJS.ProcessEnv = process.env): void {
+  assertNotProductionDb("db-reset/e2e", env);
   const appEnv = env.APP_ENV;
   if (appEnv === "production") throw new Error("db-reset refused: APP_ENV=production.");
   if (appEnv !== "development" && appEnv !== "test") {
