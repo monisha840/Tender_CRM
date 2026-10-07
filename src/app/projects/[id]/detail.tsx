@@ -42,7 +42,7 @@ const subCols: DataTableColumn<AssignmentRow>[] = [
   { key: "scope", header: "Scope", mobile: "hide", cell: (r) => <span className="text-muted-foreground">{r.workOrder.scope}</span> },
   { key: "value", header: "Value", numeric: true, cell: (r) => formatINR(r.contractValue, { compact: true }) },
   { key: "progress", header: "Progress", className: "min-w-36", cell: (r) => <ProgressBar value={r.progressPct} /> },
-  { key: "billed", header: "Billed", numeric: true, cell: (r) => formatINR(r.billed, { compact: true }) },
+  { key: "billed", header: "Billed (excl. GST)", numeric: true, cell: (r) => formatINR(r.billed, { compact: true }) },
   { key: "paid", header: "Paid", numeric: true, cell: (r) => formatINR(r.paid, { compact: true }) },
   { key: "bal", header: "Balance", numeric: true, cell: (r) => formatINR(r.balance, { compact: true }) },
   { key: "status", header: "Status", mobile: "badge", cell: (r) => <StatusBadge status={r.workOrder.status} /> },
@@ -96,7 +96,7 @@ export function Detail({ id }: { id: string }) {
   [...invoices].reverse().forEach((r) => {
     const k = r.invoice.invoiceDate.slice(0, 7);
     acc[k] ??= { month: k, Billed: 0, Received: 0 };
-    acc[k].Billed += moneyToNumber(r.invoice.total);
+    acc[k].Billed += moneyToNumber(r.invoice.taxableValue);
     acc[k].Received += moneyToNumber(r.invoice.receivedAmount);
   });
   const byMonth = Object.values(acc).map((d) => ({ ...d, month: formatMonth(d.month) }));
@@ -118,7 +118,7 @@ export function Detail({ id }: { id: string }) {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KpiTile label="Contract value" value={formatINR(project.contractValue, { compact: true })} />
             <KpiTile label="Progress" value={`${Math.round(row.progressPct)}%`} hint={`Plan ${Math.round(row.plannedPct)}%`} />
-            <KpiTile label="Billed" value={formatINR(billing.invoicedTotal, { compact: true })} />
+            <KpiTile label="Billed (excl. GST)" value={formatINR(billing.billed, { compact: true })} />
             <KpiTile label="Outstanding" value={formatINR(billing.outstanding, { compact: true })} />
           </div>
           <Section title="Project details">
@@ -204,7 +204,7 @@ export function Detail({ id }: { id: string }) {
       {tab === "billing" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <KpiTile label="Billed (incl. GST)" value={formatINR(billing.invoicedTotal, { compact: true })} hint={`${billing.invoiceCount} invoices`} />
+            <KpiTile label="Billed (excl. GST)" value={formatINR(billing.billed, { compact: true })} hint={`${billing.invoiceCount} invoices`} />
             <KpiTile label="Received" value={formatINR(billing.received, { compact: true })} />
             <KpiTile label="Outstanding" value={formatINR(billing.outstanding, { compact: true })} hint={`Terms: ${project.paymentTermsDays} days`} />
           </div>
@@ -214,7 +214,7 @@ export function Detail({ id }: { id: string }) {
             isEmpty={byMonth.length === 0}
             legend={
               <>
-                <LegendItem color="var(--chart-1)" label="Billed" />
+                <LegendItem color="var(--chart-1)" label="Billed (excl. GST)" />
                 <LegendItem color="var(--chart-4)" label="Received" />
               </>
             }

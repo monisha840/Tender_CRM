@@ -48,7 +48,7 @@ const columns: DataTableColumn<Row>[] = [
   { key: "trade", header: "Trade", cell: (r) => (r.trades.length ? r.trades.join(", ") : r.subcontractor.tradeCategory) },
   { key: "projects", header: "Projects", numeric: true, cell: (r) => r.projects.length },
   { key: "value", header: "Contract value", numeric: true, sortValue: (r) => moneyToNumber(r.contractValue), cell: (r) => formatINR(r.contractValue, { compact: true }) },
-  { key: "billed", header: "Billed", numeric: true, cell: (r) => formatINR(r.billed, { compact: true }) },
+  { key: "billed", header: "Billed (excl. GST)", numeric: true, cell: (r) => formatINR(r.billed, { compact: true }) },
   { key: "out", header: "Payable", numeric: true, sortValue: (r) => moneyToNumber(r.outstanding), cell: (r) => formatINR(r.outstanding, { compact: true }) },
   { key: "pending", header: "Bills pending", numeric: true, cell: (r) => r.billsAwaitingApproval },
   { key: "st", header: "Status", mobile: "badge", cell: (r) => <StatusBadge status={r.subcontractor.status} /> },

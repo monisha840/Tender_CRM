@@ -22,6 +22,6 @@ describe("decodeRouteId (B22)", () => {
 describe("DASHBOARD_AGEING (B8)", () => {
   const band = (days: number) => DASHBOARD_AGEING.find((b) => b.test(days))?.label;
   it("buckets days past due like the dashboard chart", () => {
-    expect([0, 1, 30, 31, 60, 61].map(band)).toEqual(["Not yet due", "1–30 days", "1–30 days", "31–60 days", "31–60 days", "Over 60 days"]);
+    expect([0, 1, 30, 31, 60, 61, 90, 91].map(band)).toEqual(["0–30", "0–30", "0–30", "31–60", "31–60", "61–90", "61–90", "90+"]);
   });
 });

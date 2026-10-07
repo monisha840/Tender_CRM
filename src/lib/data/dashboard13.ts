@@ -310,9 +310,11 @@ export type PfRemittance = "REMITTED" | "PENDING" | "OVERDUE";
 
 export interface PfStatus {
   period: string | null;
+  /** Members with PF wages above zero. */
   members: number;
   employeeShare: Money;
   employerShare: Money;
+  /** Whole monthly challan: employee + employer 12% + admin + EDLI. */
   total: Money;
   /** 15th of the month after `period`. */
   dueDate: string | null;
@@ -321,10 +323,14 @@ export interface PfStatus {
   history: { period: string; total: number; status: PfRemittance }[];
 }
 
-/** A month's PF counts as remitted once its payroll run is locked; otherwise pending until the 15th, then overdue. */
+/**
+ * A month's PF is remitted only when a PF challan payment is recorded for it (paid in the month after the period).
+ * A locked or paid payroll run means salary was paid, not PF. Otherwise pending until the 15th, then overdue.
+ */
 function pfRemittance(db: Database, period: string, region: RegionFilter): PfRemittance {
-  const runs = db.payrollRuns.filter((r) => r.periodMonth === period && inRegion(region, r.regionId));
-  if (runs.length && runs.every((r) => r.status === "LOCKED" || r.status === "PAID")) return "REMITTED";
+  const challanMonth = nextMonth15th(period).slice(0, 7);
+  const challan = db.payments.some((p) => !p.deletedAt && p.purpose === "PF" && p.paidOn.startsWith(challanMonth) && inRegion(region, p.regionId));
+  if (challan) return "REMITTED";
   return getToday() > nextMonth15th(period) ? "OVERDUE" : "PENDING";
 }
 
@@ -337,13 +343,13 @@ export function getPfStatus(db: Database, region: RegionFilter = "ALL"): PfStatu
     members: epf?.members ?? 0,
     employeeShare: epf?.employeeShare ?? "0.00",
     employerShare: epf?.employerShare ?? "0.00",
-    total: epf?.total ?? "0.00",
+    total: epf?.payable ?? "0.00",
     dueDate: period ? nextMonth15th(period) : null,
     status: period ? pfRemittance(db, period, region) : null,
     history: periods
       .slice(0, 6)
       .reverse()
-      .map((p) => ({ period: p, total: getEpfSummary(db, p, region).totalNumber, status: pfRemittance(db, p, region) })),
+      .map((p) => ({ period: p, total: moneyToNumber(getEpfSummary(db, p, region).payable), status: pfRemittance(db, p, region) })),
   };
 }
 

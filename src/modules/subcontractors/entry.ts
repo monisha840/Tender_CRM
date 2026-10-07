@@ -1,5 +1,5 @@
 import { byId } from "@/lib/data/shared";
-import { getToday } from "@/lib/dates";
+import { getToday, nowIso } from "@/lib/dates";
 import { gstinError, gstinPan, gstinStateCode, isValidPan } from "@/lib/gst-validation";
 import type { Database, Party, Subcontractor, SubcontractorStatus, SubcontractorWorkOrder } from "@/types";
 import { canonicalise, findRow, newId, parseDate, parseMoney, parsePercent, parseYesNo } from "../work-entry-utils";
@@ -79,7 +79,7 @@ export function buildSubcontractor(db: Database, input: Record<string, string>, 
   const status = (v.status || "ACTIVE").toUpperCase() as SubcontractorStatus;
   if (!SUBCONTRACTOR_STATUSES.some((s) => s.value === status)) return { error: `Status '${v.status}' must be ACTIVE, INACTIVE or BLACKLISTED` };
 
-  const now = new Date().toISOString();
+  const now = nowIso();
   const meta = { createdAt: now, updatedAt: now, deletedAt: null };
   const party: Party = {
     ...meta, id: newId("party_sub"), name: v.name, gstin: gstin || null, pan, address: v.address ?? "", stateId: state.id,
@@ -129,7 +129,7 @@ export function buildAssignment(db: Database, input: Record<string, string>): { 
   const retention = parsePercent(v.retentionPercent || "0");
   if (retention === undefined) return { error: "Retention must be a percentage between 0 and 100" };
 
-  const now = new Date().toISOString();
+  const now = nowIso();
   const region = byId(db.regions, project.regionId);
   const seq = db.workOrders.filter((w) => w.projectId === project.id).length + 1;
   return {

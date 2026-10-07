@@ -11,6 +11,7 @@ import { WorkforceTabs } from "@/components/workforce/workforce-tabs";
 import { ImportExport } from "@/components/data/import-export";
 import { PfBanner } from "@/components/workforce/pf-banner";
 import { getPfStatus, listEmployeePay, listPayrollPeriods, type EmployeePayRow } from "@/lib/data";
+import { isOnPayroll } from "@/lib/data/definitions";
 import { formatMonth } from "@/lib/dates";
 import { formatINR, sumMoney } from "@/lib/money";
 import { useRegionFilter } from "@/store/hooks";
@@ -84,7 +85,7 @@ export default function PayrollPage() {
       <WorkforceTabs />
       <PfBanner pf={pf} href="/employees/payroll/dashboard" />
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiTile label="On payroll" value={String(all.length)} icon={Users} />
+        <KpiTile label="On payroll (wage above zero)" value={String(all.filter((r) => isOnPayroll(r.profile)).length)} icon={Users} />
         <KpiTile label="Gross" value={formatINR(sumMoney(slips.map((s) => s.gross)), { compact: true })} icon={Banknote} />
         <KpiTile label="PF + ESI (employee)" value={formatINR(sumMoney(slips.flatMap((s) => [s.epfEmployee, s.esiEmployee])), { compact: true })} icon={HandCoins} />
         <KpiTile label="Net salary" value={formatINR(sumMoney(slips.map((s) => s.net)), { compact: true })} icon={CircleDollarSign} />

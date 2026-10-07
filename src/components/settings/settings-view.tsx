@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { StageBadge, StatusBadge } from "@/components/shared/status-badge";
 import type { ExpenseCategory, PermissionScope, Region, Role, ServiceLine, TenderStage } from "@/types";
+import { nowIso } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { useDb } from "@/store/hooks";
 
@@ -83,7 +84,6 @@ export function SettingsView() {
     { key: "a", header: "Status", cell: (r) => <StatusBadge status={r.isActive ? "ACTIVE" : "INACTIVE"} />, mobile: "badge" },
   ];
 
-  const nowIso = () => new Date().toISOString();
   const exists = (names: string[], name: string) => names.some((n) => n.trim().toLowerCase() === name.trim().toLowerCase());
   const ADD: Partial<Record<Tab, { label: string; fields: FormField[]; save: (v: Record<string, string>) => string | void }>> = {
     stages: {

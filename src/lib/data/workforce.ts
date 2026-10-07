@@ -2,6 +2,8 @@ import { getToday } from "@/lib/dates";
 import { moneyToNumber, sumMoney } from "@/lib/money";
 import { computePf, daysInMonth } from "@/lib/payroll-rules";
 import type { Attendance, Database, Employee, EmployeeProfile, Id, IsoDate, PayrollRun, Payslip, SiteAssignment } from "@/types";
+import { isLive } from "./definitions";
+import { countAttendanceNotMarked } from "./sites";
 import { byId, inRegion, regionName, sum, type RegionFilter } from "./shared";
 
 export interface EmployeeRow {
@@ -47,18 +49,13 @@ export interface AttendanceSummary {
 export function getAttendanceSummary(db: Database, date: IsoDate = getToday(), region: RegionFilter = "ALL"): AttendanceSummary {
   const rows = db.attendance.filter((a) => a.date === date && inRegion(region, a.regionId));
   const count = (s: Attendance["status"]) => rows.filter((a) => a.status === s).length;
-  const assigned = db.siteAssignments.filter(
-    (a) => a.fromDate <= date && (!a.toDate || a.toDate >= date) && inRegion(region, byId(db.sites, a.siteId)?.regionId),
-  );
-  const marked = new Set(rows.map((a) => a.employeeId));
-  const weekOff = rows.length > 0 && rows.every((a) => a.status === "WEEKOFF");
   return {
     date,
     present: count("PRESENT"),
     halfDay: count("HALF_DAY"),
     absent: count("ABSENT"),
     onLeave: count("LEAVE"),
-    notMarked: weekOff ? 0 : assigned.filter((a) => !marked.has(a.employeeId)).length,
+    notMarked: countAttendanceNotMarked(db, date, region),
     overtimeHours: sum(rows.map((a) => a.overtimeMinutes)) / 60,
   };
 }
@@ -82,7 +79,7 @@ export function getPayslips(db: Database, runId: Id) {
  */
 export function getEpfSummary(db: Database, period: string, region: RegionFilter = "ALL") {
   const runs = db.payrollRuns.filter((r) => r.periodMonth === period && inRegion(region, r.regionId));
-  const slips = db.payslips.filter((p) => runs.some((r) => r.id === p.payrollRunId));
+  const slips = db.payslips.filter((p) => runs.some((r) => r.id === p.payrollRunId) && isLive(byId(db.employees, p.employeeId) ?? { deletedAt: "gone" }));
   const asOf = `${period}-${String(daysInMonth(period)).padStart(2, "0")}`;
   const parts = slips.filter((p) => Number(p.epfWages) > 0).map((p) => computePf(p.epfWages, asOf));
   return {

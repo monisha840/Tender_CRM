@@ -1,5 +1,5 @@
 import { daysBetween, getToday } from "@/lib/dates";
-import { moneyToNumber, subMoney, sumMoney } from "@/lib/money";
+import { hasOutstanding, moneyToNumber, outstandingMoney, subMoney, sumMoney } from "@/lib/money";
 import type { Database, GstFilingStatus, Id, Invoice, InvoicePaymentStatus, Money, Payment } from "@/types";
 import { ageingTotals, daysPastDue, isLive, isPayableSubBill, isPayableVendorInvoice, subBillDueDate } from "./definitions";
 import { byId, inRegion, organisationName, sum, type RegionFilter } from "./shared";
@@ -34,13 +34,13 @@ export function listInvoices(db: Database, filters: InvoiceFilters = {}): Invoic
     .filter((i) => !filters.gstFilingStatus || i.gstFilingStatus === filters.gstFilingStatus)
     .filter((i) => !filters.period || i.invoiceDate.startsWith(filters.period))
     .map((invoice): InvoiceRow => {
-      const outstanding = subMoney(invoice.netReceivable, invoice.receivedAmount);
+      const outstanding = outstandingMoney(invoice.netReceivable, invoice.receivedAmount);
       return {
         invoice,
         projectName: byId(db.projects, invoice.projectId)?.name ?? "—",
         organisationName: organisationName(db, invoice.organisationId),
         outstanding,
-        daysOverdue: Number(outstanding) > 0 ? daysPastDue(invoice.dueDate, today) : 0,
+        daysOverdue: hasOutstanding(invoice.netReceivable, invoice.receivedAmount) ? daysPastDue(invoice.dueDate, today) : 0,
         filingDaysOverdue: invoice.gstFilingStatus === "PENDING" ? Math.max(0, daysBetween(invoice.gstFilingDueDate, today)) : 0,
       };
     })
@@ -50,7 +50,7 @@ export function listInvoices(db: Database, filters: InvoiceFilters = {}): Invoic
 /** Unpaid or part-paid invoices, most overdue first. */
 export function listReceivables(db: Database, region: RegionFilter = "ALL"): InvoiceRow[] {
   return listInvoices(db, { region })
-    .filter((r) => Number(r.outstanding) > 0)
+    .filter((r) => hasOutstanding(r.invoice.netReceivable, r.invoice.receivedAmount))
     .sort((a, b) => b.daysOverdue - a.daysOverdue);
 }
 
@@ -80,7 +80,7 @@ export function getProjectBilling(db: Database, projectId: Id) {
     invoicedTaxable: billed,
     invoicedTotal: sumMoney(invoices.map((i) => i.total)),
     received: sumMoney(invoices.map((i) => i.receivedAmount)),
-    outstanding: sumMoney(invoices.map((i) => subMoney(i.netReceivable, i.receivedAmount))),
+    outstanding: sumMoney(invoices.map((i) => outstandingMoney(i.netReceivable, i.receivedAmount))),
     lastInvoiceDate: invoices.map((i) => i.invoiceDate).sort().pop() ?? null,
   };
 }
@@ -112,13 +112,13 @@ export function listPayables(db: Database, region: RegionFilter = "ALL"): Payabl
   const today = getToday();
   const partyOf = (partyId: string) => byId(db.parties, partyId)?.name ?? "—";
   const vendor = db.vendorInvoices
-    .filter((i) => isPayableVendorInvoice(i) && inRegion(region, i.regionId) && Number(subMoney(i.total, i.paidAmount)) > 0)
+    .filter((i) => isPayableVendorInvoice(i) && inRegion(region, i.regionId) && hasOutstanding(i.total, i.paidAmount))
     .map((i): PayableRow => ({
       kind: "VENDOR_INVOICE",
       id: i.id,
       party: partyOf(byId(db.vendors, i.vendorId)?.partyId ?? ""),
       projectName: byId(db.projects, i.projectId)?.name ?? "—",
-      outstanding: subMoney(i.total, i.paidAmount),
+      outstanding: outstandingMoney(i.total, i.paidAmount),
       dueDate: i.dueDate,
       daysOverdue: daysPastDue(i.dueDate, today),
     }));
@@ -131,7 +131,7 @@ export function listPayables(db: Database, region: RegionFilter = "ALL"): Payabl
         id: b.id,
         party: partyOf(byId(db.subcontractors, b.subcontractorId)?.partyId ?? ""),
         projectName: byId(db.projects, b.projectId)?.name ?? "—",
-        outstanding: subMoney(b.netPayable, b.paidAmount),
+        outstanding: outstandingMoney(b.netPayable, b.paidAmount),
         dueDate,
         daysOverdue: daysPastDue(dueDate, today),
       };

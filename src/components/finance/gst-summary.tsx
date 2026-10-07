@@ -6,7 +6,8 @@ import { ImportExport } from "@/components/data/import-export";
 import { DeadlineBadge, StatusBadge } from "@/components/shared/status-badge";
 import { daysBetween, formatDate, formatMonth, getToday } from "@/lib/dates";
 import { formatINR, moneyToNumber, sumMoney } from "@/lib/money";
-import { useDb } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
+import { GstNetPosition } from "./gst-net-position";
 import { FilterSelect, Stack, taxOf, useInvoiceRows } from "./helpers";
 
 interface MonthRow {
@@ -26,7 +27,7 @@ interface MonthRow {
 
 /** GST position per GSTIN and invoice month: tax totals, filing status and reference numbers. */
 export function GstSummary() {
-  const db = useDb();
+  const db = useAsOfDb();
   const invoices = useInvoiceRows();
   const [gstin, setGstin] = useState("ALL");
 
@@ -102,6 +103,7 @@ export function GstSummary() {
           options={db.gstRegistrations.map((g) => ({ value: g.id, label: g.gstin }))}
         />
       </div>
+      <GstNetPosition gstRegistrationId={gstin} />
       {groups.map(({ reg, rows, pendingTax }) => {
         const state = db.states.find((s) => s.id === reg.stateId)?.name;
         return (

@@ -1,3 +1,4 @@
+import { AGEING_BUCKETS, ageingBucketOf } from "./definitions";
 import type { Id } from "@/types";
 
 /** Where an entity lives in the app: its detail page when one exists, otherwise the module list. */
@@ -35,13 +36,11 @@ export function decodeRouteId(segment: string): string {
   }
 }
 
-/** Receivables drill-down from the dashboard ageing chart: days past the payment due date. */
-export const DASHBOARD_AGEING: { label: string; test: (daysOverdue: number) => boolean }[] = [
-  { label: "Not yet due", test: (d) => d === 0 },
-  { label: "1–30 days", test: (d) => d >= 1 && d <= 30 },
-  { label: "31–60 days", test: (d) => d >= 31 && d <= 60 },
-  { label: "Over 60 days", test: (d) => d > 60 },
-];
+/** Receivables drill-down from the dashboard ageing chart: the same buckets as the chart (days past the payment due date). */
+export const DASHBOARD_AGEING: { label: string; test: (daysOverdue: number) => boolean }[] = AGEING_BUCKETS.map((label) => ({
+  label,
+  test: (d: number) => ageingBucketOf(d) === label,
+}));
 
 export const ENTITY_LABEL: Record<string, string> = {
   TENDER_GO_NO_GO: "GO / NO-GO",

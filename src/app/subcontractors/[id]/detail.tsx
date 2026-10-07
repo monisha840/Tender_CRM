@@ -85,7 +85,7 @@ export function Detail({ id }: { id: string }) {
       <div className="space-y-8">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KpiTile label="Contract value" value={formatINR(row.contractValue, { compact: true })} />
-          <KpiTile label="Billed" value={formatINR(row.billed, { compact: true })} />
+          <KpiTile label="Billed (excl. GST)" value={formatINR(row.billed, { compact: true })} />
           <KpiTile label="Payable" value={formatINR(row.outstanding, { compact: true })} />
           <KpiTile label="Bills pending" value={String(row.billsAwaitingApproval)} hint="Awaiting approval" />
         </div>

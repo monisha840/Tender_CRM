@@ -1,17 +1,19 @@
 "use client";
 
 import { useMemo } from "react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartCard, LegendItem } from "@/components/charts/chart-card";
+import { SizedContainer } from "@/components/charts/sized-container";
 import { formatMonth } from "@/lib/dates";
 import { getRevenueExpenses } from "@/lib/data/dashboard13";
 import { formatINR, formatINRAxis } from "@/lib/money";
-import { useDb, useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
+import { useRegionFilter } from "@/store/hooks";
 
 const short = (m: string) => `${formatMonth(m).slice(0, 3)} ${m.slice(2, 4)}`;
 
 export function RevenueExpensesChart() {
-  const db = useDb();
+  const db = useAsOfDb();
   const { region } = useRegionFilter();
   const data = useMemo(() => getRevenueExpenses(db, region, 12), [db, region]);
   const empty = data.totalRevenue === 0 && data.totalExpenses === 0;
@@ -28,7 +30,7 @@ export function RevenueExpensesChart() {
         </>
       }
     >
-      <ResponsiveContainer width="100%" height="100%">
+      <SizedContainer>
         <BarChart data={data.months} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barGap={2}>
           <CartesianGrid vertical={false} stroke="var(--border)" />
           <XAxis dataKey="month" tickFormatter={short} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={16} tick={{ fill: "var(--text-secondary)", fontSize: 11 }} />
@@ -42,7 +44,7 @@ export function RevenueExpensesChart() {
           <Bar dataKey="revenue" fill="var(--chart-1)" stroke="var(--accent-strong)" strokeWidth={1} radius={[3, 3, 0, 0]} isAnimationActive={false} />
           <Bar dataKey="expenses" fill="var(--chart-4)" radius={[3, 3, 0, 0]} isAnimationActive={false} />
         </BarChart>
-      </ResponsiveContainer>
+      </SizedContainer>
     </ChartCard>
   );
 }

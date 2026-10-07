@@ -58,7 +58,7 @@ function employeeFields(db: Database): FormField[] {
     { name: "wage", label: "Wage amount (₹)", type: "number", required: true, hint: "Monthly salary for monthly staff, daily rate for daily workers." },
     { name: "joiningDate", label: "Joining date", type: "date", required: true, defaultValue: getToday() },
     { name: "pf", label: "PF applicable", type: "select", required: true, options: [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }] },
-    { name: "esi", label: "ESI applicable", type: "select", required: true, defaultValue: "no", options: [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }] },
+    { name: "esi", label: "ESI applicable", type: "select", required: true, defaultValue: "auto", options: [{ value: "auto", label: "Automatic (from wage)" }, { value: "yes", label: "Yes" }, { value: "no", label: "No" }] },
     { name: "uan", label: "UAN (optional)" },
     { name: "advance", label: "Opening advance (₹)", type: "number", defaultValue: "0" },
     { name: "site", label: "Plant site (optional)", type: "select", options: db.sites.filter((s) => !s.deletedAt).sort((a, b) => a.name.localeCompare(b.name)).map((s) => ({ value: s.id, label: s.name })) },

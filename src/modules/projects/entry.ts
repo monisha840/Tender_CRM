@@ -1,4 +1,4 @@
-import { addDays, getToday } from "@/lib/dates";
+import { addDays, getToday, nowIso } from "@/lib/dates";
 import { byId } from "@/lib/data/shared";
 import type { BillingCycle, ContractType, Database, Project } from "@/types";
 import { canonicalise, findRow, newId, parseDate, parseMoney } from "../work-entry-utils";
@@ -119,7 +119,7 @@ export function buildProject(db: Database, input: Record<string, string>, taken:
   const code = v.code || nextProjectCode(db, site.regionId, taken);
   if ([...db.projects.map((p) => p.code), ...taken].some((c) => c.toLowerCase() === code.toLowerCase())) return { error: `Code '${code}' is already used` };
 
-  const now = new Date().toISOString();
+  const now = nowIso();
   return {
     error: null,
     project: {

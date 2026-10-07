@@ -172,7 +172,7 @@ export default function Page() {
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiTile label="Projects" value={String(all.length)} icon={FolderKanban} hint={`${all.filter((r) => !isCompleted(r)).length} running`} />
         <KpiTile label="Contract value" value={formatINR(sumMoney(all.map((r) => r.project.contractValue)), { compact: true })} icon={IndianRupee} />
-        <KpiTile label="Outstanding" value={formatINR(outstanding, { compact: true })} icon={Banknote} hint="Billed, not yet received" />
+        <KpiTile label="Outstanding" value={formatINR(outstanding, { compact: true })} icon={Banknote} hint="Invoiced incl. GST, not yet received" />
         <KpiTile label="Delayed" value={String(delayed)} icon={AlertTriangle} hint="Behind plan or past end date" />
       </div>
       {delayed > 0 && filter !== "RED" && (

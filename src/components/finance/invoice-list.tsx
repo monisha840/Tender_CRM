@@ -9,7 +9,7 @@ import { formatDate, formatMonth } from "@/lib/dates";
 import type { InvoiceRow } from "@/lib/data/accounts";
 import { formatINR, moneyToNumber } from "@/lib/money";
 import { useUrlState } from "@/lib/use-url-param";
-import { useDb } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 import { INVOICE_HEADERS } from "@/modules/finance/entry";
 import { useInvoiceImport } from "./invoice-form";
 import { FilterSelect, filingKey, invoiceTone, Stack, taxOf, useInvoiceRows } from "./helpers";
@@ -17,7 +17,7 @@ import { FilterSelect, filingKey, invoiceTone, Stack, taxOf, useInvoiceRows } fr
 const amount = (m: string) => (moneyToNumber(m) === 0 ? "—" : formatINR(m));
 
 export function InvoiceList() {
-  const db = useDb();
+  const db = useAsOfDb();
   const importInvoices = useInvoiceImport();
   const all = useInvoiceRows();
   // Filters are kept in the URL (also read by links from the dashboard, e.g. ?customer=<organisation id>).

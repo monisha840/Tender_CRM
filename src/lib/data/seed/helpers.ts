@@ -3,7 +3,7 @@ import { fromPaise } from "@/lib/money";
 import type { Database, Id, IsoDate, IsoDateTime, Money } from "@/types";
 
 /** Bump when seed content changes so persisted localStorage data is replaced. */
-export const SEED_VERSION = 3;
+export const SEED_VERSION = 4;
 
 /** Fixed timestamp for "created" columns: keeps the seed byte-for-byte deterministic. */
 export const SEED_CREATED: IsoDateTime = istToUtc("2026-01-01", "09:00");

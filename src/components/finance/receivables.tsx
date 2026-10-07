@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartCard } from "@/components/charts/chart-card";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { ImportExport } from "@/components/data/import-export";
@@ -12,6 +12,7 @@ import type { InvoiceRow } from "@/lib/data/accounts";
 import { DASHBOARD_AGEING } from "@/lib/data/links";
 import { useUrlState } from "@/lib/use-url-param";
 import { formatINR, formatINRAxis, moneyToNumber } from "@/lib/money";
+import { SizedContainer } from "@/components/charts/sized-container";
 import { cn } from "@/lib/utils";
 import { AGEING_BUCKETS, ageingTotals, ageingBucketOf, type AgeingBucket } from "@/lib/data/definitions";
 import { invoiceTone, Stack, useInvoiceRows } from "./helpers";
@@ -95,7 +96,7 @@ export function Receivables() {
       </div>
 
       <ChartCard title="Receivables ageing" unit="₹ outstanding, by days past due date (not yet due counts in 0–30)" isEmpty={total === 0} emptyMessage="Nothing outstanding." heightClassName="h-52 md:h-60">
-        <ResponsiveContainer width="100%" height="100%">
+        <SizedContainer>
           <BarChart data={buckets} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <CartesianGrid vertical={false} stroke="var(--border)" />
             <XAxis dataKey="bucket" tickFormatter={(b) => `${b} d`} tickLine={false} axisLine={false} tick={{ fill: "var(--text-secondary)", fontSize: 11 }} />
@@ -112,7 +113,7 @@ export function Receivables() {
               ))}
             </Bar>
           </BarChart>
-        </ResponsiveContainer>
+        </SizedContainer>
       </ChartCard>
 
       <ImportExport

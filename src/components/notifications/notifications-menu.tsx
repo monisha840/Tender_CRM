@@ -9,14 +9,15 @@ import { listNotifications } from "@/lib/data";
 import { formatDateTime } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { useDataStore } from "@/store/data-store";
-import { useCurrentPersona, useDb } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
+import { useCurrentPersona } from "@/store/hooks";
 
 const MAX_SHOWN = 8;
 
 /** Bell in the top bar: a small list of recent notifications; each opens its related record. */
 export function NotificationsMenu() {
   const router = useRouter();
-  const db = useDb();
+  const db = useAsOfDb();
   const persona = useCurrentPersona();
   const markRead = useDataStore((s) => s.markNotificationRead);
   const markAll = useDataStore((s) => s.markAllNotificationsRead);

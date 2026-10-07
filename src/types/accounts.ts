@@ -61,7 +61,9 @@ export type PaymentPurpose =
   | "VENDOR"
   | "EXPENSE"
   | "TENDER_FEE"
-  | "TAX";
+  | "TAX"
+  /** Monthly PF challan, paid in the month after the payroll period. */
+  | "PF";
 
 export interface Payment extends BaseEntity {
   direction: PaymentDirection;

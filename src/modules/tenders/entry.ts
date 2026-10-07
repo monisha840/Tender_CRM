@@ -1,4 +1,4 @@
-import { istToUtc, toIstDate } from "@/lib/dates";
+import { istToUtc, nowIso, toIstDate } from "@/lib/dates";
 import type { Database, Id, Tender, TenderStageHistory } from "@/types";
 
 /** Raw form / CSV values. Lookup fields accept an id, a name or (organisations) a short name. */
@@ -112,7 +112,7 @@ export function buildTender(db: Database, v: TenderEntryValues, userId: Id): Bui
   const stage = db.tenderStages.filter((s) => s.kind === "OPEN" && s.isActive).sort((a, b) => a.sequence - b.sequence)[0];
   if (!stage) return { error: "No open tender stage is configured" };
 
-  const now = new Date().toISOString();
+  const now = nowIso();
   const id = newId("tnd");
   const submissionDeadlineAt = istToUtc(dl.date, dl.time);
   const tender: Tender = {

@@ -1,4 +1,4 @@
-import { addDays, getToday } from "@/lib/dates";
+import { addDays, getToday, nowIso } from "@/lib/dates";
 import { addMoney, cmpMoney, fromPaise, isPositive, splitGst, splitTaxAmount, subMoney, toPaise } from "@/lib/money";
 import { byId } from "@/lib/data/shared";
 import { gstinError, gstinPan, gstinStateCode, makeGstin } from "@/lib/gst-validation";
@@ -94,7 +94,7 @@ export type BuildResult =
 const STRICT_PERCENT = /^\d+(\.\d{1,2})?$/;
 
 /** Validates an entry and computes tax split, totals, due dates and statuses. Used by the form and the CSV import. */
-export function buildInvoice(db: Database, e: InvoiceEntry, pendingNos: string[] = [], now = new Date().toISOString()): BuildResult {
+export function buildInvoice(db: Database, e: InvoiceEntry, pendingNos: string[] = [], now = nowIso()): BuildResult {
   const fail = (error: string): BuildResult => ({ ok: false, error });
   const org = byId(db.organisations, e.organisationId);
   if (!org) return fail("Customer organisation not found");

@@ -26,6 +26,8 @@ import {
 } from "@/lib/dates";
 import { addMoney, cmpMoney, formatINR, formatINRAxis, fromPaise, isPositive, moneyToNumber, percentOf, subMoney, sumMoney, toPaise } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { computePf, daysInMonth, pfWageCeiling, professionalTax, regionCodeOf } from "@/lib/payroll-rules";
+import { balanceOf, isBilledSubBill, isPayableSubBill } from "@/lib/data/definitions";
 import { buildSeedDatabase } from "@/lib/data/seed";
 import { buildInvoice, gstFilingDue, parseMoney, suggestInvoiceNo, type InvoiceEntry } from "@/modules/finance/entry";
 import { getReceivablesSummary, listInvoices, listReceivables } from "@/lib/data/accounts";
@@ -116,7 +118,7 @@ describe("money: formatINR", () => {
     expect(formatINRAxis(2500)).toBe("₹2.5 K");
     expect(formatINRAxis(-100_000)).toBe("-₹1 L");
   });
-  it.todo("B20: money comparisons use paise (cmpMoney), not Number(), and outstanding is clamped at zero");
+  // B20 money comparisons are covered in finance-money.test.ts.
 });
 
 describe("dates", () => {
@@ -181,10 +183,10 @@ describe("dates", () => {
     setAsOfDate(null);
     expect(getToday()).toBe(DEMO_TODAY);
   });
-  it.todo("N1: the as-of date filters invoices, payments, bills and payslips dated after it, not just 'today'");
+  // N1 (as-of date filtering) is covered in data/__tests__/nav-as-of.test.ts.
   it.todo("T3: one shared urgency threshold across relativeDeadline, tenderTone and the attention items");
   it.todo("T4: days-left accounts for the time of day on the deadline");
-  it.todo("B5: impossible dates (2026-02-30) are rejected everywhere dates are parsed");
+  it.todo("B5: impossible dates (2026-02-30) are rejected by the non-invoice importers too (invoices are covered in finance-invoices.test.ts)");
 });
 
 describe("finance: parseMoney, filing due date, invoice numbers", () => {
@@ -374,9 +376,15 @@ describe("finance: invoice and receivables ledger (seed)", () => {
     setAsOfDate("2026-07-10");
     expect(listInvoices({ ...db, invoices: [inv] })[0].daysOverdue).toBe(10);
   });
-  it.todo("B9: one ageing definition (days past due) on the Finance screen and the dashboard");
-  it.todo("B11: soft-deleted invoices are excluded from billing, GST and receivables totals");
-  it.todo("B20: over-receipt does not make an invoice disappear from receivables");
+  // B9 and B11 are covered in data/__tests__/figures-definitions.test.ts.
+  it("B20: an over-receipt shows nothing outstanding and the row stays in the invoice list", () => {
+    const base = db.invoices.find((i) => !i.deletedAt)!;
+    const over: Invoice = { ...base, id: "t_over", receivedAmount: addMoney(base.netReceivable, "10.00") };
+    const rows = listInvoices({ ...db, invoices: [over] });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].outstanding).toBe("0.00");
+    expect(listReceivables({ ...db, invoices: [over] })).toHaveLength(0);
+  });
   it.todo("G5: invoices due today are not counted as 'not yet due'");
 });
 
@@ -388,31 +396,34 @@ describe("payroll (seeded payslips): PF, ESI, PT, net salary", () => {
       expect(p.net, p.id).toBe(subMoney(p.gross, p.totalDeductions));
     }
   });
-  it("EPF wages are capped at the current ₹15,000 ceiling and PF is 12% of EPF wages", () => {
+  const periodOf = (p: { payrollRunId: string }) => db.payrollRuns.find((r) => r.id === p.payrollRunId)!;
+  it("EPF wages are capped at the ceiling in force and PF is 12% of EPF wages, rounded to the rupee", () => {
     for (const p of db.payslips) {
-      expect(cmpMoney(p.epfWages, "15000.00"), p.id).toBeLessThanOrEqual(0);
+      const month = periodOf(p).periodMonth;
+      const monthEnd = `${month}-${String(daysInMonth(month)).padStart(2, "0")}`;
+      const pf = computePf(p.epfWages, monthEnd);
+      expect(cmpMoney(p.epfWages, pfWageCeiling(monthEnd)), p.id).toBeLessThanOrEqual(0);
       expect(cmpMoney(p.epfWages, p.gross), p.id).toBeLessThanOrEqual(0);
-      expect(p.epfEmployee, p.id).toBe(percentOf(p.epfWages, 12));
-      expect(p.epfEmployer, p.id).toBe(percentOf(p.epfWages, 12));
+      expect(p.epfEmployee, p.id).toBe(pf.employee);
+      expect(p.epfEmployer, p.id).toBe(pf.employerShare);
     }
     expect(db.payslips.some((p) => p.epfWages === "15000.00")).toBe(true); // somebody is capped
   });
-  it("ESI is 0.75% employee / 3.25% employer on gross, or zero", () => {
+  it("ESI is 0.75% employee / 3.25% employer on gross, rounded up to the next rupee, or zero", () => {
     const withEsi = db.payslips.filter((p) => isPositive(p.esiEmployee));
     expect(withEsi.length).toBeGreaterThan(0);
+    const ceilRupee = (gross: string, pct: number) => `${Math.ceil(moneyToNumber(gross) * (pct / 100) - 1e-9)}.00`;
     for (const p of db.payslips) {
-      if (isPositive(p.esiEmployee)) {
-        expect(p.esiEmployee, p.id).toBe(percentOf(p.gross, 0.75));
-        expect(p.esiEmployer, p.id).toBe(percentOf(p.gross, 3.25));
-      } else {
-        expect(p.esiEmployer, p.id).toBe("0.00");
-      }
+      if (isPositive(p.esiEmployee)) expect(p.esiEmployee, p.id).toBe(ceilRupee(p.gross, 0.75));
+      // The employee share is waived at ₹176 a day or less; the employer still pays.
+      if (isPositive(p.esiEmployer)) expect(p.esiEmployer, p.id).toBe(ceilRupee(p.gross, 3.25));
+      else expect(p.esiEmployee, p.id).toBe("0.00");
     }
   });
-  it("professional tax applies only above ₹15,000 gross, as a flat regional amount", () => {
+  it("professional tax follows the state slab for the payslip's region and month", () => {
     for (const p of db.payslips) {
-      if (cmpMoney(p.gross, "15000.00") <= 0) expect(p.otherDeductions, p.id).toBe("0.00");
-      else expect([0, 200, 208]).toContain(moneyToNumber(p.otherDeductions));
+      const run = periodOf(p);
+      expect(p.otherDeductions, p.id).toBe(professionalTax(regionCodeOf(run.regionId), p.gross, run.periodMonth));
     }
   });
   it("payroll run totals agree with their payslips", () => {
@@ -431,14 +442,7 @@ describe("payroll (seeded payslips): PF, ESI, PT, net salary", () => {
     const latest = db.payrollRuns.map((r) => r.periodMonth).sort().pop()!;
     expect(db.payslips.some((p) => db.payrollRuns.find((r) => r.id === p.payrollRunId)?.periodMonth === latest && p.paymentStatus !== "PAID")).toBe(true);
   });
-  it.todo("P1: EPF ceiling is ₹25,000 from 2026-09-17 (date-versioned; September is a split month)");
-  it.todo("B13: PF wages are basic + DA (not gross incl. overtime); employer share splits EPF 3.67 / EPS 8.33 + EDLI + admin");
-  it.todo("B13: ESI has its own status and due date; PF 'remitted' means a challan was paid, not that the run is locked");
-  it.todo("B13/P2: professional tax comes from a per-state slab table, not a flat ₹200");
-  it.todo("B14: days worked and overtime derive from attendance rows");
-  it.todo("B14: proration is exact (24/26 of 20,000 = 18,461.54, not 18,462.00)");
-  it.todo("B12: advance recovered reduces the employee's advance balance");
-  it.todo("B15: employee wage input rejects '1e3' and '0x10'; ESI applicability derives from wage ≤ ₹21,000");
+  // P1, P2 and B12-B15 are covered in payroll-rules.test.ts, payroll-seed.test.ts and the workforce entry tests.
 });
 
 describe("subcontractor balances", () => {
@@ -448,11 +452,12 @@ describe("subcontractor balances", () => {
       expect(cmpMoney(b.paidAmount, b.netPayable), b.id).toBeLessThanOrEqual(0);
     }
   });
-  it("assignment balance = net payable - paid, summed over its bills", () => {
+  it("assignment balance = net payable - paid, summed over its payable bills", () => {
     for (const a of listSubcontractorAssignments(db)) {
-      const bills = db.subcontractorBills.filter((b) => b.workOrderId === a.workOrder.id);
-      expect(a.balance, a.workOrder.id).toBe(subMoney(sumMoney(bills.map((b) => b.netPayable)), sumMoney(bills.map((b) => b.paidAmount))));
-      expect(a.billCount).toBe(bills.length);
+      const bills = db.subcontractorBills.filter((b) => b.workOrderId === a.workOrder.id && !b.deletedAt);
+      // B10: only approved and part-paid bills are payable; drafts, submitted and rejected bills never inflate the balance.
+      expect(a.balance, a.workOrder.id).toBe(sumMoney(bills.filter(isPayableSubBill).map((b) => balanceOf(b.netPayable, b.paidAmount))));
+      expect(a.billCount).toBe(bills.filter(isBilledSubBill).length);
     }
   });
   it("outstanding counts only APPROVED and PARTLY_PAID bills, per project and in total", () => {
@@ -470,7 +475,5 @@ describe("subcontractor balances", () => {
     const sub: Database = { ...db, subcontractorBills: [mk("t1", "REJECTED"), mk("t2", "DRAFT"), mk("t3", "APPROVED")] };
     expect(getSubcontractorOutstanding(sub, base.subcontractorId).total).toBe("1000.00");
   });
-  it.todo("B10: one definition of 'payable' across listSubcontractors, assignments, dashboard and payables");
-  it.todo("B10: a rejected or draft bill does not inflate an assignment's balance");
-  it.todo("B11: soft-deleted subcontractor bills and work orders are excluded");
+  // B10 and B11 are covered in data/__tests__/figures-definitions.test.ts.
 });

@@ -1,4 +1,4 @@
-import { addDays, getToday, istToUtc } from "@/lib/dates";
+import { addDays, getToday, istToUtc, nowIso } from "@/lib/dates";
 import { byId } from "@/lib/data/shared";
 import { isPositive } from "@/lib/money";
 import { parseMoney } from "@/modules/finance/entry";
@@ -38,7 +38,7 @@ export function buildApprovalRequest(db: Database, e: ApprovalEntry): ApprovalBu
     if (!amount || !isPositive(amount)) return fail("Amount must be a positive number");
   }
   if (e.projectId && !byId(db.projects, e.projectId)) return fail("Project not found");
-  const now = new Date().toISOString();
+  const now = nowIso();
   const id = `apr_new_${Date.now()}`;
   return {
     ok: true,

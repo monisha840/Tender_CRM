@@ -4,7 +4,8 @@ import { useMemo, type ReactNode } from "react";
 import { daysBetween, getToday } from "@/lib/dates";
 import { addMoney } from "@/lib/money";
 import { listInvoices, type InvoiceRow } from "@/lib/data/accounts";
-import { useDb, useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
+import { useRegionFilter } from "@/store/hooks";
 import type { Invoice, Money } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -12,7 +13,7 @@ export const taxOf = (i: Pick<Invoice, "cgst" | "sgst" | "igst">): Money => addM
 
 /** Invoice rows for the current region filter. */
 export function useInvoiceRows(): InvoiceRow[] {
-  const db = useDb();
+  const db = useAsOfDb();
   const { region } = useRegionFilter();
   return useMemo(() => listInvoices(db, { region }), [db, region]);
 }
@@ -32,14 +33,6 @@ export function invoiceTone(r: InvoiceRow): "danger" | "warning" | undefined {
   if ((owes && payIn >= 0 && payIn <= 3) || (filing && fileIn >= 0 && fileIn <= 7)) return "warning";
   return undefined;
 }
-
-export const AGEING_BUCKETS = ["0–30", "31–60", "61–90", "90+"] as const;
-export type AgeingBucket = (typeof AGEING_BUCKETS)[number];
-
-/** Age of an invoice in days since the invoice date. */
-export const invoiceAge = (invoiceDate: string): number => Math.max(0, daysBetween(invoiceDate, getToday()));
-
-export const bucketOf = (age: number): AgeingBucket => (age <= 30 ? "0–30" : age <= 60 ? "31–60" : age <= 90 ? "61–90" : "90+");
 
 const selectClass =
   "h-11 md:h-8 rounded-lg border border-input bg-surface px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";

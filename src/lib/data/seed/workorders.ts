@@ -15,18 +15,18 @@ export interface SubSeed {
 }
 
 export const SUBS: SubSeed[] = [
-  { id: "1", name: "Deccan Civil Works", region: "south", city: "Raichur", state: "st_ka", pan: "AAFCD2210L", gstin: "29AAFCD2210L1ZN", contact: "Basavaraj Patil", phone: "98450 11021", trade: "Civil" },
-  { id: "2", name: "Raichur Manpower Services", region: "south", city: "Raichur", state: "st_ka", pan: "AAHFR5532E", gstin: "29AAHFR5532E1Z8", contact: "Shivakumar Reddy", phone: "98450 11022", trade: "Stone Picking", labour: true },
-  { id: "3", name: "Coastal Coatings & Painters", region: "south", city: "Chennai", state: "st_tn", pan: "AAGFC7783H", gstin: "33AAGFC7783H1ZV", contact: "Rajendran M", phone: "98410 11023", trade: "Painting" },
-  { id: "4", name: "Madras Scaffolding Services", region: "south", city: "Chennai", state: "st_tn", pan: "AAJFM1904D", gstin: "33AAJFM1904D1ZP", contact: "Elango S", phone: "98410 11024", trade: "Scaffolding" },
-  { id: "5", name: "Korba Coating & Painting Co.", region: "cg", city: "Korba", state: "st_cg", pan: "AAFFK4421B", gstin: "22AAFFK4421B1Z6", contact: "Mahesh Sahu", phone: "98931 40025", trade: "Painting" },
-  { id: "7", name: "Maa Kali Manpower Services", region: "cg", city: "Korba", state: "st_cg", pan: "ABCPM5521L", gstin: "22ABCPM5521L1ZA", contact: "Kamta Prasad", phone: "97550 22190", trade: "Stone Picking", labour: true },
-  { id: "8", name: "Bhilai Steel Erectors", region: "cg", city: "Bhilai", state: "st_cg", pan: "AAGFB8812K", gstin: "22AAGFB8812K1ZC", contact: "Rakesh Dubey", phone: "98271 40027", trade: "Steel erection and civil" },
-  { id: "9", name: "Basalt Linings Installers", region: "mh", city: "Nagpur", state: "st_mh", pan: "AAJFB6609Q", gstin: "27AAJFB6609Q1ZL", contact: "Anand Kulkarni", phone: "98220 61028", trade: "Pipeline Laying" },
-  { id: "10", name: "Nagpur Civil Constructions", region: "mh", city: "Nagpur", state: "st_mh", pan: "AAFFN2278R", gstin: "27AAFFN2278R1ZG", contact: "Tanaji Bhosale", phone: "98900 18734", trade: "Civil" },
-  { id: "11", name: "Vidarbha Manpower Services", region: "mh", city: "Nagpur", state: "st_mh", pan: "AAHFV3345T", gstin: "27AAHFV3345T1ZW", contact: "Ravindra Wankhede", phone: "98223 61045", trade: "Stone Picking", labour: true },
-  { id: "12", name: "Utkal Industrial Painters", region: "delhi", city: "Angul", state: "st_od", pan: "AAFFU7714G", gstin: "21AAFFU7714G1ZD", contact: "Prasanna Sahoo", phone: "94370 21030", trade: "Painting" },
-  { id: "13", name: "Eastern Stone Picking Contractors", region: "delhi", city: "Asansol", state: "st_wb", pan: "AAJFE1186M", gstin: "19AAJFE1186M1ZH", contact: "Biswajit Mondal", phone: "98320 21031", trade: "Stone Picking", labour: true },
+  { id: "1", name: "Deccan Civil Works", region: "south", city: "Raichur", state: "st_ka", pan: "AAFCD2210L", gstin: "29AAFCD2210L1ZR", contact: "Basavaraj Patil", phone: "98450 11021", trade: "Civil" },
+  { id: "2", name: "Raichur Manpower Services", region: "south", city: "Raichur", state: "st_ka", pan: "AAHFR5532E", gstin: "29AAHFR5532E1Z5", contact: "Shivakumar Reddy", phone: "98450 11022", trade: "Stone Picking", labour: true },
+  { id: "3", name: "Coastal Coatings & Painters", region: "south", city: "Chennai", state: "st_tn", pan: "AAGFC7783H", gstin: "33AAGFC7783H1Z9", contact: "Rajendran M", phone: "98410 11023", trade: "Painting" },
+  { id: "4", name: "Madras Scaffolding Services", region: "south", city: "Chennai", state: "st_tn", pan: "AAJFM1904D", gstin: "33AAJFM1904D1ZT", contact: "Elango S", phone: "98410 11024", trade: "Scaffolding" },
+  { id: "5", name: "Korba Coating & Painting Co.", region: "cg", city: "Korba", state: "st_cg", pan: "AAFFK4421B", gstin: "22AAFFK4421B1Z4", contact: "Mahesh Sahu", phone: "98931 40025", trade: "Painting" },
+  { id: "7", name: "Maa Kali Manpower Services", region: "cg", city: "Korba", state: "st_cg", pan: "ABCPM5521L", gstin: "22ABCPM5521L1ZU", contact: "Kamta Prasad", phone: "97550 22190", trade: "Stone Picking", labour: true },
+  { id: "8", name: "Bhilai Steel Erectors", region: "cg", city: "Bhilai", state: "st_cg", pan: "AAGFB8812K", gstin: "22AAGFB8812K1ZI", contact: "Rakesh Dubey", phone: "98271 40027", trade: "Steel erection and civil" },
+  { id: "9", name: "Basalt Linings Installers", region: "mh", city: "Nagpur", state: "st_mh", pan: "AAJFB6609Q", gstin: "27AAJFB6609Q1ZU", contact: "Anand Kulkarni", phone: "98220 61028", trade: "Pipeline Laying" },
+  { id: "10", name: "Nagpur Civil Constructions", region: "mh", city: "Nagpur", state: "st_mh", pan: "AAFFN2278R", gstin: "27AAFFN2278R1ZJ", contact: "Tanaji Bhosale", phone: "98900 18734", trade: "Civil" },
+  { id: "11", name: "Vidarbha Manpower Services", region: "mh", city: "Nagpur", state: "st_mh", pan: "AAHFV3345T", gstin: "27AAHFV3345T1ZB", contact: "Ravindra Wankhede", phone: "98223 61045", trade: "Stone Picking", labour: true },
+  { id: "12", name: "Utkal Industrial Painters", region: "delhi", city: "Angul", state: "st_od", pan: "AAFFU7714G", gstin: "21AAFFU7714G1ZC", contact: "Prasanna Sahoo", phone: "94370 21030", trade: "Painting" },
+  { id: "13", name: "Eastern Stone Picking Contractors", region: "delhi", city: "Asansol", state: "st_wb", pan: "AAJFE1186M", gstin: "19AAJFE1186M1ZY", contact: "Biswajit Mondal", phone: "98320 21031", trade: "Stone Picking", labour: true },
 ];
 
 export interface WorkOrderSpec {

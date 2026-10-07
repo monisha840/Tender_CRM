@@ -1,5 +1,6 @@
 import { addDays, dayOfWeek, DEMO_TODAY, lastNDays } from "@/lib/dates";
 import type { AttendanceStatus } from "@/types";
+import { isEsiEligible } from "@/lib/payroll-rules";
 import { OFFICE_STAFF, PROJECT_SPECS, SITES } from "./catalog";
 import { meta, RegionKey, rupees, type RegionKeyName, type SeedCtx } from "./helpers";
 import { employeeIdOfUser, USER_SPECS, userId } from "./org";
@@ -41,7 +42,6 @@ export const SITE_USER: Record<RegionKeyName, { engineer: string; supervisor: st
 };
 
 /** ESI applies when monthly gross is at most ₹21,000 (a payroll rule that will move to settings). */
-const ESI_CEILING = 21000;
 
 export function seedWorkforce(ctx: SeedCtx, projects: ProjectInfo[]) {
   const { db, rng } = ctx;
@@ -58,7 +58,7 @@ export function seedWorkforce(ctx: SeedCtx, projects: ProjectInfo[]) {
     const wage = STAFF_WAGE[u.role] ?? 0;
     db.employeeProfiles.push({
       ...meta(`ep_${u.key}`), employeeId: employeeIdOfUser(u.key), designation: u.title ?? DESIGNATION[u.role], department: DEPARTMENT[u.role], labourTypeId: "lt_monthly",
-      joiningDate: "2019-04-01", exitDate: null, wageAmount: rupees(wage), pfApplicable: wage > 0, esiApplicable: wage > 0 && wage <= ESI_CEILING,
+      joiningDate: "2019-04-01", exitDate: null, wageAmount: rupees(wage), pfApplicable: wage > 0, esiApplicable: wage > 0 && isEsiEligible(wage, DEMO_TODAY),
       advanceBalance: rupees(0), uan: wage ? uan() : null, contractorId: null,
     });
   });
@@ -69,7 +69,7 @@ export function seedWorkforce(ctx: SeedCtx, projects: ProjectInfo[]) {
     db.employees.push({ ...meta(id), code: nextCode(), name, phone: `9${rng.int(100000000, 999999999)}`, homeRegionId: RegionKey[region], userId: null });
     db.employeeProfiles.push({
       ...meta(`ep_${id}`), employeeId: id, designation, department, labourTypeId: mode === "DAILY" ? "lt_daily" : "lt_monthly", joiningDate: joined, exitDate: null,
-      wageAmount: rupees(wage), pfApplicable: true, esiApplicable: monthlyEquivalent <= ESI_CEILING,
+      wageAmount: rupees(wage), pfApplicable: true, esiApplicable: isEsiEligible(monthlyEquivalent, DEMO_TODAY),
       advanceBalance: rupees(hasAdvance ? rng.pick([2000, 3000, 5000, 8000, 10000]) : 0), uan: uan(), contractorId: null,
     });
   };
@@ -117,10 +117,10 @@ export function seedWorkforce(ctx: SeedCtx, projects: ProjectInfo[]) {
   transfer("emp_w_p6_ntpc_steel_1", "p2_cspgcl_paint", "p6_ntpc_steel", 40);
   transfer("emp_w_p10_kpcl_pkg_1", "p5_tangedco_scaff", "p10_kpcl_pkg", 30);
 
-  // ---- Attendance: last 90 days (three months), current assignments only ----
+  // ---- Attendance: from 1 April (190 days to the demo date), current assignments only ----
   const siteRegion = new Map(SITES.map((s) => [s.id, s.region]));
   const current = db.siteAssignments.filter((a) => !a.toDate || a.toDate >= DEMO_TODAY);
-  lastNDays(90).forEach((date) => {
+  lastNDays(190).forEach((date) => {
     const sunday = dayOffsetIsSunday(date);
     current.forEach((a) => {
       if (date < a.fromDate) return;
