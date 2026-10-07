@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuthUser } from "@/components/auth/session-provider";
+import { isBarePath } from "@/lib/auth/public-paths";
 import { History, ShieldOff } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,6 +26,15 @@ import { Sidebar } from "./sidebar";
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  // Login and password screens: no sidebar/header and no demo-data hydration.
+  if (isBarePath(pathname)) return <>{children}</>;
+  return <ShellInner>{children}</ShellInner>;
+}
+
+function ShellInner({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const authUser = useAuthUser();
   const db = useDb();
   const persona = useCurrentPersona();
   const hydrated = useHydrated();
@@ -36,6 +47,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     void useDataStore.persist.rehydrate();
     void useSessionStore.persist.rehydrate();
   }, []);
+
+  // The proxy already redirects anonymous requests; this covers a session that ends while the page is open.
+  useEffect(() => {
+    // Full navigation to /auth/signout so a session without a usable CRM profile is cleared (no /login <-> / loop).
+    if (!authUser) window.location.replace("/auth/signout");
+    else if (authUser.mustChangePassword) router.replace("/change-password");
+  }, [authUser, router]);
 
   const siteLayout = persona.role.layout === "SITE";
   const navModule = findModule(pathname);

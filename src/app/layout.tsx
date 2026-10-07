@@ -3,7 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
-import { AppShell } from "@/components/layout/app-shell";
+import { Suspense } from "react";
+import { SessionGate, SessionGateFallback } from "@/components/auth/session-gate";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -28,7 +29,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} h-full`}>
       <body className="min-h-full">
         <TooltipProvider>
-          <AppShell>{children}</AppShell>
+          <Suspense fallback={<SessionGateFallback />}>
+            <SessionGate>{children}</SessionGate>
+          </Suspense>
         </TooltipProvider>
         <Toaster />
       </body>

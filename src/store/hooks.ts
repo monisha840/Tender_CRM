@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { effectiveRegionFilter, getAllowedRegionIds, getPersona, type Persona } from "@/lib/data/access";
 import type { RegionFilter } from "@/lib/data/shared";
 import type { Database, Region } from "@/types";
+import { useAuthUser } from "@/components/auth/session-provider";
+import { DEV_ROLE_SWITCHER } from "@/lib/auth/dev-flags";
+import { resolvePersonaUserId } from "@/lib/auth/persona-map";
 import { useDataStore } from "./data-store";
 import { useSessionStore } from "./session-store";
 
@@ -12,7 +15,11 @@ export const useDb = (): Database => useDataStore((s) => s.db);
 /** Current persona. Falls back to the first user if a stored id no longer exists (e.g. after a reseed). */
 export function useCurrentPersona(): Persona {
   const db = useDb();
-  const userId = useSessionStore((s) => s.currentUserId);
+  const storedId = useSessionStore((s) => s.currentUserId);
+  const authUser = useAuthUser();
+  // Real login decides the persona (matched to a seed persona until screens move off the mock data).
+  // Only the dev-only role switcher may override it.
+  const userId = DEV_ROLE_SWITCHER || !authUser ? storedId : resolvePersonaUserId(db, authUser);
   return useMemo(() => {
     const persona = getPersona(db, userId) ?? getPersona(db, db.users[0].id);
     if (!persona) throw new Error("Seed data has no users");
