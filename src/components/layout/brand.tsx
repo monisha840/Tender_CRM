@@ -1,12 +1,11 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-/** Wordmark: a plain navy square monogram plus the product name. No imagery. */
+/** Company logo (from sprincehightech.com) plus the product name. */
 export function Brand({ compact = false, className }: { compact?: boolean; className?: string }) {
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent text-sm font-semibold text-accent-foreground" aria-hidden="true">
-        S
-      </span>
+      <Image src="/brand/logo.png" alt="" width={551} height={453} priority className="h-9 w-auto shrink-0" />
       <span className={cn("text-sm leading-tight font-semibold tracking-tight", compact && "sr-only")}>S. Prince Management Tool</span>
     </div>
   );
