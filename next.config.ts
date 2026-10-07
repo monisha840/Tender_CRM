@@ -6,7 +6,11 @@ const nextConfig: NextConfig = {
   devIndicators: { position: "bottom-right" },
   cacheComponents: true,
   // Mirror APP_ENV for client code (feature flags in src/lib/features.ts).
-  env: { NEXT_PUBLIC_APP_ENV: process.env.APP_ENV ?? "" },
+  // Always defined (even as "") so the bundler can fold the dev-only role switcher condition and drop its code.
+  env: {
+    NEXT_PUBLIC_APP_ENV: process.env.APP_ENV ?? "",
+    NEXT_PUBLIC_DEV_ROLE_SWITCHER: process.env.NEXT_PUBLIC_DEV_ROLE_SWITCHER ?? "",
+  },
   partialPrefetching: true,
   turbopack: {
     rules: {
