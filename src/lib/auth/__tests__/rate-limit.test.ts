@@ -32,9 +32,10 @@ describe("rate limiter", () => {
 });
 
 describe("dev role switcher flag", () => {
-  it("is on only when flagged and not production", () => {
+  it("is on only when flagged and APP_ENV is development or test", () => {
     expect(resolveDevRoleSwitcher("true", "development")).toBe(true);
-    expect(resolveDevRoleSwitcher("true", undefined)).toBe(true);
+    expect(resolveDevRoleSwitcher("true", "test")).toBe(true);
+    expect(resolveDevRoleSwitcher("true", undefined)).toBe(false);
     expect(resolveDevRoleSwitcher("true", "production")).toBe(false);
     expect(resolveDevRoleSwitcher(undefined, "development")).toBe(false);
     expect(resolveDevRoleSwitcher("false", "development")).toBe(false);
