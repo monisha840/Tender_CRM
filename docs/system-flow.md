@@ -314,3 +314,10 @@ Government Tender → Tender Registration → GO/NO-GO → Document Preparation 
 7. Is material/inventory tracking at site needed in phase 1?
 8. Should subcontractors get their own login to submit bills?
 9. Priority order of modules for go-live.
+10. **Payroll rules to confirm (payroll agent, Oct 2026):**
+    - PF wage ceiling moves from ₹15,000 to ₹25,000 on 17-09-2026 (S.O. 5109(E)). September is a split month; we apply the ceiling in force on the last day of the wage month. Confirm with the CA whether the 1-16 September wages stay on ₹15,000.
+    - PF wages = basic + DA. The employee record has a single wage field, so it is treated as basic + DA. Is there a basic/DA/allowance split per employee?
+    - Professional tax: Maharashtra men's slabs are used because the record holds no gender (women are exempt up to ₹25,000). Chhattisgarh uses the annual slabs (₹208, ₹212 in March). "South" is treated as Tamil Nadu (half-yearly, Sept and March) and was not re-verified online; KPCL Raichur staff are in Karnataka (₹200 a month above ₹25,000). Which state does each South employee belong to?
+    - Leave is treated as unpaid because there is no leave ledger yet. Is casual or earned leave paid?
+    - Advance recovery rule is 10% of the advance a month (minimum ₹500, rounded up to ₹100, at most half the pay). What does the client actually do?
+    - Overtime is paid at 2x the ordinary hourly rate (8-hour day). The new Labour Codes (in force from 21-11-2025) change the definition of "wages"; confirm the treatment of overtime for PF and ESI with the CA.
