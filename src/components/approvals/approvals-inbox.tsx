@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Check, Plus, ChevronDown, ChevronUp, ExternalLink, Inbox, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, ExternalLink, Inbox, X } from "lucide-react";
 import { toast } from "sonner";
 import { ImportExport } from "@/components/data/import-export";
-import { RecordForm } from "@/components/data/record-form";
-import { buildApprovalRequest, REQUEST_TYPES } from "@/modules/approvals/entry";
+import { decideApprovalAction } from "@/modules/approvals/actions";
+import { errorText } from "@/components/tenders/action-helpers";
 import { formatDateTime, nowIso, relativeDeadline } from "@/lib/dates";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -18,7 +19,6 @@ import { getApprovalTimeline, getScope, listApprovals, type ApprovalRow } from "
 import { formatINR } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { useUrlState } from "@/lib/use-url-param";
-import { useDataStore } from "@/store/data-store";
 import { useCurrentPersona, useRegionFilter } from "@/store/hooks";
 import { useAsOfDb } from "@/components/layout/use-as-of-db";
 
@@ -29,14 +29,14 @@ export function ApprovalsInbox() {
   const db = useAsOfDb();
   const persona = useCurrentPersona();
   const { region } = useRegionFilter();
-  const upsert = useDataStore((s) => s.upsert);
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
   const [tabParam, setTabParam] = useUrlState("tab", "mine");
   const tab: Tab = (["mine", "all", "decided"] as const).find((t) => t === tabParam) ?? "mine";
   const setTab = (t: Tab) => setTabParam(t);
   const [open, setOpen] = useState<string | null>(null);
   const [deciding, setDeciding] = useState<{ row: ApprovalRow; decision: "APPROVE" | "REJECT" } | null>(null);
   const [comment, setComment] = useState("");
-  const [adding, setAdding] = useState(false);
 
   const userId = persona.user.id;
   const canApproveAll = getScope(db, userId, "approvals", "APPROVE") === "ALL";
@@ -44,46 +44,35 @@ export function ApprovalsInbox() {
 
   const all = useMemo(() => listApprovals(db, { region }), [db, region]);
   const pending = all.filter((r) => r.request.status === "PENDING");
+  // Server steps are assigned to a ROLE (Director), not a named user, so "waiting for me" = pending items I am allowed to decide.
+  const mayDecide = (r: ApprovalRow) => r.request.status === "PENDING" && canApprove && (r.assignedToId === userId || r.assignedToId === null || canApproveAll);
   const lists: Record<Tab, ApprovalRow[]> = {
-    mine: pending.filter((r) => r.assignedToId === userId),
+    mine: pending.filter(mayDecide),
     all: pending,
     decided: all.filter((r) => r.request.status !== "PENDING"),
   };
   const rows = lists[tab];
-  const mayDecide = (r: ApprovalRow) => r.request.status === "PENDING" && canApprove && (r.assignedToId === userId || canApproveAll);
 
-  function submit() {
-    if (!deciding) return;
+  /** The decision is made on the server (permission, maker-checker, audit, module handler, one transaction); the page then reloads its data. */
+  async function submit() {
+    if (!deciding || busy) return;
     const { row, decision } = deciding;
     if (decision === "REJECT" && !comment.trim()) return;
-    const step = db.approvalSteps.find((s) => s.requestId === row.request.id && s.sequence === row.request.currentSequence);
-    if (!step) return;
-    const now = nowIso();
-    const status = decision === "APPROVE" ? "APPROVED" : "REJECTED";
-    upsert("approvalSteps", { ...step, status, updatedAt: now });
-    upsert("approvalRequests", { ...row.request, status, completedAt: now, updatedAt: now });
-    upsert("approvalActions", { id: `aa_${step.id}_${Date.now()}`, createdAt: now, updatedAt: now, stepId: step.id, actorId: userId, action: decision, comment: comment.trim() || null, at: now });
-    toast.success(decision === "APPROVE" ? "Approved" : "Rejected", { description: row.request.title });
-    setDeciding(null);
-    setComment("");
+    setBusy(true);
+    try {
+      const res = await decideApprovalAction({ requestId: row.request.id, decision, reason: comment.trim() || undefined });
+      if (!res.ok) {
+        toast.error(errorText(res));
+        return;
+      }
+      toast.success(decision === "APPROVE" ? "Approved" : "Rejected", { description: row.request.title });
+      setDeciding(null);
+      setComment("");
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
   }
-
-  const createRequest = (v: Record<string, string>): string | void => {
-    const built = buildApprovalRequest(db, {
-      entityType: v.entityType,
-      title: v.title,
-      amount: v.amount ?? "",
-      regionId: v.regionId,
-      projectId: v.projectId ?? "",
-      approverId: v.approverId,
-      requestedById: userId,
-    });
-    if (!built.ok) return built.error;
-    upsert("approvalRequests", built.request);
-    upsert("approvalSteps", built.step);
-    toast.success("Request sent for approval", { description: built.request.title });
-    setTab("all");
-  };
 
   const toneOf = (r: ApprovalRow): "danger" | "warning" | undefined => {
     if (r.request.status !== "PENDING" || !r.dueAt) return undefined;
@@ -101,27 +90,8 @@ export function ApprovalsInbox() {
     <>
       <PageHeader
         title="Approvals"
-        description="Everything waiting for a decision, in one place. Approve or reject with a comment."
-        primaryAction={{ label: "New request", icon: Plus, onClick: () => setAdding(true) }}
+        description="Tender approvals waiting for a decision. Approve or reject with a comment."
       />
-      {adding && (
-        <RecordForm
-          open
-          onOpenChange={setAdding}
-          title="New approval request"
-          description="Goes to the approver you pick; they get it in their inbox."
-          submitLabel="Send for approval"
-          onSubmit={createRequest}
-          fields={[
-            { name: "entityType", label: "Type", type: "select", required: true, options: REQUEST_TYPES },
-            { name: "title", label: "Title", required: true, placeholder: "e.g. Scaffolding material for Korba CHP" },
-            { name: "amount", label: "Amount (₹)", type: "number", placeholder: "Optional" },
-            { name: "regionId", label: "Region", type: "select", required: true, defaultValue: region !== "ALL" ? region : undefined, options: db.regions.filter((r) => r.isActive).map((r) => ({ value: r.id, label: r.name })) },
-            { name: "projectId", label: "Project", type: "select", options: db.projects.filter((p) => !p.deletedAt).map((p) => ({ value: p.id, label: p.name })) },
-            { name: "approverId", label: "Approver", type: "select", required: true, options: db.users.filter((u) => u.isActive && u.id !== userId).map((u) => ({ value: u.id, label: u.name })) },
-          ]}
-        />
-      )}
       <ImportExport
         filename={`approvals-${tab}`}
         headers={["Title", "Type", "Region", "Amount", "Status", "Requested by", "Requested on", "With", "Due"]}
@@ -151,7 +121,7 @@ export function ApprovalsInbox() {
           {rows.map((r) => {
             const expanded = open === r.request.id;
             return (
-              <li key={r.request.id} className={cn("rounded-lg border bg-surface", toneOf(r) === "danger" && "border-l-4 border-l-status-danger bg-status-danger/5", toneOf(r) === "warning" && "border-l-4 border-l-status-warning")}>
+              <li key={r.request.id} data-testid="approvals-row" className={cn("rounded-lg border bg-surface", toneOf(r) === "danger" && "border-l-4 border-l-status-danger bg-status-danger/5", toneOf(r) === "warning" && "border-l-4 border-l-status-warning")}>
                 <div className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -169,10 +139,10 @@ export function ApprovalsInbox() {
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
                     {mayDecide(r) && (
                       <>
-                        <Button className="min-h-11 flex-1 md:min-h-8 md:flex-none" onClick={() => setDeciding({ row: r, decision: "APPROVE" })}>
+                        <Button className="min-h-11 flex-1 md:min-h-8 md:flex-none" data-testid="approve" onClick={() => setDeciding({ row: r, decision: "APPROVE" })}>
                           <Check data-icon="inline-start" aria-hidden="true" /> Approve
                         </Button>
-                        <Button variant="outline" className="min-h-11 flex-1 md:min-h-8 md:flex-none" onClick={() => setDeciding({ row: r, decision: "REJECT" })}>
+                        <Button variant="outline" className="min-h-11 flex-1 md:min-h-8 md:flex-none" data-testid="reject" onClick={() => setDeciding({ row: r, decision: "REJECT" })}>
                           <X data-icon="inline-start" aria-hidden="true" /> Reject
                         </Button>
                       </>
@@ -223,7 +193,7 @@ export function ApprovalsInbox() {
             placeholder={deciding?.decision === "REJECT" ? "Say why, so the requester can fix it" : "Add a note for the audit trail"}
           />
           <SheetFooter className="p-0">
-            <Button className="min-h-11" disabled={deciding?.decision === "REJECT" && !comment.trim()} onClick={submit}>
+            <Button className="min-h-11" disabled={busy || (deciding?.decision === "REJECT" && !comment.trim())} onClick={submit} data-testid="dialog-confirm">
               {deciding?.decision === "APPROVE" ? "Confirm approval" : "Confirm rejection"}
             </Button>
             <Button variant="outline" className="min-h-11" onClick={() => setDeciding(null)}>

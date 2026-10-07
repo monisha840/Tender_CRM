@@ -223,7 +223,7 @@ export function buildTenderActions(getUser?: UserResolver) {
     if (go) throw new ServiceError("CONFLICT", "GO has already been approved for this tender");
     const req = await submitForApproval(tx, user, {
       flowKey: "GO_NO_GO", entityType: GO_NO_GO_ENTITY, entityId: t.id, amount: t.estimatedValue.toFixed(2), regionId: t.regionId,
-      summary: `GO / NO-GO (${input.recommendation === "GO" ? "recommend GO" : "recommend NO-GO"}): ${t.title}`,
+      summary: `GO / NO-GO (${input.recommendation === "GO" ? "recommend GO" : "recommend NO-GO"}): ${t.tenderNo} ${t.title}`,
     });
     await audit({
       action: "tender.go_nogo.request", entityType: "Tender", entityId: t.id, regionId: t.regionId, approvalRequestId: req.id,
@@ -264,7 +264,7 @@ export function buildTenderActions(getUser?: UserResolver) {
     const t = check.tender;
     const req = await submitForApproval(tx, user, {
       flowKey: "TENDER_CONVERSION", entityType: CONVERSION_ENTITY, entityId: t.id, regionId: t.regionId, amount: check.contractValue,
-      summary: `Convert to project: ${t.title}`,
+      summary: `Convert to project: ${t.tenderNo} ${t.title}`,
     });
     await audit({
       action: "tender.conversion.request", entityType: "Tender", entityId: t.id, regionId: t.regionId, approvalRequestId: req.id,

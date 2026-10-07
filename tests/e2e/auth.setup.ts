@@ -10,7 +10,7 @@ for (const role of ["admin", "director"] as const) {
     await page.getByLabel(/email/i).fill(USERS[role].email);
     await page.getByLabel(/password/i).fill(process.env.E2E_TEST_PASSWORD ?? "");
     await page.getByRole("button", { name: /sign in/i }).click();
-    await expect(page).not.toHaveURL(/\/login/);
+    await expect(page).not.toHaveURL(/\/login/, { timeout: 60_000 }); // first load fills the server data cache
     await page.context().storageState({ path: AUTH[role] });
   });
 }
