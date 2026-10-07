@@ -53,3 +53,6 @@ S1b: lint clean, tsc clean, vitest 19 files / 247 passed + 6 todo (includes test
 - Review: one final review agent only.
 - Playwright smoke suite only: login Admin+Director; Admin blocked from approving incl. direct server call; tender create -> GO approved by Director -> Won -> convert -> project visible; dashboard loads with active-tenders count == DB; desktop crawl of every page for console errors; mobile 360px check of dashboard + tender list only.
 - Bug loop: fix high-severity/blocking only, log the rest; exit after one fully green run. Test report short.
+
+## Parallel-stage database rule (D20)
+Dev DB is shared. Build agents (S3-A, S3-B, test writer, reviewer) must NOT run db:reset, seeds or Playwright; they use typecheck, lint, unit tests and build only (DB-backed vitest tests may only create/delete their own rows). After merging S3-A, S3-B and the e2e specs, the orchestrator alone runs db:reset and the Playwright suite, then dispatches bug fixes in parallel by module. Agents running: S3-A tenders, S3-B dashboard+projects/subs view-only, test writer (smoke specs), S2 security reviewer (read-only).
