@@ -8,15 +8,27 @@ import type { Money } from "@/types";
 const PAISE = BigInt(100);
 const ZERO = BigInt(0);
 
-/** Parse "1234.5", "1234.56", 1234 (integer rupees only) into integer paise. */
-export function toPaise(value: Money | number | bigint): bigint {
+/**
+ * Parses "1234.5", "1234.567" (rounded half away from zero), 1234.5 or a bigint into integer paise.
+ * Returns null for anything that is not a plain decimal: "abc", "1e5", "0x10", NaN, Infinity, "".
+ */
+export function tryToPaise(value: Money | number | bigint | null | undefined): bigint | null {
   if (typeof value === "bigint") return value;
-  const raw = typeof value === "number" ? value.toFixed(2) : value.trim();
-  const negative = raw.startsWith("-");
-  const [whole = "0", frac = ""] = raw.replace(/^[-+]/, "").split(".");
-  const paise = BigInt(whole || "0") * PAISE + BigInt((frac + "00").slice(0, 2));
-  return negative ? -paise : paise;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || Math.abs(value) >= 1e15) return null;
+    return tryToPaise(value.toFixed(2));
+  }
+  if (typeof value !== "string") return null;
+  const m = /^([-+])?(\d*)(?:\.(\d*))?$/.exec(value.trim());
+  if (!m || (!m[2] && !m[3])) return null;
+  const frac = (m[3] ?? "").padEnd(3, "0");
+  let paise = BigInt(m[2] || "0") * PAISE + BigInt(frac.slice(0, 2));
+  if (frac[2] >= "5") paise += BigInt(1);
+  return m[1] === "-" ? -paise : paise;
 }
+
+/** Like `tryToPaise` but never throws: malformed input counts as zero. Use `tryToPaise` when you must tell the difference. */
+export const toPaise = (value: Money | number | bigint): bigint => tryToPaise(value) ?? ZERO;
 
 export function fromPaise(paise: bigint): Money {
   const negative = paise < ZERO;
@@ -44,6 +56,45 @@ export function percentOf(amount: Money, percent: number): Money {
   const rounded = product >= ZERO ? (product + half) / divisor : (product - half) / divisor;
   return fromPaise(rounded);
 }
+
+/** Rounds an amount to a whole number of 2 paise (half away from zero), so it can be split into two equal halves. */
+export function toEvenPaise(amount: Money): Money {
+  const p = toPaise(amount);
+  const two = BigInt(2);
+  const abs = p < ZERO ? -p : p;
+  const even = ((abs + BigInt(1)) / two) * two;
+  return fromPaise(p < ZERO ? -even : even);
+}
+
+/** Half of an even-paise amount (CGST = SGST exactly). */
+export const halfOf = (evenAmount: Money): Money => fromPaise(toPaise(evenAmount) / BigInt(2));
+
+/**
+ * Intra-state GST: total tax rounded to an even number of paise so CGST and SGST are exactly equal.
+ * Inter-state GST: plain `percentOf`, all IGST.
+ */
+export function splitGst(taxable: Money, percent: number, intra: boolean): { tax: Money; cgst: Money; sgst: Money; igst: Money } {
+  if (!intra) return { tax: percentOf(taxable, percent), cgst: "0.00", sgst: "0.00", igst: percentOf(taxable, percent) };
+  const tax = toEvenPaise(percentOf(taxable, percent));
+  const half = halfOf(tax);
+  return { tax, cgst: half, sgst: half, igst: "0.00" };
+}
+
+/** Splits an existing tax amount (such as GST TDS) into CGST/SGST halves or IGST. The split amounts may differ from `amount` by 1 paisa. */
+export function splitTaxAmount(amount: Money, intra: boolean): { cgst: Money; sgst: Money; igst: Money } {
+  if (!intra) return { cgst: "0.00", sgst: "0.00", igst: amount };
+  const half = halfOf(toEvenPaise(amount));
+  return { cgst: half, sgst: half, igst: "0.00" };
+}
+
+/** Amount still to be received/paid: never negative, so an over-receipt does not produce a negative balance. */
+export function outstandingMoney(net: Money, settled: Money): Money {
+  const d = toPaise(net) - toPaise(settled);
+  return fromPaise(d > ZERO ? d : ZERO);
+}
+
+/** True when something is still owed (compared in paise, not as floats). */
+export const hasOutstanding = (net: Money, settled: Money): boolean => toPaise(net) > toPaise(settled);
 
 export function cmpMoney(a: Money, b: Money): -1 | 0 | 1 {
   const x = toPaise(a);
@@ -73,23 +124,34 @@ export interface FormatINROptions {
   showPaise?: boolean;
 }
 
+/** Formats integer hundredths as "12.34". */
+const hundredths = (n: bigint): string => `${n / PAISE}.${(n % PAISE).toString().padStart(2, "0")}`;
+
 /**
  * Shared INR formatter. Full: ₹2,40,00,000. Compact: ₹2.40 Cr, ₹4.80 L.
+ * Compact rounds first and then picks the unit, so ₹99,99,999.99 shows "₹1.00 Cr", not "₹100.00 L".
+ * Malformed input renders "—" instead of throwing.
  * Tabular numerals are applied by the `.tabular` class, not here.
  */
 export function formatINR(value: Money | number | null | undefined, options: FormatINROptions = {}): string {
   if (value === null || value === undefined || value === "") return "—";
   const { compact = false, showPaise } = options;
-  const paise = toPaise(value);
+  const paise = tryToPaise(value);
+  if (paise === null) return "—";
   const negative = paise < ZERO;
   const abs = negative ? -paise : paise;
   const sign = negative ? "-" : "";
 
-  const rupees = Number(abs) / 100;
-  const wantsCompact = compact === true || (compact === "auto" && rupees >= 100_000);
-  if (wantsCompact) {
-    if (rupees >= 10_000_000) return `${sign}₹${(rupees / 10_000_000).toFixed(2)} Cr`;
-    if (rupees >= 100_000) return `${sign}₹${(rupees / 100_000).toFixed(2)} L`;
+  const LAKH = BigInt(10_000_000); // paise in ₹1 lakh
+  const CRORE = BigInt(1_000_000_000);
+  const wantsCompact = compact === true || (compact === "auto" && abs >= LAKH);
+  if (wantsCompact && abs >= LAKH) {
+    const lakhs = (abs * PAISE + LAKH / BigInt(2)) / LAKH; // hundredths of a lakh, rounded
+    if (abs >= CRORE || lakhs >= BigInt(10_000)) {
+      const crores = (abs * PAISE + CRORE / BigInt(2)) / CRORE;
+      return `${sign}₹${hundredths(crores)} Cr`;
+    }
+    return `${sign}₹${hundredths(lakhs)} L`;
   }
 
   const whole = (abs / PAISE).toString();
@@ -101,6 +163,7 @@ export function formatINR(value: Money | number | null | undefined, options: For
 
 /** Axis tick style: "₹2.4 Cr" / "₹80 L" without trailing zeros. */
 export function formatINRAxis(value: number): string {
+  if (!Number.isFinite(value)) return "—";
   const abs = Math.abs(value);
   const sign = value < 0 ? "-" : "";
   const trim = (n: number) => String(Number(n.toFixed(2)));
