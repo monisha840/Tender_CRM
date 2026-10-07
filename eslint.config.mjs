@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Leftover scaffold stub folder, not part of the app.
     "tender-crm/**",
+    ".claude/**",
   ]),
 ]);
 
