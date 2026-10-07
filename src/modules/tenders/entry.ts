@@ -47,7 +47,7 @@ function find<T extends { id: Id; name: string; shortName?: string }>(list: T[],
   return list.find((x) => x.id === input?.trim() || norm(x.name) === q || (x.shortName && norm(x.shortName) === q));
 }
 
-function money(raw: string | undefined, label: string): string | { error: string } {
+export function parseMoney(raw: string | undefined, label: string): string | { error: string } {
   const s = (raw ?? "").replace(/[₹,\s]/g, "");
   if (!s) return "0.00";
   if (!/^\d+(\.\d{1,2})?$/.test(s)) return { error: `${label} must be a positive amount (up to 2 decimals)` };
@@ -56,7 +56,7 @@ function money(raw: string | undefined, label: string): string | { error: string
 }
 
 /** Returns IST date + time, or null when unparseable. */
-function parseDateTime(raw: string | undefined): { date: string; time: string } | null {
+export function parseDateTime(raw: string | undefined): { date: string; time: string } | null {
   const s = (raw ?? "").trim();
   let m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ,]+\s*(\d{1,2}):(\d{2}))?$/.exec(s);
   let y: string, mo: string, d: string, h: string | undefined, mi: string | undefined;
@@ -95,9 +95,9 @@ export function buildTender(db: Database, v: TenderEntryValues, userId: Id): Bui
   const owner = norm(v.owner) ? db.users.find((u) => u.id === v.owner?.trim() || norm(u.name) === norm(v.owner)) : db.users.find((u) => u.id === userId);
   if (!owner) return { error: `Owner '${v.owner ?? ""}' not found` };
 
-  const est = money(v.estimatedValue, "Estimated value");
-  const emd = money(v.emdAmount, "EMD");
-  const fee = money(v.tenderFee, "Tender fee");
+  const est = parseMoney(v.estimatedValue, "Estimated value");
+  const emd = parseMoney(v.emdAmount, "EMD");
+  const fee = parseMoney(v.tenderFee, "Tender fee");
   for (const m of [est, emd, fee]) if (typeof m !== "string") return m;
 
   const dl = parseDateTime(v.submissionDeadline);

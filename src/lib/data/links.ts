@@ -5,6 +5,7 @@ import type { Id } from "@/types";
 const ENTITY_DETAIL: Record<string, (id: string) => string> = {
   TENDER: (id) => `/tenders/${id}`,
   TENDER_GO_NO_GO: (id) => `/tenders/${id}`,
+  TENDER_CONVERSION: (id) => `/tenders/${id}`,
   PROJECT: (id) => `/projects/${id}`,
   SUBCONTRACTOR: (id) => `/subcontractors/${id}`,
   INVOICE: (id) => `/finance/invoices/${id}`,
@@ -44,6 +45,7 @@ export const DASHBOARD_AGEING: { label: string; test: (daysOverdue: number) => b
 
 export const ENTITY_LABEL: Record<string, string> = {
   TENDER_GO_NO_GO: "GO / NO-GO",
+  TENDER_CONVERSION: "Convert to project",
   SUBCONTRACTOR_BILL: "Subcontractor bill",
   PURCHASE_REQUEST: "Purchase request",
   PURCHASE_ORDER: "Purchase order",

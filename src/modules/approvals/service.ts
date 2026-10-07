@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/server/prisma";
 import { AuthError, type SessionUser } from "@/lib/server/auth-types";
 import { assertCan } from "@/lib/server/permissions";
-import { requireReason, writeAudit, type Tx } from "@/lib/server/audit";
+import { requireReason, writeAudit, type AuditInput, type Tx } from "@/lib/server/audit";
 import { ServiceError } from "@/lib/server/service";
 
 /**
@@ -155,9 +155,20 @@ export type DecideInput = z.infer<typeof decideSchema>;
 export async function decide(user: SessionUser, rawInput: DecideInput) {
   const input = decideSchema.parse(rawInput);
   await assertCan(user, "approvals", input.decision);
-  const reason = input.decision === "REJECT" ? requireReason(input.reason, "Rejecting") : input.reason?.trim() || null;
+  return prisma.$transaction((tx) => decideInTx(tx, user, input), { timeout: 20000, maxWait: 10000 });
+}
 
-  return prisma.$transaction(async (tx) => {
+type AuditFn = (e: Omit<AuditInput, "user">) => Promise<void>;
+
+/**
+ * The decision itself, inside the caller's transaction (the caller has already checked the permission). Used by
+ * `decide` and by `runAction`-wrapped server actions, which pass their own `audit` so the "no audit = fail" guard sees it.
+ */
+export async function decideInTx(tx: Tx, user: SessionUser, rawInput: DecideInput, audit?: AuditFn) {
+  const input = decideSchema.parse(rawInput);
+  const emit: AuditFn = audit ?? ((e) => writeAudit(tx, { ...e, user }));
+  const reason = input.decision === "REJECT" ? requireReason(input.reason, "Rejecting") : input.reason?.trim() || null;
+  {
     const request = await tx.approvalRequest.findFirst({ where: { id: input.requestId, deletedAt: null }, include: { steps: true } });
     if (!request) throw new ServiceError("NOT_FOUND", "Approval request not found");
     if (request.requestedById === user.id) throw new AuthError("SELF_APPROVAL", "You cannot decide a request you submitted");
@@ -189,8 +200,7 @@ export async function decide(user: SessionUser, rawInput: DecideInput) {
     const ctx: ApprovalDecisionContext = { request: { ...request, status, completedAt: now }, user, reason };
     await (input.decision === "APPROVE" ? handler.onApproved(tx, ctx) : handler.onRejected(tx, ctx));
 
-    await writeAudit(tx, {
-      user,
+    await emit({
       action: input.decision === "APPROVE" ? "approval.approve" : "approval.reject",
       entityType: request.entityType,
       entityId: request.entityId,
@@ -218,5 +228,5 @@ export async function decide(user: SessionUser, rawInput: DecideInput) {
       skipDuplicates: true,
     });
     return { requestId: request.id, status } as const;
-  }, { timeout: 20000, maxWait: 10000 });
+  }
 }

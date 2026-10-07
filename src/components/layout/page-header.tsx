@@ -11,6 +11,7 @@ export interface HeaderAction {
   icon?: LucideIcon;
   href?: string;
   onClick?: () => void;
+  testId?: string;
 }
 
 interface PageHeaderProps {
@@ -45,7 +46,7 @@ export function PageHeader({ title, status, description, primaryAction, secondar
                 {primaryAction.label}
               </Button>
             ) : (
-              <Button className="flex-1 sm:flex-none" onClick={primaryAction.onClick}>
+              <Button className="flex-1 sm:flex-none" onClick={primaryAction.onClick} data-testid={primaryAction.testId}>
                 {PrimaryIcon && <PrimaryIcon data-icon="inline-start" aria-hidden="true" />}
                 {primaryAction.label}
               </Button>
@@ -63,6 +64,7 @@ export function PageHeader({ title, status, description, primaryAction, secondar
                       key={a.label}
                       className="min-h-11 md:min-h-8"
                       onClick={a.onClick}
+                      data-testid={a.testId}
                       render={a.href ? <Link href={a.href} /> : undefined}
                     >
                       {Icon && <Icon aria-hidden="true" />}

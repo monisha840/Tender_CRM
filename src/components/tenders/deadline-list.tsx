@@ -78,7 +78,7 @@ export function DeadlineList({ withinDays = 30, limit }: { withinDays?: number; 
 function DeadlineRow({ row, missingDocs }: { row: TenderRow; missingDocs: number }) {
   const t = row.tender;
   return (
-    <li>
+    <li data-testid="deadline-row">
       <Link href={`/tenders/${t.id}`} className={cn("flex min-h-11 items-center gap-3 px-4 py-3.5 hover:bg-accent-subtle", toneClass(tenderTone(row)))}>
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-start justify-between gap-3">

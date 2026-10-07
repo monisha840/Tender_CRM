@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
-import { ArrowLeft, Check, ExternalLink, FileWarning, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { ArrowLeft, Check, ExternalLink, FileWarning, Pencil, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { DeadlineBadge, StageBadge, StatusBadge } from "@/components/shared/status-badge";
@@ -14,7 +16,12 @@ import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatINR } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { useDb } from "@/store/hooks";
+import { deleteTenderAction } from "@/modules/tenders/actions";
+import { errorText, useTenderRoles } from "./action-helpers";
 import { ConvertToProject } from "./convert-to-project";
+import { ReasonDialog } from "./reason-dialog";
+import { TenderActions } from "./tender-actions";
+import { EditTenderForm } from "./tender-entry";
 import { Field, FieldGrid, Section } from "./parts";
 
 const MODE_LABEL: Record<string, string> = { DD: "Demand draft", BG: "Bank guarantee", ONLINE: "Online", FDR: "Fixed deposit", EXEMPTION: "Exempt" };
@@ -23,6 +30,10 @@ const TYPE_LABEL: Record<string, string> = { EMD: "EMD", PBG: "PBG", ADDITIONAL_
 export function TenderDetail({ id }: { id: string }) {
   const db = useDb();
   const d = useMemo(() => getTender(db, id), [db, id]);
+  const router = useRouter();
+  const { canWrite } = useTenderRoles();
+  const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (!d) {
     return (
@@ -48,7 +59,32 @@ export function TenderDetail({ id }: { id: string }) {
         All tenders
       </Button>
 
-      <PageHeader title={t.title} status={<StageBadge name={d.stage.name} kind={d.stage.kind} />} description={`${t.tenderNo} · ${d.organisationName} · ${d.regionName}`} />
+      <PageHeader
+        title={t.title}
+        status={<StageBadge name={d.stage.name} kind={d.stage.kind} />}
+        description={`${t.tenderNo} · ${d.organisationName} · ${d.regionName}`}
+        primaryAction={canWrite && !d.projectId ? { label: "Edit tender", icon: Pencil, onClick: () => setEditing(true), testId: "tender-edit" } : undefined}
+        secondaryActions={canWrite && !d.projectId ? [{ label: "Delete tender", icon: Trash2, onClick: () => setDeleting(true), testId: "tender-delete" }] : undefined}
+      />
+      {editing && <EditTenderForm tender={t} onOpenChange={setEditing} />}
+      <ReasonDialog
+        testId="tender-delete-dialog"
+        open={deleting}
+        onOpenChange={setDeleting}
+        title="Delete tender"
+        description={`${t.tenderNo} is hidden from every list. The record and its history stay in the audit trail.`}
+        placeholder="Why is this tender being deleted?"
+        confirmLabel="Delete tender"
+        onConfirm={async (reason) => {
+          const res = await deleteTenderAction({ id: t.id, version: t.version ?? 1, reason });
+          if (!res.ok) return errorText(res);
+          toast.success(`Tender ${t.tenderNo} deleted`);
+          router.push("/tenders");
+          router.refresh();
+        }}
+      />
+
+      <TenderActions detail={d} />
 
       {d.stage.kind === "WON" && (
         <div className="mb-4 rounded-lg border bg-surface p-4">
