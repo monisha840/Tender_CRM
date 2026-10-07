@@ -1,9 +1,9 @@
 # Data model (Prisma) — Phase 1 + core platform
 
-Source of truth: `prisma/schema.prisma` (81 models, Prisma 6.19, PostgreSQL on Supabase). This page is the human summary.
+Source of truth: `prisma/schema.prisma` (82 models, Prisma 6.19, PostgreSQL on Supabase). This page is the human summary.
 The long-range proposal stays in `docs/data-model-full.md`; where they differ, this page and the schema win.
 
-Status: **schema designed and validated; no migration has been run.** Waiting for the checkpoint approval.
+Status: **schema approved; migrations `init`, `hardening`, `align_schema_uniques` applied to the dev/test Supabase project.** Seeds have been run there.
 
 ## Conventions
 
@@ -14,10 +14,12 @@ Status: **schema designed and validated; no migration has been run.** Waiting fo
 | Money / qty / % | `Decimal(14,2)` / `Decimal(14,3)` / `Decimal(7,4)`. Pure dates `@db.Date`; timestamps UTC. |
 | Common columns | `createdAt, updatedAt, createdById, updatedById, deletedAt, version` on business tables (`version` = optimistic lock). `createdById`/`updatedById` are plain strings (a `users.id`), not FKs. |
 | Append-only | `AuditLog`, `ApprovalAction`, `TenderStageHistory`, `SecurityInstrumentEvent`. UPDATE/DELETE on the first two blocked by a trigger in the raw-SQL migration. |
-| RLS | Raw-SQL migration enables RLS on **every** table with no policies (the public key reads nothing; Prisma connects as the DB owner and bypasses RLS). |
+| RLS | The `hardening` migration enables RLS on **every** table with no policies and revokes all privileges from `anon`/`authenticated` (the public key reads nothing). Prisma connects as `postgres` (BYPASSRLS), verified by `npm run db:verify`. |
 | Scope columns | `regionId` / `projectId` / `siteId` are denormalised on transactional tables so scoped reads and region dashboards need no joins. |
 | Enums | Only fixed technical states. Stages, results, statuses, deduction types, roles, permissions, flows are tables. |
-| Soft-delete uniques | Plain `@@unique` in Prisma; "unique among non-deleted" partial indexes are added in the raw-SQL migration. |
+| Soft-delete uniques | Business keys (gstin, user email, employee/site/project code, tenderNo per organisation, BOQ itemNo, daily report per site/project/day, work order no, bill no, invoice no, PR/PO no, vendor invoice no, payroll run/payslip, attendance) are **partial unique indexes** `WHERE deletedAt IS NULL`, created in the `hardening` migration. They are deliberately *not* declared in `schema.prisma` (Prisma cannot model partial indexes and would report drift), so use `findFirst({ deletedAt: null })`, not `findUnique`, for them. `Project.tenderId` stays a plain unique (Prisma needs it for the 1:1 relation). Idempotency keys (`clientUuid`, `dedupeKey`) are plain uniques. |
+| Payment | CHECK `Payment_one_allocation_target_chk`: at most one of invoice / subcontractor bill / vendor invoice / security instrument is set (salary, expense, tax, PF payments have none). |
+| Append-only enforcement | `AuditLog` and `ApprovalAction`: triggers block UPDATE, DELETE and TRUNCATE unless the transaction-local setting `app.allow_audit_reset = 'on'`, which only `scripts/db-reset.ts` sets (dev/test). |
 
 ## Entities by area
 
@@ -42,7 +44,7 @@ Project membership is `ProjectMember` (`projectId`, `employeeId`); a user reache
 
 **Daily reports:** DailyWorkReport (unique `(siteId, projectId, reportDate)`, `clientUuid` for offline retry), DailyWorkItem, SiteIssue.
 
-**Subcontractors:** Party (+ PartyBankAccount), Subcontractor, Vendor, **SubcontractorWorkOrder** (the hub/junction: subcontractor x project, `approvalRequestId`), SubcontractorBill (unique `(workOrderId, billNo)`, `netPayable`, cached `paidAmount`, `approvalRequestId`), SubcontractorBillDeduction.
+**Subcontractors:** Party (+ PartyBankAccount), Subcontractor, Vendor, **SubcontractorWorkOrder** (the hub/junction: subcontractor x project, `approvalRequestId`), **WorkOrderItem** (optional line items of a work order: `boqItemId?`, description, unit, quantity, rate, amount; bills do not reference it yet), SubcontractorBill (unique `(workOrderId, billNo)`, `netPayable`, cached `paidAmount`, `approvalRequestId`), SubcontractorBillDeduction.
 
 **Phase 2/3 tables (exist in `src/types`, no screens yet):** Invoice, InvoiceDeduction, Payment (explicit nullable FKs for allocation), RetentionEntry, GstTransaction, SiteAssignment, Attendance, PayrollRun, Payslip, PurchaseRequest(+Item), PurchaseOrder, VendorInvoice, StockTransaction.
 
@@ -67,7 +69,7 @@ Seeded: GO_NO_GO and TENDER_CONVERSION (Regional Head up to ₹1 Cr tender value
 
 - `prisma/seed-base.ts`: states, 4 regions, 4 offices, 4 GSTINs (placeholders, see below) + region links, service lines, six tender stages, results, tender types, document types + default checklist, project statuses, expense categories, deduction types, labour types, the 6 roles, permission catalogue (18 modules x 10 actions) and the go-live-plan 2.2 grants, approval flows/levels/thresholds, reminder settings. Idempotent upserts. No users.
 - `prisma/seed.ts` (`prisma db seed`): runs base; with `SEED_DEMO=true` also ports the deterministic mock seed (about 150 employees, tenders, projects, invoices ...) and a demo System Admin. Refuses when `APP_ENV=production`.
-- Neither has been run.
+- Both have been run on the dev/test database (`npm run db:reset`, with `SEED_DEMO=true` for demo data). `scripts/db-reset.ts` is guarded (APP_ENV development/test only, refuses production-flagged URLs) and exports `resetDatabase()` for Playwright global setup.
 
 ## Deviations from `data-model-full.md` / types (and why)
 

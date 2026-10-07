@@ -17,6 +17,8 @@
     "db:deploy": "dotenv -e .env.local -- prisma migrate deploy",
     "db:seed": "dotenv -e .env.local -- prisma db seed",
     "db:studio": "dotenv -e .env.local -- prisma studio",
+    "db:reset": "dotenv -e .env.local -- tsx scripts/db-reset.ts",
+    "db:verify": "dotenv -e .env.local -- tsx scripts/db-verify.ts",
     "db:seed:base": "dotenv -e .env.local -- tsx prisma/seed-base.ts",
     "db:validate": "dotenv -e .env.local -- prisma validate",
     "postinstall": "prisma generate"

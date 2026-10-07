@@ -167,26 +167,34 @@ async function seedDemo(prisma: PrismaClient) {
   }
 }
 
+/** Seed base masters, plus the demo dataset when `demo` is true. Reused by scripts/db-reset.ts. */
+export async function seedAll(prisma: PrismaClient, opts: { demo: boolean }) {
+  console.log("Seeding base masters...");
+  await seedBase(prisma);
+  if (opts.demo) {
+    if (process.env.APP_ENV === "production") throw new Error("Refusing to load demo data when APP_ENV=production.");
+    console.log("Seeding demo data (SEED_DEMO=true)...");
+    await seedDemo(prisma);
+  } else {
+    console.log("Demo data skipped (set SEED_DEMO=true to load it).");
+  }
+  console.log("Done.");
+}
+
 async function main() {
   const prisma = new PrismaClient();
   try {
-    console.log("Seeding base masters...");
-    await seedBase(prisma);
-
-    if (process.env.SEED_DEMO === "true") {
-      if (process.env.APP_ENV === "production") throw new Error("Refusing to load demo data when APP_ENV=production.");
-      console.log("Seeding demo data (SEED_DEMO=true)...");
-      await seedDemo(prisma);
-    } else {
-      console.log("Demo data skipped (set SEED_DEMO=true to load it).");
-    }
-    console.log("Done.");
+    await seedAll(prisma, { demo: process.env.SEED_DEMO === "true" });
   } finally {
     await prisma.$disconnect();
   }
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// Run only when executed directly (prisma db seed / tsx prisma/seed.ts), not when imported.
+const entry = (process.argv[1] ?? "").replace(/\\/g, "/");
+if (/\/seed\.(ts|js)$/.test(entry)) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}

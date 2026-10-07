@@ -7,8 +7,9 @@
 //  - Pure dates are @db.Date, timestamps are UTC.
 //  - Business tables carry createdAt/updatedAt/createdById/updatedById/deletedAt/version
 //    (createdById/updatedById are plain strings = users.id, not FKs, so audit columns never block a user change).
-//  - Uniques on soft-deletable rows are plain here; "unique among non-deleted" partial indexes are added in raw SQL
-//    in the RLS/hardening migration.
+//  - Business-unique keys on soft-deletable rows (tenderNo, project code, invoiceNo, gstin, ...) are NOT declared here:
+//    Prisma cannot model partial indexes (it reports them as drift), so they exist only as
+//    "UNIQUE ... WHERE deletedAt IS NULL" indexes in the hardening migration. Look rows up with findFirst({ deletedAt: null }).
 //  - Append-only tables (AuditLog, ApprovalAction, TenderStageHistory, SecurityInstrumentEvent) have no soft delete/version;
 //    the DB blocks UPDATE/DELETE on AuditLog and ApprovalAction by trigger (raw SQL migration).
 //  - Scope columns (regionId, projectId, siteId) are denormalised on transactional tables for scoped queries.
@@ -478,7 +479,7 @@ model ServiceLine {
 /// One row per GSTIN. Region <-> GSTIN is many-to-many (RegionGstRegistration); transactions reference the GSTIN directly.
 model GstRegistration {
   id          String    @id @default(cuid())
-  gstin       String    @unique
+  gstin       String
   legalName   String
   tradeName   String?
   stateId     String
@@ -563,7 +564,7 @@ model User {
   id                 String    @id @default(cuid())
   authUserId         String?   @unique @db.Uuid
   name               String
-  email              String    @unique
+  email              String
   phone              String?
   isActive           Boolean   @default(true)
   mustChangePassword Boolean   @default(true)
@@ -702,7 +703,7 @@ model ApprovalThreshold {
 
 model Employee {
   id           String    @id @default(cuid())
-  code         String    @unique
+  code         String
   name         String
   phone        String?
   homeRegionId String
@@ -1262,7 +1263,6 @@ model Tender {
   conversion    ProjectConversion?
   project       Project?
 
-  @@unique([organisationId, tenderNo])
   @@index([regionId, currentStageId])
   @@index([submissionDeadlineAt])
   @@index([ownerId])
@@ -1495,7 +1495,7 @@ model Site {
   organisationId   String
   regionId         String
   stateId          String
-  code             String     @unique
+  code             String
   name             String
   address          String
   /// "HH:mm" IST: a submitted daily report is expected before this time.
@@ -1531,7 +1531,7 @@ model Site {
 /// Clause fields (LD, retention, DLP...) per the research report's "contract as the hub".
 model Project {
   id                     String          @id @default(cuid())
-  code                   String          @unique
+  code                   String
   name                   String
   serviceLineId          String
   siteId                 String
@@ -1687,8 +1687,8 @@ model BoqItem {
 
   project   Project         @relation(fields: [projectId], references: [id])
   workItems DailyWorkItem[]
+  woItems   WorkOrderItem[]
 
-  @@unique([projectId, itemNo])
 }
 
 model ProjectBudgetLine {
@@ -1772,7 +1772,6 @@ model DailyWorkReport {
   siteIssues SiteIssue[]
 
   /// One report per project per site per day (several projects can run at one plant site).
-  @@unique([siteId, projectId, reportDate])
   @@index([regionId, reportDate])
   @@index([status])
 }
@@ -1919,7 +1918,7 @@ model SubcontractorWorkOrder {
   projectId         String
   siteId            String?
   regionId          String
-  workOrderNo       String          @unique
+  workOrderNo       String
   trade             String
   scope             String
   progressPercent   Decimal         @default(0) @db.Decimal(7, 4)
@@ -1944,10 +1943,35 @@ model SubcontractorWorkOrder {
 
   bills     SubcontractorBill[]
   retention RetentionEntry[]
+  items     WorkOrderItem[]
 
   @@index([projectId])
   @@index([subcontractorId])
   @@index([regionId, status])
+}
+
+/// Optional line items of a subcontractor work order (items are optional in the MVP UI; contractValue stays on the order).
+model WorkOrderItem {
+  id          String    @id @default(cuid())
+  workOrderId String
+  boqItemId   String?
+  description String
+  unit        String
+  quantity    Decimal   @db.Decimal(14, 3)
+  rate        Decimal   @db.Decimal(14, 2)
+  amount      Decimal   @db.Decimal(14, 2)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  workOrder SubcontractorWorkOrder @relation(fields: [workOrderId], references: [id])
+  boqItem   BoqItem?               @relation(fields: [boqItemId], references: [id])
+
+  @@index([workOrderId])
+  @@index([boqItemId])
 }
 
 model SubcontractorBill {
@@ -1986,7 +2010,6 @@ model SubcontractorBill {
   deductions SubcontractorBillDeduction[]
   payments   Payment[]
 
-  @@unique([workOrderId, billNo])
   @@index([regionId, status])
   @@index([projectId])
 }
@@ -2058,7 +2081,6 @@ model Invoice {
   payments   Payment[]
   retention  RetentionEntry[]
 
-  @@unique([gstRegistrationId, invoiceNo])
   @@index([projectId])
   @@index([regionId, paymentStatus])
 }
@@ -2232,7 +2254,6 @@ model Attendance {
   project  Project  @relation(fields: [projectId], references: [id])
   region   Region   @relation(fields: [regionId], references: [id])
 
-  @@unique([employeeId, date, siteId])
   @@index([regionId, date])
 }
 
@@ -2260,7 +2281,6 @@ model PayrollRun {
   approvalRequest ApprovalRequest? @relation(fields: [approvalRequestId], references: [id])
   payslips        Payslip[]
 
-  @@unique([periodMonth, regionId])
 }
 
 /// EPF/ESI figures are snapshotted on the payslip. Salary data: sensitive.
@@ -2292,14 +2312,13 @@ model Payslip {
   payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id])
   employee   Employee   @relation(fields: [employeeId], references: [id])
 
-  @@unique([payrollRunId, employeeId])
 }
 
 // ---- Purchases & stock --------------------------------------------------------
 
 model PurchaseRequest {
   id                String                @id @default(cuid())
-  requestNo         String                @unique
+  requestNo         String
   projectId         String
   siteId            String
   regionId          String
@@ -2345,7 +2364,7 @@ model PurchaseRequestItem {
 
 model PurchaseOrder {
   id                String              @id @default(cuid())
-  poNo              String              @unique
+  poNo              String
   requestId         String?
   vendorId          String
   projectId         String
@@ -2408,7 +2427,6 @@ model VendorInvoice {
   gstRegistration GstRegistration @relation(fields: [gstRegistrationId], references: [id])
   payments        Payment[]
 
-  @@unique([vendorId, invoiceNo])
 }
 
 model StockTransaction {
