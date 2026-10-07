@@ -48,10 +48,11 @@ export async function ensureE2eUsers(): Promise<void> {
       const existingUser =
         (await prisma.user.findUnique({ where: { authUserId: authId } })) ??
         (await prisma.user.findFirst({ where: { email: u.email } }));
-      const data = { name: u.name, email: u.email, authUserId: authId, isActive: true, mustChangePassword: false, deletedAt: null };
+      // Seeded demo users keep their seeded name; only brand-new rows get one.
+      const data = { email: u.email, authUserId: authId, isActive: true, mustChangePassword: false, deletedAt: null };
       const saved = existingUser
-        ? await prisma.user.update({ where: { id: existingUser.id }, data: { ...data, name: existingUser.name } })
-        : await prisma.user.create({ data });
+        ? await prisma.user.update({ where: { id: existingUser.id }, data })
+        : await prisma.user.create({ data: { ...data, name: u.name } });
       await prisma.userRole.upsert({
         where: { userId_roleId: { userId: saved.id, roleId: role.id } },
         update: { deletedAt: null },
