@@ -1,0 +1,2435 @@
+// S. Prince Management Tool: Prisma schema (Phase 1 + core platform; Phase 2/3 tables included, no screens yet).
+// Source of truth for the data model. Summary and conventions: docs/data-model.md.
+//
+// Conventions
+//  - IDs: String cuid by default; seed rows use readable ids (reg_cg, stg_won, ...).
+//  - Money Decimal(14,2); quantities Decimal(14,3); percentages Decimal(7,4).
+//  - Pure dates are @db.Date, timestamps are UTC.
+//  - Business tables carry createdAt/updatedAt/createdById/updatedById/deletedAt/version
+//    (createdById/updatedById are plain strings = users.id, not FKs, so audit columns never block a user change).
+//  - Uniques on soft-deletable rows are plain here; "unique among non-deleted" partial indexes are added in raw SQL
+//    in the RLS/hardening migration.
+//  - Append-only tables (AuditLog, ApprovalAction, TenderStageHistory, SecurityInstrumentEvent) have no soft delete/version;
+//    the DB blocks UPDATE/DELETE on AuditLog and ApprovalAction by trigger (raw SQL migration).
+//  - Scope columns (regionId, projectId, siteId) are denormalised on transactional tables for scoped queries.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// Enums (fixed technical states only; everything configurable is a table)
+// ============================================================================
+
+enum PermissionAction {
+  VIEW
+  CREATE
+  EDIT
+  DELETE
+  APPROVE
+  REJECT
+  SUBMIT
+  REVIEW
+  ASSIGN_WORK
+  MANAGE_FINANCE
+}
+
+enum PermissionScope {
+  ALL
+  OWN_REGION
+  OWN_PROJECTS
+  OWN_SITES
+  OWN_RECORDS
+}
+
+enum RoleLayout {
+  OFFICE
+  SITE
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+  JOB
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  CHANGES_REQUESTED
+}
+
+enum ApprovalActionType {
+  APPROVE
+  REJECT
+  DELEGATE
+  REASSIGN
+  COMMENT
+  REQUEST_CHANGES
+}
+
+enum ApprovalMode {
+  ANY
+  ALL
+}
+
+enum OfficeKind {
+  REGISTERED
+  BRANCH
+  REGIONAL
+  SITE_OFFICE
+}
+
+enum TenderStageKind {
+  OPEN
+  WON
+  LOST
+  NO_GO
+  TERMINAL
+}
+
+enum TenderResultOutcome {
+  WON
+  LOST
+  NEUTRAL
+}
+
+enum GoNoGoValue {
+  GO
+  NO_GO
+}
+
+enum TenderDocumentStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  READY
+  NA
+}
+
+enum SecurityInstrumentType {
+  EMD
+  PBG
+  ADDITIONAL_PBG
+  SECURITY_DEPOSIT
+}
+
+enum SecurityInstrumentMode {
+  DD
+  BG
+  ONLINE
+  FDR
+  EXEMPTION
+}
+
+enum SecurityInstrumentStatus {
+  ARRANGED
+  SUBMITTED
+  REFUNDED
+  ADJUSTED
+  FORFEITED
+  EXPIRED
+  RELEASED
+}
+
+enum SecurityInstrumentEventType {
+  ISSUED
+  EXTENDED
+  REFUND_REQUESTED
+  REFUNDED
+  ADJUSTED
+  FORFEITED
+  RELEASED
+}
+
+enum TechnicalResult {
+  PENDING
+  QUALIFIED
+  REJECTED
+}
+
+enum AwardConditionStatus {
+  PENDING
+  MET
+  WAIVED
+}
+
+enum SiteStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+}
+
+enum ContractType {
+  SERVICE
+  FIXED_SCOPE
+}
+
+enum BillingCycle {
+  MONTHLY
+  MILESTONE
+  ON_COMPLETION
+}
+
+enum Jurisdiction {
+  CENTRAL
+  STATE
+}
+
+enum EscalationType {
+  FIRM
+  STATUTORY_VARIATION
+  PRICE_VARIATION
+}
+
+enum HealthStatus {
+  GREEN
+  AMBER
+  RED
+}
+
+enum DailyReportStatus {
+  DRAFT
+  SUBMITTED
+  REVIEWED
+}
+
+enum IssueSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum CostEntryKind {
+  COMMITTED
+  ACTUAL
+}
+
+enum SubcontractorStatus {
+  ACTIVE
+  INACTIVE
+  BLACKLISTED
+}
+
+enum WorkOrderStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum BillStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PARTLY_PAID
+  PAID
+}
+
+enum DeductionCalcMethod {
+  PERCENT
+  FIXED
+  MANUAL
+}
+
+enum DeductionAppliesTo {
+  SUB_BILL
+  RA_BILL
+  BOTH
+}
+
+enum PaymentDirection {
+  IN
+  OUT
+}
+
+enum PaymentPurpose {
+  INVOICE_RECEIPT
+  EMD
+  EMD_REFUND
+  PBG
+  SALARY
+  SUBCONTRACTOR
+  VENDOR
+  EXPENSE
+  TENDER_FEE
+  TAX
+  PF
+}
+
+enum PaymentMode {
+  BANK_TRANSFER
+  CHEQUE
+  DD
+  ONLINE
+  CASH
+}
+
+enum RetentionSide {
+  CLIENT
+  SUBCONTRACTOR
+}
+
+enum RetentionEntryType {
+  WITHHELD
+  RELEASED
+}
+
+enum InvoiceType {
+  MONTHLY
+  MILESTONE
+  FINAL
+}
+
+enum InvoicePaymentStatus {
+  UNPAID
+  PARTLY_PAID
+  PAID
+}
+
+enum GstFilingStatus {
+  PENDING
+  FILED
+}
+
+enum GstDirection {
+  OUTWARD
+  INWARD
+  TDS_RECEIVED
+}
+
+enum PayrollMode {
+  MONTHLY
+  DAILY
+  CONTRACTOR
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+  HOLIDAY
+  WEEKOFF
+}
+
+enum AttendanceSource {
+  SUPERVISOR
+  SELF
+  BIOMETRIC
+  IMPORT
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PAID
+  LOCKED
+}
+
+enum SalaryPaymentStatus {
+  PENDING
+  PAID
+  ON_HOLD
+}
+
+enum PurchaseRequestStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  ORDERED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PARTLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum VendorInvoiceStatus {
+  RECEIVED
+  APPROVED
+  PARTLY_PAID
+  PAID
+}
+
+enum StockTransactionType {
+  RECEIPT
+  ISSUE
+  CONSUMPTION
+  RETURN
+  TRANSFER
+  ADJUSTMENT
+  WASTAGE
+}
+
+// ============================================================================
+// 1. ORGANISATION: states, regions, offices, GSTINs, customers
+// ============================================================================
+
+model State {
+  id           String    @id @default(cuid())
+  code         String    @unique
+  name         String
+  gstStateCode String    @unique
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdById  String?
+  updatedById  String?
+  deletedAt    DateTime?
+  version      Int       @default(1)
+
+  regions          Region[]
+  gstRegistrations GstRegistration[]
+  organisations    Organisation[]
+  sites            Site[]
+  parties          Party[]
+}
+
+model Region {
+  id          String    @id @default(cuid())
+  name        String
+  code        String    @unique
+  stateId     String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  state                   State                    @relation(fields: [stateId], references: [id])
+  offices                 Office[]
+  regionGstRegistrations  RegionGstRegistration[]
+  userRegions             UserRegion[]
+  employees               Employee[]
+  approvalRequests        ApprovalRequest[]
+  tenders                 Tender[]
+  sites                   Site[]
+  projects                Project[]
+  costEntries             CostEntry[]
+  dailyWorkReports        DailyWorkReport[]
+  siteIssues              SiteIssue[]
+  subcontractorWorkOrders SubcontractorWorkOrder[]
+  subcontractorBills      SubcontractorBill[]
+  invoices                Invoice[]
+  payments                Payment[]
+  attendances             Attendance[]
+  payrollRuns             PayrollRun[]
+  purchaseRequests        PurchaseRequest[]
+  purchaseOrders          PurchaseOrder[]
+  vendorInvoices          VendorInvoice[]
+}
+
+model Office {
+  id          String     @id @default(cuid())
+  regionId    String
+  name        String
+  kind        OfficeKind
+  address     String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int        @default(1)
+
+  region Region @relation(fields: [regionId], references: [id])
+
+  @@index([regionId])
+}
+
+/// Configurable list of what the company sells.
+model ServiceLine {
+  id          String    @id @default(cuid())
+  name        String
+  /// Default BOQ unit: man-day, sq m, running metre, MT.
+  defaultUnit String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+  tenders     Tender[]
+  projects    Project[]
+}
+
+/// One row per GSTIN. Region <-> GSTIN is many-to-many (RegionGstRegistration); transactions reference the GSTIN directly.
+model GstRegistration {
+  id          String    @id @default(cuid())
+  gstin       String    @unique
+  legalName   String
+  tradeName   String?
+  stateId     String
+  panNumber   String
+  address     String
+  validFrom   DateTime? @db.Date
+  validTo     DateTime? @db.Date
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  state                  State                   @relation(fields: [stateId], references: [id])
+  regionGstRegistrations RegionGstRegistration[]
+  tenders                Tender[]
+  projects               Project[]
+  subcontractorBills     SubcontractorBill[]
+  invoices               Invoice[]
+  payments               Payment[]
+  gstTransactions        GstTransaction[]
+  purchaseOrders         PurchaseOrder[]
+  vendorInvoices         VendorInvoice[]
+}
+
+model RegionGstRegistration {
+  id                String    @id @default(cuid())
+  regionId          String
+  gstRegistrationId String
+  isDefault         Boolean   @default(false)
+  validFrom         DateTime? @db.Date
+  validTo           DateTime? @db.Date
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int       @default(1)
+
+  region          Region          @relation(fields: [regionId], references: [id])
+  gstRegistration GstRegistration @relation(fields: [gstRegistrationId], references: [id])
+
+  @@unique([regionId, gstRegistrationId])
+}
+
+/// Customer organisation (power utility / PSU). Self-reference allows Division under Utility.
+model Organisation {
+  id          String    @id @default(cuid())
+  name        String
+  shortName   String
+  gstin       String?
+  address     String?
+  stateId     String
+  parentId    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  state    State          @relation(fields: [stateId], references: [id])
+  parent   Organisation?  @relation("OrgTree", fields: [parentId], references: [id])
+  children Organisation[] @relation("OrgTree")
+  tenders  Tender[]
+  sites    Site[]
+  projects Project[]
+  invoices Invoice[]
+  payments Payment[]
+
+  @@index([shortName])
+}
+
+// ============================================================================
+// 2. USERS, ROLES, PERMISSIONS, SCOPES, THRESHOLDS
+// ============================================================================
+
+/// Application user. `authUserId` = Supabase Auth user id (auth.users.id); null for demo-seed users with no login.
+model User {
+  id                 String    @id @default(cuid())
+  authUserId         String?   @unique @db.Uuid
+  name               String
+  email              String    @unique
+  phone              String?
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(true)
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  createdById        String?
+  updatedById        String?
+  deletedAt          DateTime?
+  version            Int       @default(1)
+
+  roles         UserRole[]
+  regions       UserRegion[]
+  employee      Employee?
+  notifications Notification[]
+  tenders       Tender[]
+}
+
+/// Roles are data. `layout` picks the app shell, `homePath` the landing page.
+model Role {
+  id          String     @id @default(cuid())
+  key         String     @unique
+  name        String
+  description String
+  isSystem    Boolean    @default(false)
+  isActive    Boolean    @default(true)
+  layout      RoleLayout @default(OFFICE)
+  homePath    String     @default("/dashboard")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int        @default(1)
+
+  permissions    RolePermission[]
+  users          UserRole[]
+  thresholds     ApprovalThreshold[]
+  approvalLevels ApprovalFlowLevel[]
+}
+
+/// Permission catalogue: (module, action). Seeded from code; admins grant, never invent.
+model Permission {
+  id          String           @id @default(cuid())
+  module      String
+  action      PermissionAction
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int              @default(1)
+
+  roles RolePermission[]
+
+  @@unique([module, action])
+}
+
+/// A grant with a scope. Effective permission = widest scope across the user's roles.
+model RolePermission {
+  id           String          @id @default(cuid())
+  roleId       String
+  permissionId String
+  scope        PermissionScope @default(ALL)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  createdById  String?
+  updatedById  String?
+  deletedAt    DateTime?
+  version      Int             @default(1)
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+}
+
+model UserRole {
+  id          String    @id @default(cuid())
+  userId      String
+  roleId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+}
+
+/// Defines what "own region" means; a Regional Head can hold several.
+model UserRegion {
+  id          String    @id @default(cuid())
+  userId      String
+  regionId    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  user   User   @relation(fields: [userId], references: [id])
+  region Region @relation(fields: [regionId], references: [id])
+
+  @@unique([userId, regionId])
+}
+
+/// Highest amount a role may finally approve on a flow; above it the request routes to the next level (see ApprovalFlowLevel).
+/// No row for (flow, role) = unlimited. Defaults: Regional Head 1 Cr tender, 10 L work order / bill.
+model ApprovalThreshold {
+  id          String    @id @default(cuid())
+  flowId      String
+  roleId      String
+  maxAmount   Decimal   @db.Decimal(14, 2)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  flow ApprovalFlow @relation(fields: [flowId], references: [id])
+  role Role         @relation(fields: [roleId], references: [id])
+
+  @@unique([flowId, roleId])
+}
+
+// ============================================================================
+// 3. PEOPLE (Employee is the single person record; User is an optional login on top)
+// ============================================================================
+
+model Employee {
+  id           String    @id @default(cuid())
+  code         String    @unique
+  name         String
+  phone        String?
+  homeRegionId String
+  userId       String?   @unique
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdById  String?
+  updatedById  String?
+  deletedAt    DateTime?
+  version      Int       @default(1)
+
+  homeRegion      Region           @relation(fields: [homeRegionId], references: [id])
+  user            User?            @relation(fields: [userId], references: [id])
+  profile         EmployeeProfile?
+  projectsManaged Project[]
+  memberships     ProjectMember[]
+  siteAssignments SiteAssignment[]
+  attendance      Attendance[]
+  payslips        Payslip[]
+}
+
+model LabourType {
+  id          String      @id @default(cuid())
+  name        String
+  payrollMode PayrollMode
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int         @default(1)
+
+  profiles EmployeeProfile[]
+}
+
+/// Workforce profile over Employee. Contains salary: sensitive, masked by role (S2).
+model EmployeeProfile {
+  id             String    @id @default(cuid())
+  employeeId     String    @unique
+  designation    String
+  department     String
+  labourTypeId   String
+  joiningDate    DateTime  @db.Date
+  exitDate       DateTime? @db.Date
+  wageAmount     Decimal   @db.Decimal(14, 2)
+  pfApplicable   Boolean   @default(false)
+  esiApplicable  Boolean   @default(false)
+  advanceBalance Decimal   @default(0) @db.Decimal(14, 2)
+  uan            String?
+  contractorId   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  createdById    String?
+  updatedById    String?
+  deletedAt      DateTime?
+  version        Int       @default(1)
+
+  employee   Employee       @relation(fields: [employeeId], references: [id])
+  labourType LabourType     @relation(fields: [labourTypeId], references: [id])
+  contractor Subcontractor? @relation(fields: [contractorId], references: [id])
+}
+
+// ============================================================================
+// 4. MASTERS AND SETTINGS (configurable, not hard-coded)
+// ============================================================================
+
+/// `kind` drives win-rate maths; `systemKey` marks rows code depends on (locked in admin UI).
+model TenderStage {
+  id          String          @id @default(cuid())
+  name        String
+  sequence    Int
+  kind        TenderStageKind
+  systemKey   String?         @unique
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int             @default(1)
+
+  tenders     Tender[]
+  historyFrom TenderStageHistory[] @relation("StageFrom")
+  historyTo   TenderStageHistory[] @relation("StageTo")
+}
+
+model TenderResult {
+  id          String              @id @default(cuid())
+  name        String
+  outcome     TenderResultOutcome
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int                 @default(1)
+
+  tenders Tender[]
+}
+
+model TenderType {
+  id          String    @id @default(cuid())
+  name        String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  tenders   Tender[]
+  checklist ChecklistTemplateItem[]
+}
+
+model TenderPortal {
+  id          String    @id @default(cuid())
+  name        String
+  url         String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  tenders Tender[]
+}
+
+model DocumentType {
+  id          String    @id @default(cuid())
+  name        String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  checklist ChecklistTemplateItem[]
+  items     TenderDocumentItem[]
+  documents Document[]
+}
+
+/// Default required-document checklist per tender type (copied onto each tender as TenderDocumentItem rows).
+model ChecklistTemplateItem {
+  id             String    @id @default(cuid())
+  tenderTypeId   String
+  documentTypeId String
+  isMandatory    Boolean   @default(true)
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  createdById    String?
+  updatedById    String?
+  deletedAt      DateTime?
+  version        Int       @default(1)
+
+  tenderType   TenderType   @relation(fields: [tenderTypeId], references: [id])
+  documentType DocumentType @relation(fields: [documentTypeId], references: [id])
+
+  @@unique([tenderTypeId, documentTypeId])
+}
+
+model ProjectStatus {
+  id          String    @id @default(cuid())
+  name        String
+  sequence    Int
+  systemKey   String?   @unique
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  projects Project[]
+}
+
+model ExpenseCategory {
+  id          String    @id @default(cuid())
+  name        String
+  isActive    Boolean   @default(true)
+  glCode      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  budgetLines ProjectBudgetLine[]
+  costEntries CostEntry[]
+}
+
+/// Retention, TDS, advance recovery etc. are rows, not enums. Shared by subcontractor bills and customer invoices.
+model DeductionType {
+  id           String              @id @default(cuid())
+  code         String              @unique
+  name         String
+  calcMethod   DeductionCalcMethod
+  defaultRate  Decimal?            @db.Decimal(7, 4)
+  appliesTo    DeductionAppliesTo
+  isReleasable Boolean             @default(false)
+  glCode       String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  createdById  String?
+  updatedById  String?
+  deletedAt    DateTime?
+  version      Int                 @default(1)
+
+  billDeductions    SubcontractorBillDeduction[]
+  invoiceDeductions InvoiceDeduction[]
+}
+
+model Material {
+  id          String    @id @default(cuid())
+  name        String
+  unit        String
+  hsn         String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  requestItems PurchaseRequestItem[]
+  stock        StockTransaction[]
+}
+
+/// Key/value configuration (reminder periods, feature flags...). regionId null = global default.
+model Setting {
+  id          String    @id @default(cuid())
+  key         String
+  value       Json
+  regionId    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  @@unique([key, regionId])
+}
+
+/// Per-GSTIN, per-financial-year number sequences for bills, POs and invoices.
+model NumberSeries {
+  id                String    @id @default(cuid())
+  key               String
+  gstRegistrationId String?
+  financialYear     String
+  prefix            String
+  nextNumber        Int       @default(1)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int       @default(1)
+
+  @@unique([key, gstRegistrationId, financialYear])
+}
+
+// ============================================================================
+// 5. PLATFORM: audit, approvals, notifications, files
+// ============================================================================
+
+/// Append-only. Written in the same transaction as the business change. UPDATE/DELETE blocked by DB trigger.
+model AuditLog {
+  id                BigInt    @id @default(autoincrement())
+  occurredAt        DateTime  @default(now())
+  actorId           String?
+  actorType         ActorType @default(USER)
+  action            String
+  entityType        String
+  entityId          String
+  regionId          String?
+  projectId         String?
+  summary           String
+  before            Json?
+  after             Json?
+  changedFields     String[]
+  reason            String?
+  approvalRequestId String?
+  requestId         String?
+  ip                String?
+  userAgent         String?
+  createdAt         DateTime  @default(now())
+
+  @@index([entityType, entityId, occurredAt])
+  @@index([actorId, occurredAt])
+  @@index([regionId, occurredAt])
+  @@index([projectId, occurredAt])
+}
+
+/// One flow per approvable thing (GO_NO_GO, TENDER_CONVERSION, WORK_ORDER, SUB_BILL, ...).
+model ApprovalFlow {
+  id          String    @id @default(cuid())
+  key         String    @unique
+  name        String
+  entityType  String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  levels     ApprovalFlowLevel[]
+  thresholds ApprovalThreshold[]
+  requests   ApprovalRequest[]
+}
+
+/// Ordered candidate approvers. Routing: the first level whose role threshold covers the amount (or has none)
+/// becomes the step; maker-checker is enforced by the engine unless allowSelfApproval.
+model ApprovalFlowLevel {
+  id                String       @id @default(cuid())
+  flowId            String
+  sequence          Int
+  name              String
+  approverRoleId    String
+  /// Regional Head levels only count when the approver's regions include the request's region.
+  regionScoped      Boolean      @default(false)
+  mode              ApprovalMode @default(ANY)
+  allowSelfApproval Boolean      @default(false)
+  slaHours          Int?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int          @default(1)
+
+  flow         ApprovalFlow   @relation(fields: [flowId], references: [id])
+  approverRole Role           @relation(fields: [approverRoleId], references: [id])
+  steps        ApprovalStep[]
+
+  @@unique([flowId, sequence])
+}
+
+/// Polymorphic link to the owning record; each domain row also carries a real approvalRequestId FK.
+model ApprovalRequest {
+  id              String         @id @default(cuid())
+  flowId          String?
+  entityType      String
+  entityId        String
+  amount          Decimal?       @db.Decimal(14, 2)
+  regionId        String
+  projectId       String?
+  title           String
+  requestedById   String
+  status          ApprovalStatus @default(PENDING)
+  currentSequence Int            @default(1)
+  submittedAt     DateTime
+  completedAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  createdById     String?
+  updatedById     String?
+  deletedAt       DateTime?
+  version         Int            @default(1)
+
+  flow                    ApprovalFlow?            @relation(fields: [flowId], references: [id])
+  region                  Region                   @relation(fields: [regionId], references: [id])
+  steps                   ApprovalStep[]
+  goNoGoDecisions         GoNoGoDecision[]
+  projectConversions      ProjectConversion[]
+  subcontractorWorkOrders SubcontractorWorkOrder[]
+  subcontractorBills      SubcontractorBill[]
+  payrollRuns             PayrollRun[]
+  purchaseRequests        PurchaseRequest[]
+  purchaseOrders          PurchaseOrder[]
+
+  @@index([entityType, entityId])
+  @@index([status, regionId])
+  @@index([requestedById])
+}
+
+/// Materialised at submit time, so editing a flow never alters requests in flight.
+model ApprovalStep {
+  id             String         @id @default(cuid())
+  requestId      String
+  levelId        String?
+  sequence       Int
+  assignedUserId String?
+  assignedRoleId String?
+  status         ApprovalStatus @default(PENDING)
+  dueAt          DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  createdById    String?
+  updatedById    String?
+  deletedAt      DateTime?
+  version        Int            @default(1)
+
+  request ApprovalRequest    @relation(fields: [requestId], references: [id])
+  level   ApprovalFlowLevel? @relation(fields: [levelId], references: [id])
+  actions ApprovalAction[]
+
+  @@index([assignedUserId, status])
+  @@index([requestId, sequence])
+}
+
+/// Append-only: drives the approval timeline. Rejection requires a comment (reason).
+model ApprovalAction {
+  id        String             @id @default(cuid())
+  stepId    String
+  actorId   String
+  action    ApprovalActionType
+  comment   String?
+  at        DateTime
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  step ApprovalStep @relation(fields: [stepId], references: [id])
+
+  @@index([stepId])
+}
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  type        String
+  title       String
+  body        String?
+  entityType  String?
+  entityId    String?
+  readAt      DateTime?
+  /// Unique so reminder jobs can re-run safely.
+  dedupeKey   String?   @unique
+  emailedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt])
+}
+
+/// File metadata; bytes live in a private Supabase Storage bucket (signed URLs).
+model Document {
+  id             String    @id @default(cuid())
+  bucket         String    @default("documents")
+  storageKey     String
+  fileName       String
+  mime           String
+  size           Int
+  checksum       String?
+  documentTypeId String?
+  /// Version within a document family (not the optimistic-lock counter).
+  version        Int       @default(1)
+  groupId        String?
+  uploadedById   String
+  takenAt        DateTime?
+  lat            Decimal?  @db.Decimal(9, 6)
+  lng            Decimal?  @db.Decimal(9, 6)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+  createdById    String?
+  updatedById    String?
+  deletedAt      DateTime?
+
+  documentType DocumentType?  @relation(fields: [documentTypeId], references: [id])
+  links        DocumentLink[]
+
+  @@unique([bucket, storageKey])
+}
+
+/// One file can be linked to a tender and later to its project (no copy).
+model DocumentLink {
+  id          String    @id @default(cuid())
+  documentId  String
+  entityType  String
+  entityId    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  document Document @relation(fields: [documentId], references: [id])
+
+  @@unique([documentId, entityType, entityId])
+  @@index([entityType, entityId])
+}
+
+// ============================================================================
+// 6. TENDERS
+// ============================================================================
+
+model Tender {
+  id                   String    @id @default(cuid())
+  tenderNo             String
+  title                String
+  workDescription      String
+  eligibility          String
+  serviceLineId        String
+  siteId               String?
+  openingDate          DateTime  @db.Date
+  organisationId       String
+  regionId             String
+  location             String
+  tenderTypeId         String
+  portalId             String?
+  sourceUrl            String?
+  estimatedValue       Decimal   @db.Decimal(14, 2)
+  emdAmount            Decimal   @db.Decimal(14, 2)
+  tenderFee            Decimal   @db.Decimal(14, 2)
+  publishedOn          DateTime? @db.Date
+  preBidAt             DateTime?
+  submissionDeadlineAt DateTime
+  technicalOpeningAt   DateTime?
+  financialOpeningAt   DateTime?
+  currentStageId       String
+  resultId             String?
+  ownerId              String
+  gstRegistrationId    String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  createdById          String?
+  updatedById          String?
+  deletedAt            DateTime?
+  version              Int       @default(1)
+
+  serviceLine     ServiceLine      @relation(fields: [serviceLineId], references: [id])
+  site            Site?            @relation(fields: [siteId], references: [id])
+  organisation    Organisation     @relation(fields: [organisationId], references: [id])
+  region          Region           @relation(fields: [regionId], references: [id])
+  tenderType      TenderType       @relation(fields: [tenderTypeId], references: [id])
+  portal          TenderPortal?    @relation(fields: [portalId], references: [id])
+  currentStage    TenderStage      @relation(fields: [currentStageId], references: [id])
+  result          TenderResult?    @relation(fields: [resultId], references: [id])
+  owner           User             @relation(fields: [ownerId], references: [id])
+  gstRegistration GstRegistration? @relation(fields: [gstRegistrationId], references: [id])
+
+  stageHistory  TenderStageHistory[]
+  decisions     GoNoGoDecision[]
+  documentItems TenderDocumentItem[]
+  instruments   SecurityInstrument[]
+  bids          Bid[]
+  competitors   CompetitorBid[]
+  award         TenderAward?
+  conversion    ProjectConversion?
+  project       Project?
+
+  @@unique([organisationId, tenderNo])
+  @@index([regionId, currentStageId])
+  @@index([submissionDeadlineAt])
+  @@index([ownerId])
+}
+
+/// Append-only: powers the stage timeline.
+model TenderStageHistory {
+  id          String    @id @default(cuid())
+  tenderId    String
+  fromStageId String?
+  toStageId   String
+  changedById String
+  changedAt   DateTime
+  reason      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+  deletedAt   DateTime?
+
+  tender    Tender       @relation(fields: [tenderId], references: [id])
+  fromStage TenderStage? @relation("StageFrom", fields: [fromStageId], references: [id])
+  toStage   TenderStage  @relation("StageTo", fields: [toStageId], references: [id])
+
+  @@index([tenderId, changedAt])
+}
+
+/// Several rows allowed so reversals stay visible. reason mandatory for NO_GO.
+model GoNoGoDecision {
+  id                String      @id @default(cuid())
+  tenderId          String
+  decision          GoNoGoValue
+  decidedById       String
+  decidedAt         DateTime
+  reason            String?
+  approvalRequestId String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int         @default(1)
+
+  tender          Tender           @relation(fields: [tenderId], references: [id])
+  approvalRequest ApprovalRequest? @relation(fields: [approvalRequestId], references: [id])
+
+  @@index([tenderId])
+}
+
+/// Checklist instance on a tender. Files attach through DocumentLink(entityType = 'TenderDocumentItem').
+model TenderDocumentItem {
+  id             String               @id @default(cuid())
+  tenderId       String
+  name           String
+  documentTypeId String
+  isMandatory    Boolean              @default(true)
+  status         TenderDocumentStatus @default(NOT_STARTED)
+  assigneeId     String?
+  dueDate        DateTime?            @db.Date
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  createdById    String?
+  updatedById    String?
+  deletedAt      DateTime?
+  version        Int                  @default(1)
+
+  tender       Tender       @relation(fields: [tenderId], references: [id])
+  documentType DocumentType @relation(fields: [documentTypeId], references: [id])
+
+  @@index([tenderId])
+}
+
+/// EMD, PBG, additional PBG and security deposit. PBG moves to the project on conversion (projectId set).
+model SecurityInstrument {
+  id           String                   @id @default(cuid())
+  type         SecurityInstrumentType
+  tenderId     String
+  projectId    String?
+  mode         SecurityInstrumentMode
+  amount       Decimal                  @db.Decimal(14, 2)
+  instrumentNo String?
+  bank         String?
+  issueDate    DateTime?                @db.Date
+  expiryDate   DateTime?                @db.Date
+  status       SecurityInstrumentStatus @default(ARRANGED)
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  createdById  String?
+  updatedById  String?
+  deletedAt    DateTime?
+  version      Int                      @default(1)
+
+  tender   Tender                    @relation(fields: [tenderId], references: [id])
+  project  Project?                  @relation(fields: [projectId], references: [id])
+  events   SecurityInstrumentEvent[]
+  payments Payment[]
+
+  @@index([tenderId])
+  @@index([expiryDate])
+}
+
+/// Append-only event log of an instrument (issued, extended, refund requested, refunded, adjusted...).
+model SecurityInstrumentEvent {
+  id                   String                      @id @default(cuid())
+  securityInstrumentId String
+  type                 SecurityInstrumentEventType
+  amount               Decimal?                    @db.Decimal(14, 2)
+  date                 DateTime                    @db.Date
+  reference            String?
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @default(now()) @updatedAt
+  createdById          String?
+  deletedAt            DateTime?
+
+  securityInstrument SecurityInstrument @relation(fields: [securityInstrumentId], references: [id])
+
+  @@index([securityInstrumentId, date])
+}
+
+model Bid {
+  id                String          @id @default(cuid())
+  tenderId          String
+  quotedAmount      Decimal         @db.Decimal(14, 2)
+  /// Stored; negative = below estimate.
+  percentVsEstimate Decimal         @db.Decimal(7, 4)
+  submittedAt       DateTime?
+  technicalResult   TechnicalResult @default(PENDING)
+  financialRank     Int?
+  isL1              Boolean         @default(false)
+  isFinal           Boolean         @default(false)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int             @default(1)
+
+  tender         Tender             @relation(fields: [tenderId], references: [id])
+  clarifications BidClarification[]
+
+  @@index([tenderId])
+}
+
+model BidClarification {
+  id          String    @id @default(cuid())
+  bidId       String
+  request     String
+  requestedOn DateTime  @db.Date
+  dueDate     DateTime? @db.Date
+  response    String?
+  respondedOn DateTime? @db.Date
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  bid Bid @relation(fields: [bidId], references: [id])
+
+  @@index([bidId])
+}
+
+model CompetitorBid {
+  id             String    @id @default(cuid())
+  tenderId       String
+  competitorName String
+  amount         Decimal   @db.Decimal(14, 2)
+  rank           Int?
+  isL1           Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  createdById    String?
+  updatedById    String?
+  deletedAt      DateTime?
+  version        Int       @default(1)
+
+  tender Tender @relation(fields: [tenderId], references: [id])
+
+  @@index([tenderId])
+}
+
+model TenderAward {
+  id                   String    @id @default(cuid())
+  tenderId             String    @unique
+  loaNo                String
+  loaDate              DateTime  @db.Date
+  awardedAmount        Decimal   @db.Decimal(14, 2)
+  agreementNo          String?
+  agreementDate        DateTime? @db.Date
+  completionPeriodDays Int?
+  startDate            DateTime? @db.Date
+  conditionsNote       String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  createdById          String?
+  updatedById          String?
+  deletedAt            DateTime?
+  version              Int       @default(1)
+
+  tender     Tender           @relation(fields: [tenderId], references: [id])
+  conditions AwardCondition[]
+}
+
+/// Gate for tender -> project conversion (PBG submitted, agreement signed...).
+model AwardCondition {
+  id          String               @id @default(cuid())
+  awardId     String
+  description String
+  isMandatory Boolean              @default(true)
+  status      AwardConditionStatus @default(PENDING)
+  dueDate     DateTime?            @db.Date
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int                  @default(1)
+
+  award TenderAward @relation(fields: [awardId], references: [id])
+
+  @@index([awardId])
+}
+
+// ============================================================================
+// 7. SITES, PROJECTS (contracts), BOQ, COSTS
+// ============================================================================
+
+/// A named plant site (e.g. NTPC Korba). Several projects can run at one site.
+model Site {
+  id               String     @id @default(cuid())
+  organisationId   String
+  regionId         String
+  stateId          String
+  code             String     @unique
+  name             String
+  address          String
+  /// "HH:mm" IST: a submitted daily report is expected before this time.
+  reportCutoffTime String
+  status           SiteStatus @default(ACTIVE)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  createdById      String?
+  updatedById      String?
+  deletedAt        DateTime?
+  version          Int        @default(1)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id])
+  region       Region       @relation(fields: [regionId], references: [id])
+  state        State        @relation(fields: [stateId], references: [id])
+
+  tenders          Tender[]
+  projects         Project[]
+  dailyReports     DailyWorkReport[]
+  issues           SiteIssue[]
+  assignments      SiteAssignment[]
+  attendance       Attendance[]
+  workOrders       SubcontractorWorkOrder[]
+  costEntries      CostEntry[]
+  purchaseRequests PurchaseRequest[]
+  purchaseOrders   PurchaseOrder[]
+  stock            StockTransaction[]
+
+  @@index([regionId])
+}
+
+/// A customer work order / contract: multi-year service contract or fixed-scope job.
+/// Clause fields (LD, retention, DLP...) per the research report's "contract as the hub".
+model Project {
+  id                     String          @id @default(cuid())
+  code                   String          @unique
+  name                   String
+  serviceLineId          String
+  siteId                 String
+  contractType           ContractType
+  workOrderNo            String
+  workOrderDate          DateTime        @db.Date
+  billingCycle           BillingCycle
+  paymentTermsDays       Int
+  tenderId               String?         @unique
+  organisationId         String
+  regionId               String
+  gstRegistrationId      String
+  contractValue          Decimal         @db.Decimal(14, 2)
+  startDate              DateTime?       @db.Date
+  plannedEndDate         DateTime?       @db.Date
+  statusId               String
+  projectManagerId       String?
+  healthOverride         HealthStatus?
+  // Contract clauses
+  jurisdiction           Jurisdiction?
+  escalationType         EscalationType?
+  ldPercent              Decimal?        @db.Decimal(7, 4)
+  pbgPercent             Decimal?        @db.Decimal(7, 4)
+  securityDepositPercent Decimal?        @db.Decimal(7, 4)
+  retentionPercent       Decimal?        @db.Decimal(7, 4)
+  defectLiabilityMonths  Int?
+  sublettingAllowed      Boolean         @default(true)
+  deploymentNorms        String?
+  clauseNotes            String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  createdById            String?
+  updatedById            String?
+  deletedAt              DateTime?
+  version                Int             @default(1)
+
+  serviceLine     ServiceLine     @relation(fields: [serviceLineId], references: [id])
+  site            Site            @relation(fields: [siteId], references: [id])
+  tender          Tender?         @relation(fields: [tenderId], references: [id])
+  organisation    Organisation    @relation(fields: [organisationId], references: [id])
+  region          Region          @relation(fields: [regionId], references: [id])
+  gstRegistration GstRegistration @relation(fields: [gstRegistrationId], references: [id])
+  status          ProjectStatus   @relation(fields: [statusId], references: [id])
+  projectManager  Employee?       @relation(fields: [projectManagerId], references: [id])
+
+  conversion       ProjectConversion?
+  members          ProjectMember[]
+  progress         ProjectProgressSnapshot[]
+  boqItems         BoqItem[]
+  budgetLines      ProjectBudgetLine[]
+  costEntries      CostEntry[]
+  dailyReports     DailyWorkReport[]
+  issues           SiteIssue[]
+  workOrders       SubcontractorWorkOrder[]
+  subBills         SubcontractorBill[]
+  instruments      SecurityInstrument[]
+  invoices         Invoice[]
+  payments         Payment[]
+  retention        RetentionEntry[]
+  assignments      SiteAssignment[]
+  attendance       Attendance[]
+  purchaseRequests PurchaseRequest[]
+  purchaseOrders   PurchaseOrder[]
+  vendorInvoices   VendorInvoice[]
+  stock            StockTransaction[]
+
+  @@index([regionId, statusId])
+  @@index([siteId])
+  @@index([organisationId])
+}
+
+/// Provenance of tender -> project conversion ("enter once").
+model ProjectConversion {
+  id                String    @id @default(cuid())
+  tenderId          String    @unique
+  projectId         String    @unique
+  convertedById     String
+  convertedAt       DateTime
+  snapshot          Json
+  overrideReason    String?
+  approvalRequestId String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int       @default(1)
+
+  tender          Tender           @relation(fields: [tenderId], references: [id])
+  project         Project          @relation(fields: [projectId], references: [id])
+  approvalRequest ApprovalRequest? @relation(fields: [approvalRequestId], references: [id])
+}
+
+/// Who is on a project. OWN_PROJECTS scope resolves: Employee.userId -> ProjectMember.projectId (plus projectManagerId).
+model ProjectMember {
+  id          String    @id @default(cuid())
+  projectId   String
+  employeeId  String
+  roleLabel   String
+  fromDate    DateTime  @db.Date
+  toDate      DateTime? @db.Date
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  project  Project  @relation(fields: [projectId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([projectId])
+  @@index([employeeId])
+}
+
+/// Month-end planned vs actual progress, for progress charts.
+model ProjectProgressSnapshot {
+  id          String    @id @default(cuid())
+  projectId   String
+  /// "YYYY-MM"
+  month       String
+  plannedPct  Decimal   @db.Decimal(7, 4)
+  actualPct   Decimal   @db.Decimal(7, 4)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, month])
+}
+
+model BoqItem {
+  id          String    @id @default(cuid())
+  projectId   String
+  itemNo      String
+  description String
+  unit        String
+  quantity    Decimal   @db.Decimal(14, 3)
+  rate        Decimal   @db.Decimal(14, 2)
+  amount      Decimal   @db.Decimal(14, 2)
+  /// Cached from daily reports (indicative); the official figure comes from invoice measurements.
+  executedQty Decimal   @default(0) @db.Decimal(14, 3)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  project   Project         @relation(fields: [projectId], references: [id])
+  workItems DailyWorkItem[]
+
+  @@unique([projectId, itemNo])
+}
+
+model ProjectBudgetLine {
+  id                String    @id @default(cuid())
+  projectId         String
+  expenseCategoryId String
+  plannedAmount     Decimal   @db.Decimal(14, 2)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int       @default(1)
+
+  project         Project         @relation(fields: [projectId], references: [id])
+  expenseCategory ExpenseCategory @relation(fields: [expenseCategoryId], references: [id])
+
+  @@unique([projectId, expenseCategoryId])
+}
+
+/// Read model so budget-vs-actual is one query. Written by services in the same transaction as the source.
+model CostEntry {
+  id                String        @id @default(cuid())
+  projectId         String
+  siteId            String?
+  regionId          String
+  expenseCategoryId String
+  kind              CostEntryKind
+  sourceType        String
+  sourceId          String
+  amount            Decimal       @db.Decimal(14, 2)
+  date              DateTime      @db.Date
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int           @default(1)
+
+  project         Project         @relation(fields: [projectId], references: [id])
+  site            Site?           @relation(fields: [siteId], references: [id])
+  region          Region          @relation(fields: [regionId], references: [id])
+  expenseCategory ExpenseCategory @relation(fields: [expenseCategoryId], references: [id])
+
+  @@index([projectId, kind])
+  @@index([sourceType, sourceId])
+}
+
+// ============================================================================
+// 8. DAILY REPORTS
+// ============================================================================
+
+model DailyWorkReport {
+  id              String            @id @default(cuid())
+  siteId          String
+  projectId       String
+  regionId        String
+  reportDate      DateTime          @db.Date
+  status          DailyReportStatus @default(DRAFT)
+  workersCount    Int               @default(0)
+  issues          String?
+  planForTomorrow String?
+  photoCount      Int               @default(0)
+  submittedById   String
+  submittedAt     DateTime?
+  reviewedById    String?
+  reviewComment   String?
+  /// Device-generated id: offline retries are idempotent.
+  clientUuid      String?           @unique
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  createdById     String?
+  updatedById     String?
+  deletedAt       DateTime?
+  version         Int               @default(1)
+
+  site       Site            @relation(fields: [siteId], references: [id])
+  project    Project         @relation(fields: [projectId], references: [id])
+  region     Region          @relation(fields: [regionId], references: [id])
+  items      DailyWorkItem[]
+  siteIssues SiteIssue[]
+
+  /// One report per project per site per day (several projects can run at one plant site).
+  @@unique([siteId, projectId, reportDate])
+  @@index([regionId, reportDate])
+  @@index([status])
+}
+
+model DailyWorkItem {
+  id           String    @id @default(cuid())
+  reportId     String
+  boqItemId    String
+  plannedQty   Decimal   @db.Decimal(14, 3)
+  completedQty Decimal   @db.Decimal(14, 3)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdById  String?
+  updatedById  String?
+  deletedAt    DateTime?
+  version      Int       @default(1)
+
+  report  DailyWorkReport @relation(fields: [reportId], references: [id])
+  boqItem BoqItem         @relation(fields: [boqItemId], references: [id])
+
+  @@index([reportId])
+}
+
+/// Feeds "major issues" on the dashboard.
+model SiteIssue {
+  id          String        @id @default(cuid())
+  siteId      String
+  projectId   String
+  regionId    String
+  reportId    String?
+  title       String
+  severity    IssueSeverity
+  status      IssueStatus   @default(OPEN)
+  raisedById  String
+  raisedOn    DateTime      @db.Date
+  resolvedAt  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int           @default(1)
+
+  site    Site             @relation(fields: [siteId], references: [id])
+  project Project          @relation(fields: [projectId], references: [id])
+  region  Region           @relation(fields: [regionId], references: [id])
+  report  DailyWorkReport? @relation(fields: [reportId], references: [id])
+
+  @@index([regionId, status])
+}
+
+// ============================================================================
+// 9. SUBCONTRACTORS: parties, work orders (the hub), bills, deductions
+// ============================================================================
+
+/// Shared master for external legal entities; one can be both vendor and subcontractor.
+model Party {
+  id          String    @id @default(cuid())
+  name        String
+  gstin       String?
+  pan         String
+  address     String
+  stateId     String
+  contactName String
+  phone       String
+  email       String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  state         State              @relation(fields: [stateId], references: [id])
+  subcontractor Subcontractor?
+  vendor        Vendor?
+  bankAccounts  PartyBankAccount[]
+  payments      Payment[]
+
+  @@index([name])
+}
+
+/// Sensitive (bank details): masked for roles that do not pay.
+model PartyBankAccount {
+  id            String    @id @default(cuid())
+  partyId       String
+  bankName      String
+  accountNumber String
+  ifsc          String
+  isPrimary     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  createdById   String?
+  updatedById   String?
+  deletedAt     DateTime?
+  version       Int       @default(1)
+
+  party Party @relation(fields: [partyId], references: [id])
+
+  @@index([partyId])
+}
+
+model Subcontractor {
+  id               String              @id @default(cuid())
+  partyId          String              @unique
+  tradeCategory    String
+  isLabourSupplier Boolean             @default(false)
+  status           SubcontractorStatus @default(ACTIVE)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  createdById      String?
+  updatedById      String?
+  deletedAt        DateTime?
+  version          Int                 @default(1)
+
+  party      Party                    @relation(fields: [partyId], references: [id])
+  workOrders SubcontractorWorkOrder[]
+  bills      SubcontractorBill[]
+  labour     EmployeeProfile[]
+}
+
+model Vendor {
+  id          String    @id @default(cuid())
+  partyId     String    @unique
+  category    String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  party    Party           @relation(fields: [partyId], references: [id])
+  orders   PurchaseOrder[]
+  invoices VendorInvoice[]
+}
+
+/// The explicit subcontractor <-> project junction ("Subcontractor A -> Projects 1, 4, 7" = DISTINCT projectId here).
+model SubcontractorWorkOrder {
+  id                String          @id @default(cuid())
+  subcontractorId   String
+  projectId         String
+  siteId            String?
+  regionId          String
+  workOrderNo       String          @unique
+  trade             String
+  scope             String
+  progressPercent   Decimal         @default(0) @db.Decimal(7, 4)
+  contractValue     Decimal         @db.Decimal(14, 2)
+  startDate         DateTime        @db.Date
+  endDate           DateTime?       @db.Date
+  retentionPercent  Decimal         @default(0) @db.Decimal(7, 4)
+  status            WorkOrderStatus @default(DRAFT)
+  approvalRequestId String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int             @default(1)
+
+  subcontractor   Subcontractor    @relation(fields: [subcontractorId], references: [id])
+  project         Project          @relation(fields: [projectId], references: [id])
+  site            Site?            @relation(fields: [siteId], references: [id])
+  region          Region           @relation(fields: [regionId], references: [id])
+  approvalRequest ApprovalRequest? @relation(fields: [approvalRequestId], references: [id])
+
+  bills     SubcontractorBill[]
+  retention RetentionEntry[]
+
+  @@index([projectId])
+  @@index([subcontractorId])
+  @@index([regionId, status])
+}
+
+model SubcontractorBill {
+  id                String     @id @default(cuid())
+  workOrderId       String
+  subcontractorId   String
+  projectId         String
+  regionId          String
+  gstRegistrationId String
+  billNo            String
+  billDate          DateTime   @db.Date
+  periodFrom        DateTime   @db.Date
+  periodTo          DateTime   @db.Date
+  grossAmount       Decimal    @db.Decimal(14, 2)
+  gstAmount         Decimal    @db.Decimal(14, 2)
+  totalDeductions   Decimal    @db.Decimal(14, 2)
+  netPayable        Decimal    @db.Decimal(14, 2)
+  /// Cached sum of payments; outstanding = netPayable - paidAmount (derived).
+  paidAmount        Decimal    @default(0) @db.Decimal(14, 2)
+  status            BillStatus @default(DRAFT)
+  approvalRequestId String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int        @default(1)
+
+  workOrder       SubcontractorWorkOrder @relation(fields: [workOrderId], references: [id])
+  subcontractor   Subcontractor          @relation(fields: [subcontractorId], references: [id])
+  project         Project                @relation(fields: [projectId], references: [id])
+  region          Region                 @relation(fields: [regionId], references: [id])
+  gstRegistration GstRegistration        @relation(fields: [gstRegistrationId], references: [id])
+  approvalRequest ApprovalRequest?       @relation(fields: [approvalRequestId], references: [id])
+
+  deductions SubcontractorBillDeduction[]
+  payments   Payment[]
+
+  @@unique([workOrderId, billNo])
+  @@index([regionId, status])
+  @@index([projectId])
+}
+
+model SubcontractorBillDeduction {
+  id              String    @id @default(cuid())
+  billId          String
+  deductionTypeId String
+  amount          Decimal   @db.Decimal(14, 2)
+  remarks         String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdById     String?
+  updatedById     String?
+  deletedAt       DateTime?
+  version         Int       @default(1)
+
+  bill          SubcontractorBill @relation(fields: [billId], references: [id])
+  deductionType DeductionType     @relation(fields: [deductionTypeId], references: [id])
+
+  @@index([billId])
+}
+
+// ============================================================================
+// 10. PHASE 2/3 TABLES (present in src/types; no screens in Phase 1)
+// ============================================================================
+
+// ---- Accounts, invoices, payments, GST --------------------------------------
+
+/// Outward GST tax invoice to a customer organisation.
+model Invoice {
+  id                String               @id @default(cuid())
+  gstRegistrationId String
+  invoiceNo         String
+  invoiceDate       DateTime             @db.Date
+  organisationId    String
+  customerGstin     String
+  projectId         String
+  regionId          String
+  invoiceType       InvoiceType
+  periodFrom        DateTime             @db.Date
+  periodTo          DateTime             @db.Date
+  taxableValue      Decimal              @db.Decimal(14, 2)
+  cgst              Decimal              @db.Decimal(14, 2)
+  sgst              Decimal              @db.Decimal(14, 2)
+  igst              Decimal              @db.Decimal(14, 2)
+  total             Decimal              @db.Decimal(14, 2)
+  totalDeductions   Decimal              @db.Decimal(14, 2)
+  netReceivable     Decimal              @db.Decimal(14, 2)
+  receivedAmount    Decimal              @default(0) @db.Decimal(14, 2)
+  dueDate           DateTime             @db.Date
+  paymentStatus     InvoicePaymentStatus @default(UNPAID)
+  gstFilingStatus   GstFilingStatus      @default(PENDING)
+  filingReference   String?
+  gstFilingDueDate  DateTime             @db.Date
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int                  @default(1)
+
+  gstRegistration GstRegistration @relation(fields: [gstRegistrationId], references: [id])
+  organisation    Organisation    @relation(fields: [organisationId], references: [id])
+  project         Project         @relation(fields: [projectId], references: [id])
+  region          Region          @relation(fields: [regionId], references: [id])
+
+  deductions InvoiceDeduction[]
+  payments   Payment[]
+  retention  RetentionEntry[]
+
+  @@unique([gstRegistrationId, invoiceNo])
+  @@index([projectId])
+  @@index([regionId, paymentStatus])
+}
+
+model InvoiceDeduction {
+  id              String    @id @default(cuid())
+  invoiceId       String
+  deductionTypeId String
+  amount          Decimal   @db.Decimal(14, 2)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdById     String?
+  updatedById     String?
+  deletedAt       DateTime?
+  version         Int       @default(1)
+
+  invoice       Invoice       @relation(fields: [invoiceId], references: [id])
+  deductionType DeductionType @relation(fields: [deductionTypeId], references: [id])
+
+  @@index([invoiceId])
+}
+
+/// Money in/out. Exactly one allocation target is typically set (CHECK constraint in raw SQL).
+model Payment {
+  id                   String           @id @default(cuid())
+  direction            PaymentDirection
+  purpose              PaymentPurpose
+  amount               Decimal          @db.Decimal(14, 2)
+  paidOn               DateTime         @db.Date
+  mode                 PaymentMode
+  utr                  String?
+  regionId             String
+  projectId            String?
+  gstRegistrationId    String?
+  partyId              String?
+  organisationId       String?
+  invoiceId            String?
+  subcontractorBillId  String?
+  vendorInvoiceId      String?
+  securityInstrumentId String?
+  remarks              String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  createdById          String?
+  updatedById          String?
+  deletedAt            DateTime?
+  version              Int              @default(1)
+
+  region             Region              @relation(fields: [regionId], references: [id])
+  project            Project?            @relation(fields: [projectId], references: [id])
+  gstRegistration    GstRegistration?    @relation(fields: [gstRegistrationId], references: [id])
+  party              Party?              @relation(fields: [partyId], references: [id])
+  organisation       Organisation?       @relation(fields: [organisationId], references: [id])
+  invoice            Invoice?            @relation(fields: [invoiceId], references: [id])
+  subcontractorBill  SubcontractorBill?  @relation(fields: [subcontractorBillId], references: [id])
+  vendorInvoice      VendorInvoice?      @relation(fields: [vendorInvoiceId], references: [id])
+  securityInstrument SecurityInstrument? @relation(fields: [securityInstrumentId], references: [id])
+
+  @@index([regionId, paidOn])
+  @@index([projectId])
+}
+
+/// Retention withheld/released, tracked from both directions.
+model RetentionEntry {
+  id          String             @id @default(cuid())
+  side        RetentionSide
+  projectId   String
+  workOrderId String?
+  invoiceId   String?
+  type        RetentionEntryType
+  amount      Decimal            @db.Decimal(14, 2)
+  date        DateTime           @db.Date
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int                @default(1)
+
+  project   Project                 @relation(fields: [projectId], references: [id])
+  workOrder SubcontractorWorkOrder? @relation(fields: [workOrderId], references: [id])
+  invoice   Invoice?                @relation(fields: [invoiceId], references: [id])
+
+  @@index([projectId])
+}
+
+/// Read model; source tables stay authoritative. Feeds per-GSTIN reports.
+model GstTransaction {
+  id                String       @id @default(cuid())
+  gstRegistrationId String
+  direction         GstDirection
+  sourceType        String
+  sourceId          String
+  partyName         String
+  partyGstin        String?
+  invoiceNo         String
+  invoiceDate       DateTime     @db.Date
+  /// "YYYY-MM"
+  period            String
+  taxableValue      Decimal      @db.Decimal(14, 2)
+  cgst              Decimal      @db.Decimal(14, 2)
+  sgst              Decimal      @db.Decimal(14, 2)
+  igst              Decimal      @db.Decimal(14, 2)
+  itcEligible       Boolean      @default(false)
+  rate              Decimal      @db.Decimal(7, 4)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int          @default(1)
+
+  gstRegistration GstRegistration @relation(fields: [gstRegistrationId], references: [id])
+
+  @@index([gstRegistrationId, period])
+  @@index([sourceType, sourceId])
+}
+
+// ---- Workforce & payroll -----------------------------------------------------
+
+/// Assignment history is the transfer log: a transfer closes one row and opens another.
+model SiteAssignment {
+  id           String    @id @default(cuid())
+  employeeId   String
+  siteId       String
+  projectId    String
+  role         String
+  fromDate     DateTime  @db.Date
+  toDate       DateTime? @db.Date
+  reason       String?
+  assignedById String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdById  String?
+  updatedById  String?
+  deletedAt    DateTime?
+  version      Int       @default(1)
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  site     Site     @relation(fields: [siteId], references: [id])
+  project  Project  @relation(fields: [projectId], references: [id])
+
+  @@index([employeeId])
+  @@index([siteId])
+}
+
+model Attendance {
+  id              String           @id @default(cuid())
+  employeeId      String
+  siteId          String
+  projectId       String
+  regionId        String
+  date            DateTime         @db.Date
+  status          AttendanceStatus
+  /// 1 full day, 0.5 half day, 0 otherwise.
+  dayFraction     Decimal          @db.Decimal(3, 2)
+  overtimeMinutes Int              @default(0)
+  source          AttendanceSource
+  markedById      String
+  /// Device-generated id: offline retries are idempotent.
+  clientUuid      String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  createdById     String?
+  updatedById     String?
+  deletedAt       DateTime?
+  version         Int              @default(1)
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  site     Site     @relation(fields: [siteId], references: [id])
+  project  Project  @relation(fields: [projectId], references: [id])
+  region   Region   @relation(fields: [regionId], references: [id])
+
+  @@unique([employeeId, date, siteId])
+  @@index([regionId, date])
+}
+
+model PayrollRun {
+  id                String           @id @default(cuid())
+  /// "YYYY-MM"
+  periodMonth       String
+  regionId          String
+  status            PayrollRunStatus @default(DRAFT)
+  employeeCount     Int
+  grossTotal        Decimal          @db.Decimal(14, 2)
+  epfEmployeeTotal  Decimal          @db.Decimal(14, 2)
+  epfEmployerTotal  Decimal          @db.Decimal(14, 2)
+  netTotal          Decimal          @db.Decimal(14, 2)
+  lockedAt          DateTime?
+  approvalRequestId String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int              @default(1)
+
+  region          Region           @relation(fields: [regionId], references: [id])
+  approvalRequest ApprovalRequest? @relation(fields: [approvalRequestId], references: [id])
+  payslips        Payslip[]
+
+  @@unique([periodMonth, regionId])
+}
+
+/// EPF/ESI figures are snapshotted on the payslip. Salary data: sensitive.
+model Payslip {
+  id               String              @id @default(cuid())
+  payrollRunId     String
+  employeeId       String
+  daysWorked       Decimal             @db.Decimal(5, 2)
+  overtimeAmount   Decimal             @db.Decimal(14, 2)
+  gross            Decimal             @db.Decimal(14, 2)
+  epfWages         Decimal             @db.Decimal(14, 2)
+  epfEmployee      Decimal             @db.Decimal(14, 2)
+  epfEmployer      Decimal             @db.Decimal(14, 2)
+  advanceRecovered Decimal             @db.Decimal(14, 2)
+  esiEmployee      Decimal             @db.Decimal(14, 2)
+  esiEmployer      Decimal             @db.Decimal(14, 2)
+  otherDeductions  Decimal             @db.Decimal(14, 2)
+  totalDeductions  Decimal             @db.Decimal(14, 2)
+  net              Decimal             @db.Decimal(14, 2)
+  paymentStatus    SalaryPaymentStatus @default(PENDING)
+  paidOn           DateTime?           @db.Date
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  createdById      String?
+  updatedById      String?
+  deletedAt        DateTime?
+  version          Int                 @default(1)
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id])
+  employee   Employee   @relation(fields: [employeeId], references: [id])
+
+  @@unique([payrollRunId, employeeId])
+}
+
+// ---- Purchases & stock --------------------------------------------------------
+
+model PurchaseRequest {
+  id                String                @id @default(cuid())
+  requestNo         String                @unique
+  projectId         String
+  siteId            String
+  regionId          String
+  requestedById     String
+  neededBy          DateTime              @db.Date
+  status            PurchaseRequestStatus @default(DRAFT)
+  estimatedAmount   Decimal               @db.Decimal(14, 2)
+  approvalRequestId String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int                   @default(1)
+
+  project         Project               @relation(fields: [projectId], references: [id])
+  site            Site                  @relation(fields: [siteId], references: [id])
+  region          Region                @relation(fields: [regionId], references: [id])
+  approvalRequest ApprovalRequest?      @relation(fields: [approvalRequestId], references: [id])
+  items           PurchaseRequestItem[]
+  orders          PurchaseOrder[]
+
+  @@index([regionId, status])
+}
+
+model PurchaseRequestItem {
+  id          String    @id @default(cuid())
+  requestId   String
+  materialId  String
+  quantity    Decimal   @db.Decimal(14, 3)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  request  PurchaseRequest @relation(fields: [requestId], references: [id])
+  material Material        @relation(fields: [materialId], references: [id])
+
+  @@index([requestId])
+}
+
+model PurchaseOrder {
+  id                String              @id @default(cuid())
+  poNo              String              @unique
+  requestId         String?
+  vendorId          String
+  projectId         String
+  siteId            String
+  regionId          String
+  gstRegistrationId String
+  poDate            DateTime            @db.Date
+  amount            Decimal             @db.Decimal(14, 2)
+  gstAmount         Decimal             @db.Decimal(14, 2)
+  status            PurchaseOrderStatus @default(DRAFT)
+  approvalRequestId String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int                 @default(1)
+
+  request         PurchaseRequest? @relation(fields: [requestId], references: [id])
+  vendor          Vendor           @relation(fields: [vendorId], references: [id])
+  project         Project          @relation(fields: [projectId], references: [id])
+  site            Site             @relation(fields: [siteId], references: [id])
+  region          Region           @relation(fields: [regionId], references: [id])
+  gstRegistration GstRegistration  @relation(fields: [gstRegistrationId], references: [id])
+  approvalRequest ApprovalRequest? @relation(fields: [approvalRequestId], references: [id])
+  invoices        VendorInvoice[]
+
+  @@index([regionId, status])
+}
+
+model VendorInvoice {
+  id                String              @id @default(cuid())
+  invoiceNo         String
+  purchaseOrderId   String?
+  vendorId          String
+  projectId         String
+  regionId          String
+  gstRegistrationId String
+  invoiceDate       DateTime            @db.Date
+  dueDate           DateTime            @db.Date
+  taxableValue      Decimal             @db.Decimal(14, 2)
+  cgst              Decimal             @db.Decimal(14, 2)
+  sgst              Decimal             @db.Decimal(14, 2)
+  igst              Decimal             @db.Decimal(14, 2)
+  total             Decimal             @db.Decimal(14, 2)
+  paidAmount        Decimal             @default(0) @db.Decimal(14, 2)
+  itcEligible       Boolean             @default(false)
+  status            VendorInvoiceStatus @default(RECEIVED)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int                 @default(1)
+
+  purchaseOrder   PurchaseOrder?  @relation(fields: [purchaseOrderId], references: [id])
+  vendor          Vendor          @relation(fields: [vendorId], references: [id])
+  project         Project         @relation(fields: [projectId], references: [id])
+  region          Region          @relation(fields: [regionId], references: [id])
+  gstRegistration GstRegistration @relation(fields: [gstRegistrationId], references: [id])
+  payments        Payment[]
+
+  @@unique([vendorId, invoiceNo])
+}
+
+model StockTransaction {
+  id          String               @id @default(cuid())
+  siteId      String
+  projectId   String
+  materialId  String
+  type        StockTransactionType
+  quantity    Decimal              @db.Decimal(14, 3)
+  rate        Decimal              @db.Decimal(14, 2)
+  date        DateTime             @db.Date
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int                  @default(1)
+
+  site     Site     @relation(fields: [siteId], references: [id])
+  project  Project  @relation(fields: [projectId], references: [id])
+  material Material @relation(fields: [materialId], references: [id])
+
+  @@index([siteId, materialId])
+}

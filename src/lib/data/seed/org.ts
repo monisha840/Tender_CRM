@@ -187,7 +187,7 @@ export const ORGANISATIONS = [
 export const ORG_SHORT: Record<string, string> = Object.fromEntries(ORGANISATIONS.map((c) => [c.id, c.short]));
 export const ORG_PAN: Record<string, string> = Object.fromEntries(ORGANISATIONS.map((c) => [c.id, c.pan]));
 
-const STATES = [
+export const STATES = [
   { id: "st_mh", code: "MH", name: "Maharashtra", gst: "27" },
   { id: "st_cg", code: "CG", name: "Chhattisgarh", gst: "22" },
   { id: "st_tn", code: "TN", name: "Tamil Nadu", gst: "33" },

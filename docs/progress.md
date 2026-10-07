@@ -12,7 +12,7 @@ Run: build + test to production quality, no deployment. Orchestrator prompt: bui
 | Stage | Status | Branch | Commits | Notes |
 |---|---|---|---|---|
 | Setup baseline | done | main | see git log | WIP committed, docs moved |
-| S1 schema + data layer | in progress | main | | CHECKPOINT: show schema summary before first migration |
+| S1 schema + data layer | in progress | main | | Schema + seeds written and validated (no migration run). CHECKPOINT: user approval of docs/data-model.md before first migration |
 | S2 auth/RBAC/audit/approvals | todo | | | |
 | S3-A tenders | todo | build/s3a-tenders | | |
 | S3-B projects+subs | todo | build/s3b-projects-subs | | |
