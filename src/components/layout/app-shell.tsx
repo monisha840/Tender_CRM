@@ -26,6 +26,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const persona = useCurrentPersona();
   const hydrated = useHydrated();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const asOfDate = useSessionStore((s) => s.asOfDate);
 
   // Load persisted state after mount so the server render and first client render both use the seed.
   useEffect(() => {
@@ -59,7 +60,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <Skeleton className="h-40 w-full" />
               </div>
             )}
-            <div hidden={!hydrated}>
+            {/* Keyed on the as-of date so every page remounts and recomputes with the chosen day. */}
+            <div key={asOfDate ?? "today"} hidden={!hydrated}>
               {allowed ? (
                 children
               ) : (

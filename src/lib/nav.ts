@@ -1,5 +1,4 @@
 import {
-  Bell,
   Building2,
   CheckSquare,
   FolderKanban,
@@ -40,7 +39,6 @@ export const NAV_MODULES: NavModule[] = [
   { key: "daily_work", label: "Daily Work", shortLabel: "Daily work", href: "/daily-work", icon: HardHat, group: "Operations", phase: "Phase 2 — Projects & Daily Work", description: "Daily work reports, attendance, site requests and issues at each plant site." },
   { key: "approvals", label: "Approvals", href: "/approvals", icon: CheckSquare, group: "Management", phase: "Phase 0 — Foundation", description: "Everything waiting for a decision, in one place." },
   { key: "settings", label: "Settings", href: "/settings", icon: Settings, group: "Management", phase: "Phase 0 — Foundation", description: "Regions, GSTINs, service lines, roles, stages, checklists and approval rules." },
-  { key: "notifications", label: "Notifications", shortLabel: "Alerts", href: "/notifications", icon: Bell, group: "Management", phase: "Phase 0 — Foundation", inNav: false, description: "Deadlines, follow-ups and alerts." },
 ];
 
 export const NAV_GROUP_ORDER: NavModule["group"][] = ["Overview", "Business", "People & Money", "Operations", "Management"];

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -71,7 +70,7 @@ export function Home() {
           <DirectorView dashboard={dashboard} manpower={manpower} region={region} />
         )}
         <p className="text-xs text-muted-foreground">
-          Every tile and chart opens the related list. <Link href="/notifications" className="text-accent-strong hover:underline">Notifications</Link> are in the bell at the top.
+          Every tile and chart opens the related list. Notifications are in the bell at the top.
         </p>
       </div>
     </>

@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type { RegionFilter } from "@/lib/data/shared";
-import type { Id } from "@/types";
+import { setAsOfDate as setClockDate } from "@/lib/dates";
+import type { Id, IsoDate } from "@/types";
 
 const safeStorage = createJSONStorage(() => ({
   getItem: (key: string) => {
@@ -34,9 +35,12 @@ interface SessionState {
   currentUserId: Id;
   /** Region filter shared by dashboards and lists (remembered between visits). */
   regionFilter: RegionFilter;
+  /** "As of" date for every view; null = today. Remembered between visits. */
+  asOfDate: IsoDate | null;
   sidebarCollapsed: boolean;
   switchUser: (id: Id) => void;
   setRegionFilter: (filter: RegionFilter) => void;
+  setAsOfDate: (date: IsoDate | null) => void;
   toggleSidebar: () => void;
 }
 
@@ -46,11 +50,22 @@ export const useSessionStore = create<SessionState>()(
     (set) => ({
       currentUserId: DEFAULT_USER_ID,
       regionFilter: "ALL",
+      asOfDate: null,
       sidebarCollapsed: false,
       switchUser: (id) => set({ currentUserId: id, regionFilter: "ALL" }),
       setRegionFilter: (filter) => set({ regionFilter: filter }),
+      setAsOfDate: (date) => {
+        setClockDate(date);
+        set({ asOfDate: date });
+      },
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
     }),
-    { name: "sprince-tool:session", version: 2, storage: safeStorage, skipHydration: true },
+    {
+      name: "sprince-tool:session",
+      version: 2,
+      storage: safeStorage,
+      skipHydration: true,
+      onRehydrateStorage: () => (state) => setClockDate(state?.asOfDate ?? null),
+    },
   ),
 );

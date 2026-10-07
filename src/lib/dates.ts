@@ -13,7 +13,13 @@ export const APP_TIME_ZONE = "Asia/Kolkata";
  * When a backend lands, replace the body with the real IST date.
  */
 export const DEMO_TODAY: IsoDate = "2026-10-07";
-export const getToday = (): IsoDate => DEMO_TODAY;
+
+/** The "as of" date chosen in the header date picker; null means the real (demo) today. */
+let asOfOverride: IsoDate | null = null;
+export const setAsOfDate = (date: IsoDate | null): void => {
+  asOfOverride = date && date !== DEMO_TODAY ? date : null;
+};
+export const getToday = (): IsoDate => asOfOverride ?? DEMO_TODAY;
 
 const MS_PER_DAY = 86_400_000;
 

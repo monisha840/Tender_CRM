@@ -31,30 +31,34 @@ interface BlockProps {
 
 function Block({ icon: Icon, title, count, summary, rows, href, actionLabel, emptyText }: BlockProps) {
   return (
-    <div className="flex min-w-0 flex-col p-4">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <Icon className="size-4 shrink-0 text-accent-strong" aria-hidden="true" />
-          <h3 className="truncate text-sm font-semibold">{title}</h3>
+    <div className="flex min-w-0 flex-col">
+      <div className="px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-accent-subtle">
+              <Icon className="size-4 text-accent-strong" aria-hidden="true" />
+            </span>
+            <h3 className="truncate text-sm font-semibold">{title}</h3>
+          </div>
+          <span className="tabular rounded-full bg-accent-subtle px-2.5 py-0.5 text-xs font-semibold text-accent-strong">{count}</span>
         </div>
-        <span className="tabular rounded-md bg-accent-subtle px-2 py-0.5 text-xs font-semibold text-accent-strong">{count}</span>
+        <p className="mt-2 text-xs text-muted-foreground">{summary}</p>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">{summary}</p>
-      <ul className="mt-3 flex-1 space-y-1">
-        {rows.length === 0 && <li className="py-2 text-sm text-muted-foreground">{emptyText}</li>}
+      <ul className="flex-1 divide-y border-t">
+        {rows.length === 0 && <li className="px-4 py-4 text-sm text-muted-foreground">{emptyText}</li>}
         {rows.map((r) => (
           <li key={r.id}>
-            <Link href={r.href} className="flex min-h-11 items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-accent-subtle md:min-h-0">
+            <Link href={r.href} className="flex min-h-14 items-center justify-between gap-3 px-4 py-2.5 hover:bg-accent-subtle">
               <span className="min-w-0">
-                <span className="block truncate text-sm font-medium">{r.title}</span>
-                <span className="block truncate text-xs text-muted-foreground">{r.meta}</span>
+                <span className="line-clamp-2 block text-sm leading-snug font-medium">{r.title}</span>
+                <span className="mt-0.5 block truncate text-xs text-muted-foreground">{r.meta}</span>
               </span>
               {r.badge}
             </Link>
           </li>
         ))}
       </ul>
-      <Link href={href} className="mt-2 inline-flex min-h-11 items-center gap-1 text-sm font-medium text-accent-strong hover:underline md:min-h-0">
+      <Link href={href} className="flex min-h-11 items-center justify-between border-t px-4 text-sm font-medium text-accent-strong hover:bg-accent-subtle">
         {actionLabel}
         <ArrowRight className="size-3.5" aria-hidden="true" />
       </Link>
@@ -166,7 +170,7 @@ export function AttentionArea({ region, only }: { region: RegionFilter; only?: P
         <h2 className="text-sm font-semibold">Needs attention</h2>
         <p className="text-xs text-muted-foreground">What is due, waiting or overdue right now, with a direct way to act.</p>
       </div>
-      <div className="grid gap-px bg-border sm:grid-cols-2 2xl:grid-cols-4 [&>*]:bg-surface">{blocks}</div>
+      <div className="grid gap-px bg-border lg:grid-cols-2 2xl:grid-cols-4 [&>*]:bg-surface">{blocks}</div>
     </section>
   );
 }

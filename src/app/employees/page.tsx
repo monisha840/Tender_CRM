@@ -120,19 +120,38 @@ export default function EmployeesPage() {
   );
 
   const columns: DataTableColumn<DirectoryRow>[] = [
-    { key: "code", header: "Code", cell: (r) => <span className="tabular text-muted-foreground">{r.code}</span>, sortValue: (r) => r.code },
-    { key: "name", header: "Name", cell: (r) => <span className="font-medium">{r.name}</span>, sortValue: (r) => r.name, mobile: "title" },
-    { key: "phone", header: "Phone", cell: (r) => <span className="tabular">{r.phone}</span> },
-    { key: "site", header: "Site", cell: (r) => r.siteNames, sortValue: (r) => r.siteNames },
-    { key: "designation", header: "Designation", cell: (r) => r.designation, sortValue: (r) => r.designation },
-    { key: "department", header: "Department", cell: (r) => r.department, sortValue: (r) => r.department },
-    { key: "joined", header: "Joined", cell: (r) => <span className="tabular">{formatDate(r.joiningDate)}</span>, sortValue: (r) => r.joiningDate },
+    {
+      key: "name",
+      header: "Employee",
+      cell: (r) => (
+        <span className="block min-w-40">
+          <span className="block font-medium">{r.name}</span>
+          <span className="tabular block text-xs whitespace-nowrap text-muted-foreground">{r.code}</span>
+        </span>
+      ),
+      sortValue: (r) => r.name,
+      mobile: "title",
+    },
+    { key: "phone", header: "Phone", cell: (r) => <span className="tabular whitespace-nowrap">{r.phone}</span> },
+    { key: "site", header: "Site", cell: (r) => <span className="block max-w-40 truncate" title={r.siteNames}>{r.siteNames}</span>, sortValue: (r) => r.siteNames },
+    {
+      key: "designation",
+      header: "Role",
+      cell: (r) => (
+        <span className="block min-w-36">
+          <span className="block">{r.designation}</span>
+          <span className="block text-xs text-muted-foreground">{r.department}</span>
+        </span>
+      ),
+      sortValue: (r) => r.designation,
+    },
+    { key: "joined", header: "Joined", cell: (r) => <span className="tabular whitespace-nowrap">{formatDate(r.joiningDate)}</span>, sortValue: (r) => r.joiningDate },
     {
       key: "salary",
       header: "Salary",
       numeric: true,
       cell: (r) => (
-        <span>
+        <span className="whitespace-nowrap">
           {formatINR(r.wage)}
           {r.wageUnit === "day" && <span className="text-xs text-muted-foreground"> /day</span>}
         </span>
