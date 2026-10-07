@@ -33,7 +33,11 @@ export function listPersonas(db: Database): Persona[] {
 const SCOPE_RANK: Record<PermissionScope, number> = { OWN_RECORDS: 0, OWN_SITES: 1, OWN_PROJECTS: 2, OWN_REGION: 3, ALL: 4 };
 
 /** Widest scope granted for an action on a module, or null when not granted at all. */
+/** Nav module keys whose permission rows use a different module name (see ROLE_SPECS in prisma/seed-base.ts). */
+const PERMISSION_MODULE_ALIAS: Record<string, string> = { employees: "payroll", finance: "gst_invoices", daily_work: "daily_reports" };
+
 export function getScope(db: Database, userId: Id, module: string, action: PermissionAction = "VIEW"): PermissionScope | null {
+  module = PERMISSION_MODULE_ALIAS[module] ?? module;
   const roleIds = db.userRoles.filter((r) => r.userId === userId).map((r) => r.roleId);
   const permission = db.permissions.find((p) => p.module === module && p.action === action);
   if (!permission) return null;
