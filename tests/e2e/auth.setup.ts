@@ -10,7 +10,8 @@ for (const role of ["admin", "director"] as const) {
     await page.getByLabel(/email/i).fill(USERS[role].email);
     await page.getByLabel(/password/i).fill(process.env.E2E_TEST_PASSWORD ?? "");
     await page.getByRole("button", { name: /sign in/i }).click();
-    await expect(page).not.toHaveURL(/\/login/);
+    // Cold `next dev` compiles /dashboard on first login (>5s), so allow a longer navigation window.
+    await expect(page).not.toHaveURL(/\/login/, { timeout: 45_000 });
     await page.context().storageState({ path: AUTH[role] });
   });
 }

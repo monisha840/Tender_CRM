@@ -11,6 +11,8 @@ export async function loginViaUi(page: Page, role: RoleKey, pw: string = passwor
   await page.getByLabel(/email/i).fill(USERS[role].email);
   await page.getByLabel(/password/i).fill(pw);
   await page.getByRole("button", { name: /sign in/i }).click();
+  // The server action + first dashboard compile on a cold `next dev` can exceed the default 5s assertion timeout.
+  await page.waitForURL((u) => !/\/login/.test(u.pathname), { timeout: 45_000 });
 }
 
 export async function signOut(page: Page): Promise<void> {

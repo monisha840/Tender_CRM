@@ -18,6 +18,10 @@ test("Director dashboard loads and the active-tenders KPI matches the database",
   const tile = dash.activeTendersTile();
   await expect(tile).toBeVisible();
   await expect
-    .poll(async () => Number(/\d[\d,]*/.exec(await tile.innerText())?.[0].replace(/,/g, "")), "active tenders KPI value")
+    .poll(async () => {
+      // Tile text is "<n>. Active tenders\n<count>\n<hint>": drop the "<n>. " label prefix, then take the first number.
+      const text = (await tile.innerText()).replace(/^\s*\d+\.\s*/, "");
+      return Number(/\d[\d,]*/.exec(text)?.[0].replace(/,/g, ""));
+    }, "active tenders KPI value")
     .toBe(expected);
 });

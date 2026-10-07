@@ -15,8 +15,9 @@ for (const route of ["/dashboard", "/tenders"]) {
     await expect(page.getByRole("heading").first()).toBeVisible();
     await expectNoHorizontalOverflow(page);
     if (route === "/tenders") {
-      // Rows become stacked cards on mobile: either table rows or tender-row cards.
-      await expect(page.getByRole("row").or(page.getByTestId("tender-row")).first()).toBeVisible();
+      // Below xl the register shows stacked cards (TenderCards, a "Tender register" list; the DataTable inside
+      // `hidden xl:block` is not visible). Role queries ignore hidden elements, so this finds the visible card.
+      await expect(page.getByRole("list", { name: "Tender register" }).getByRole("listitem").first()).toBeVisible();
     }
   });
 }

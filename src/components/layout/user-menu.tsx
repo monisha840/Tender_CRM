@@ -51,7 +51,7 @@ export function UserMenu() {
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <form action={logoutAction}>
-          <DropdownMenuItem render={<button type="submit" className="w-full" />} className="min-h-11 md:min-h-8">
+          <DropdownMenuItem nativeButton render={<button type="submit" className="w-full" />} className="min-h-11 md:min-h-8">
             <LogOut aria-hidden="true" />
             Sign out
           </DropdownMenuItem>
