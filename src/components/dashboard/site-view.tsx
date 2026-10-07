@@ -7,17 +7,19 @@ import { ChartCard, LegendItem } from "@/components/charts/chart-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { KpiTile } from "@/components/shared/kpi-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { getAttendanceSummary, listSiteIssues, listSites, type RegionFilter } from "@/lib/data";
+import { ChartTooltipContent } from "@/components/charts/chart-tooltip";
+import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
+import { countAttendanceNotMarked, getAttendanceSummary, listSiteIssues, listSites, type RegionFilter } from "@/lib/data";
 import { formatDate, getToday, lastNDays } from "@/lib/dates";
-import { useCurrentPersona, useDb } from "@/store/hooks";
+import { useCurrentPersona } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 const TICK = { fill: "var(--text-secondary)", fontSize: 11 };
 
 /** Site Engineer / Supervisor: their plant site, today's reports, manpower and open issues. Mobile-first. */
 export function SiteView({ region }: { region: RegionFilter }) {
-  const db = useDb();
+  const db = useAsOfDb();
   const persona = useCurrentPersona();
   const today = getToday();
 
@@ -36,11 +38,12 @@ export function SiteView({ region }: { region: RegionFilter }) {
       trend,
       issues: listSiteIssues(db, region, true).filter((i) => i.siteId === row.site.id),
       attendance: getAttendanceSummary(db, today, region),
+      notMarked: countAttendanceNotMarked(db, today, region),
     };
   }, [db, region, persona.user.id, today]);
 
   if (!view) return <EmptyState icon={HardHat} message="No plant site is assigned to you yet." />;
-  const { row, reports, trend, issues, attendance } = view;
+  const { row, reports, trend, issues, attendance, notMarked } = view;
   const config = { workers: { label: "Workers", color: "var(--chart-1)" } } satisfies ChartConfig;
   const todayReport = (projectId: string) => reports.find((r) => r.projectId === projectId && r.reportDate === today);
   const missing = row.projects.filter((p) => !todayReport(p.id) || todayReport(p.id)!.status === "DRAFT");
@@ -78,7 +81,7 @@ export function SiteView({ region }: { region: RegionFilter }) {
         <KpiTile label="Workers today" value={String(trend[trend.length - 1].workers)} hint="from today's reports" icon={Users} trend={trend.map((t) => t.workers)} href="/daily-work" />
         <KpiTile label="Reports today" value={`${row.reportsToday} / ${row.reportsExpected}`} hint={formatDate(today)} icon={ClipboardList} href="/daily-work" />
         <KpiTile label="Open issues" value={String(issues.length)} hint={`${issues.filter((i) => i.severity === "HIGH").length} high severity`} icon={AlertTriangle} href="/daily-work?tab=issues" />
-        <KpiTile label="Attendance not marked" value={String(attendance.notMarked)} hint={`${attendance.present} present today`} icon={HardHat} href="/employees/attendance" />
+        <KpiTile label="Attendance not marked" value={String(notMarked)} hint={`${attendance.present} present today`} icon={HardHat} href="/employees/attendance" />
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">

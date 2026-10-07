@@ -31,9 +31,9 @@ export function RegionFilterControl() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" className="h-11 gap-1.5 px-2.5 md:h-9" aria-label={`Region filter: ${current}`} />}>
+      <DropdownMenuTrigger render={<Button variant="outline" className="h-11 min-w-11 gap-1.5 px-2.5 md:h-9 md:min-w-0" aria-label={`Region filter: ${current}`} />}>
         <MapPin aria-hidden="true" />
-        <span className="max-w-28 truncate text-sm">{current}</span>
+        <span className="hidden max-w-28 truncate text-sm sm:inline">{current}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuGroup>

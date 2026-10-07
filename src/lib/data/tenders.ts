@@ -235,7 +235,47 @@ export function checkConversion(db: Database, d: TenderDetail): ConversionCheck 
     db.sites.find((s) => s.organisationId === d.tender.organisationId && s.regionId === d.tender.regionId)?.id ??
     null;
   if (!siteId) return { ok: false, blocker: "No plant site is linked to this tender, so a project cannot be placed.", unmetConditions, siteId };
+  if (!defaultGstRegistrationId(db, d.tender)) {
+    return { ok: false, blocker: "No GSTIN is set up for this tender's region, so the project cannot be registered.", unmetConditions, siteId };
+  }
   return { ok: true, blocker: null, unmetConditions, siteId };
+}
+
+/** "SPH-<region>-NN" with NN one past the highest number already used for that region, soft-deleted projects included. */
+export function uniqueProjectCode(db: Database, regionCode: string): string {
+  const prefix = `SPH-${regionCode}-`;
+  const taken = new Set(db.projects.map((p) => p.code.toLowerCase()));
+  let n = 0;
+  db.projects.forEach((p) => {
+    const m = p.code.startsWith(prefix) ? /^\d+$/.exec(p.code.slice(prefix.length)) : null;
+    if (m) n = Math.max(n, Number(m[0]));
+  });
+  let code: string;
+  do code = `${prefix}${String(++n).padStart(2, "0")}`;
+  while (taken.has(code.toLowerCase()));
+  return code;
+}
+
+/** The tender's own GSTIN, else the region's default registration, else its first one. Empty only if the region has none. */
+export function defaultGstRegistrationId(db: Database, t: Pick<Tender, "gstRegistrationId" | "regionId">): Id {
+  if (t.gstRegistrationId) return t.gstRegistrationId;
+  const links = db.regionGstRegistrations.filter((r) => r.regionId === t.regionId && !r.deletedAt);
+  return (links.find((r) => r.isDefault) ?? links[0])?.gstRegistrationId ?? "";
+}
+
+/** A project manager for the region: the one with the fewest running projects (ties go to the lowest employee code). */
+export function defaultProjectManagerId(db: Database, regionId: Id): Id | null {
+  const roleIds = new Set(db.roles.filter((r) => r.key === "project_manager").map((r) => r.id));
+  const managerUsers = new Set(
+    db.userRoles
+      .filter((ur) => roleIds.has(ur.roleId) && db.userRegions.some((reg) => reg.userId === ur.userId && reg.regionId === regionId))
+      .map((ur) => ur.userId),
+  );
+  const load = (employeeId: Id) => db.projects.filter((p) => !p.deletedAt && p.projectManagerId === employeeId).length;
+  const candidates = db.employees
+    .filter((e) => !e.deletedAt && e.userId && managerUsers.has(e.userId))
+    .sort((a, b) => load(a.id) - load(b.id) || a.code.localeCompare(b.code));
+  return candidates[0]?.id ?? null;
 }
 
 /**
@@ -252,14 +292,13 @@ export function buildConversion(db: Database, d: TenderDetail, userId: Id, overr
   const contractValue = d.award?.awardedAmount ?? d.bid?.quotedAmount ?? t.estimatedValue;
   const isService = (byId(db.tenderTypes, t.tenderTypeId)?.name ?? "").toLowerCase().includes("service");
   const startDate = d.award?.startDate ?? addDays(today, 7);
-  const nextNo = db.projects.filter((p) => p.regionId === t.regionId).length + 1;
   const projectId = `prj_${t.id.replace(/^tnd_/, "")}`;
   const meta = { createdAt: now, updatedAt: now, deletedAt: null };
 
   const project: Project = {
     ...meta,
     id: projectId,
-    code: `SPH-${region?.code ?? "GEN"}-${String(nextNo).padStart(2, "0")}`,
+    code: uniqueProjectCode(db, region?.code ?? "GEN"),
     name: t.title,
     serviceLineId: t.serviceLineId,
     siteId: check.siteId,
@@ -271,12 +310,12 @@ export function buildConversion(db: Database, d: TenderDetail, userId: Id, overr
     tenderId: t.id,
     organisationId: t.organisationId,
     regionId: t.regionId,
-    gstRegistrationId: t.gstRegistrationId ?? "",
+    gstRegistrationId: defaultGstRegistrationId(db, t),
     contractValue,
     startDate,
     plannedEndDate: addDays(startDate, d.award?.completionPeriodDays ?? 365),
     statusId: "pst_mobilisation",
-    projectManagerId: null,
+    projectManagerId: defaultProjectManagerId(db, t.regionId),
     healthOverride: null,
   };
   const conversion: ProjectConversion = {

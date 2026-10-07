@@ -13,7 +13,8 @@ import { PfBanner } from "@/components/workforce/pf-banner";
 import { getPfStatus, listEmployeePay, listPayrollPeriods, type EmployeePayRow } from "@/lib/data";
 import { formatMonth } from "@/lib/dates";
 import { formatINR, sumMoney } from "@/lib/money";
-import { useDb, useRegionFilter } from "@/store/hooks";
+import { useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 
 const STATUS_OPTIONS = [
   { value: "PAID", label: "Paid" },
@@ -22,7 +23,7 @@ const STATUS_OPTIONS = [
 ];
 
 export default function PayrollPage() {
-  const db = useDb();
+  const db = useAsOfDb();
   const { region } = useRegionFilter();
   const periods = useMemo(() => listPayrollPeriods(db), [db]);
   const [period, setPeriod] = useState(periods[0] ?? "");

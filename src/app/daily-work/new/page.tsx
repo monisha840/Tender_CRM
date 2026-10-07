@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Section, textareaClass } from "@/components/work/parts";
 import { listProjects } from "@/lib/data";
-import { getToday } from "@/lib/dates";
+import { getToday, nowIso } from "@/lib/dates";
 import { useDataStore } from "@/store/data-store";
 import { useCurrentPersona, useDb } from "@/store/hooks";
 
@@ -49,7 +49,7 @@ function Form() {
 
   const submit = () => {
     if (!project || !valid) return;
-    const now = new Date().toISOString();
+    const now = nowIso();
     const reportId = `dr_new_${Date.now()}`;
     upsert("dailyReports", {
       id: reportId,

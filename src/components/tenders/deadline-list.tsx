@@ -10,7 +10,8 @@ import { tenderTone, toneClass } from "./urgency";
 import { getUpcomingDeadlines, listTenders, missingMandatoryDocs, reminderBand, type TenderRow } from "@/lib/data/tenders";
 import { formatDateTime } from "@/lib/dates";
 import { formatINR } from "@/lib/money";
-import { useDb, useRegionFilter } from "@/store/hooks";
+import { useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 
 const BANDS: { key: 1 | 3 | 7 | null; title: string; hint: string }[] = [
   { key: 1, title: "Due within 1 day", hint: "Final reminder" },
@@ -24,7 +25,7 @@ const BANDS: { key: 1 | 3 | 7 | null; title: string; hint: string }[] = [
  * `limit` shows a short version for the register page.
  */
 export function DeadlineList({ withinDays = 30, limit }: { withinDays?: number; limit?: number }) {
-  const db = useDb();
+  const db = useAsOfDb();
   const { region } = useRegionFilter();
   const rows = useMemo(() => getUpcomingDeadlines(db, region, withinDays), [db, region, withinDays]);
   // Overdue open tenders are the most urgent; shown on the full page only (not the short register version).

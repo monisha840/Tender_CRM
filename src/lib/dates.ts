@@ -74,6 +74,24 @@ export function istToUtc(date: IsoDate, time = "00:00"): IsoDateTime {
   return new Date(parseIsoDate(date) + (h * 60 + m - 330) * 60_000).toISOString();
 }
 
+/**
+ * Current timestamp on the demo clock: the demo "today" (or the as-of date) with the real IST time of day.
+ * Use this instead of `new Date().toISOString()` for `createdAt` / `updatedAt` so new records never
+ * look like they were created on a different day than the one the app is showing.
+ */
+export function nowIso(): IsoDateTime {
+  const real = new Date();
+  const { h, min } = istPartsOf(real.toISOString());
+  const base = Date.parse(istToUtc(getToday(), `${h}:${min}`));
+  return new Date(base + real.getUTCSeconds() * 1000 + real.getUTCMilliseconds()).toISOString();
+}
+
+/** Real IST wall-clock time, "HH:mm". */
+export function nowIstTime(): string {
+  const { h, min } = istPartsOf(new Date().toISOString());
+  return `${h}:${min}`;
+}
+
 /** DD-MM-YYYY. Accepts a pure date or a UTC timestamp (converted to IST). */
 export function formatDate(value: IsoDate | IsoDateTime | null | undefined): string {
   if (!value) return "—";

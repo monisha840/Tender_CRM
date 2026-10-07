@@ -6,7 +6,8 @@ import { DeadlineBadge, StageBadge, StatusBadge } from "@/components/shared/stat
 import { entityHref, listProjects, type ProjectRow, type TenderRow } from "@/lib/data";
 import { formatDate } from "@/lib/dates";
 import { formatINR, moneyToNumber } from "@/lib/money";
-import { useCurrentPersona, useDb } from "@/store/hooks";
+import { useCurrentPersona } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 import { AttentionArea } from "./attention";
 import { GstFilingChart, ProjectProgressChart, ReceivablesAgeingChart, RevenueExpensesChart, ServiceLineValueChart, TenderFunnelChart, WonLostChart } from "./charts";
 import type { ViewProps } from "./director-view";
@@ -39,7 +40,7 @@ export function FinanceView({ dashboard, manpower, region }: ViewProps) {
 
 /** Project Manager: their projects, subcontractors and progress. */
 export function ProjectsView({ dashboard, manpower, region }: ViewProps) {
-  const db = useDb();
+  const db = useAsOfDb();
   const persona = useCurrentPersona();
   const rows = useMemo(() => {
     const employee = db.employees.find((e) => e.userId === persona.user.id);

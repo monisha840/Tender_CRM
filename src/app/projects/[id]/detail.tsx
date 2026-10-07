@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartCard, LegendItem } from "@/components/charts/chart-card";
+import { SizedContainer } from "@/components/charts/sized-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -165,7 +166,7 @@ export function Detail({ id }: { id: string }) {
               </>
             }
           >
-            <ResponsiveContainer width="100%" height="100%">
+            <SizedContainer>
               <LineChart data={progressData} margin={{ left: -16, right: 8, top: 4 }}>
                 <CartesianGrid stroke="var(--border)" vertical={false} />
                 <XAxis dataKey="month" tick={axis} tickLine={false} axisLine={false} minTickGap={24} />
@@ -174,7 +175,7 @@ export function Detail({ id }: { id: string }) {
                 <Line dataKey="Planned" stroke="var(--chart-4)" strokeDasharray="4 3" dot={false} strokeWidth={2} />
                 <Line dataKey="Actual" stroke="var(--chart-1)" dot={false} strokeWidth={3} />
               </LineChart>
-            </ResponsiveContainer>
+            </SizedContainer>
           </ChartCard>
           <Section title="Work items (BOQ)">
             <DataTable
@@ -218,7 +219,7 @@ export function Detail({ id }: { id: string }) {
               </>
             }
           >
-            <ResponsiveContainer width="100%" height="100%">
+            <SizedContainer>
               <BarChart data={byMonth} margin={{ left: -8, right: 8, top: 4 }}>
                 <CartesianGrid stroke="var(--border)" vertical={false} />
                 <XAxis dataKey="month" tick={axis} tickLine={false} axisLine={false} minTickGap={24} />
@@ -227,7 +228,7 @@ export function Detail({ id }: { id: string }) {
                 <Bar dataKey="Billed" fill="var(--chart-1)" stroke="var(--accent-strong)" radius={[3, 3, 0, 0]} />
                 <Bar dataKey="Received" fill="var(--chart-4)" radius={[3, 3, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+            </SizedContainer>
           </ChartCard>
           <Section title="Invoices">
             <DataTable caption="Project invoices" rows={invoices} getRowId={(r) => r.invoice.id} columns={invCols} pageSize={12} emptyMessage="No invoices raised yet." />

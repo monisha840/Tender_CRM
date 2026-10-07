@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartCard } from "@/components/charts/chart-card";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
@@ -9,6 +9,8 @@ import { DeadlineBadge, StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/dates";
 import type { InvoiceRow } from "@/lib/data/accounts";
+import { DASHBOARD_AGEING } from "@/lib/data/links";
+import { useUrlState } from "@/lib/use-url-param";
 import { formatINR, formatINRAxis, moneyToNumber, sumMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { AGEING_BUCKETS, bucketOf, invoiceAge, invoiceTone, Stack, useInvoiceRows, type AgeingBucket } from "./helpers";
@@ -22,7 +24,14 @@ interface Row {
 /** Outstanding invoices aged by days since invoice date: 0–30, 31–60, 61–90, 90+. */
 export function Receivables() {
   const invoices = useInvoiceRows();
-  const [bucket, setBucket] = useState<AgeingBucket | "ALL">("ALL");
+  // Drill-downs from the dashboard arrive as ?overdue=1, ?ageing=<days past due band> and ?customer=<organisation id>.
+  const [bucketParam, setBucketParam] = useUrlState("bucket", "ALL");
+  const bucket: AgeingBucket | "ALL" = AGEING_BUCKETS.find((b) => b === bucketParam) ?? "ALL";
+  const setBucket = (b: AgeingBucket | "ALL" | ((cur: AgeingBucket | "ALL") => AgeingBucket | "ALL")) => setBucketParam(typeof b === "function" ? b(bucket) : b);
+  const [overdueOnly, setOverdueOnly] = useUrlState("overdue");
+  const [ageing, setAgeing] = useUrlState("ageing");
+  const [customer, setCustomer] = useUrlState("customer");
+  const ageingBand = DASHBOARD_AGEING.find((a) => a.label === ageing);
 
   const open = useMemo<Row[]>(
     () =>
@@ -45,7 +54,17 @@ export function Receivables() {
     [open],
   );
   const total = buckets.reduce((t, b) => t + b.amount, 0);
-  const rows = bucket === "ALL" ? open : open.filter((r) => r.bucket === bucket);
+  const customerName = customer ? open.find((r) => r.row.invoice.organisationId === customer)?.row.organisationName ?? "this customer" : null;
+  const rows = open
+    .filter((r) => bucket === "ALL" || r.bucket === bucket)
+    .filter((r) => overdueOnly !== "1" || r.row.daysOverdue > 0)
+    .filter((r) => !ageingBand || ageingBand.test(r.row.daysOverdue))
+    .filter((r) => !customer || r.row.invoice.organisationId === customer);
+  const chips = [
+    overdueOnly === "1" && { label: "Overdue only", clear: () => setOverdueOnly(null) },
+    ageingBand && { label: `${ageingBand.label} past due`, clear: () => setAgeing(null) },
+    customerName && { label: `Customer: ${customerName}`, clear: () => setCustomer(null) },
+  ].filter((c): c is { label: string; clear: () => void } => !!c);
 
   const columns: DataTableColumn<Row>[] = [
     { key: "invoice", header: "Invoice", mobile: "title", cell: (r) => <Stack main={r.row.invoice.invoiceNo} sub={[formatDate(r.row.invoice.invoiceDate)]} /> },
@@ -117,11 +136,18 @@ export function Receivables() {
         emptyMessage="No outstanding invoices in this bucket."
         pageSize={15}
         toolbar={
-          bucket !== "ALL" ? (
-            <Button variant="ghost" size="sm" onClick={() => setBucket("ALL")}>
-              Showing {bucket} days · clear
-            </Button>
-          ) : undefined
+          <>
+            {bucket !== "ALL" && (
+              <Button variant="ghost" size="sm" onClick={() => setBucket("ALL")}>
+                Showing {bucket} days · clear
+              </Button>
+            )}
+            {chips.map((c) => (
+              <Button key={c.label} variant="outline" size="sm" onClick={c.clear} aria-label={`Remove filter: ${c.label}`}>
+                {c.label} ×
+              </Button>
+            ))}
+          </>
         }
       />
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowRightCircle, FolderKanban, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { buildConversion, checkConversion, type TenderDetail } from "@/lib/data/tenders";
 import { can } from "@/lib/data/access";
+import { entityHref } from "@/lib/data/links";
 import { formatINR } from "@/lib/money";
 import { useDataStore } from "@/store/data-store";
 import { useCurrentPersona, useDb } from "@/store/hooks";
@@ -19,11 +21,12 @@ import { useCurrentPersona, useDb } from "@/store/hooks";
 export function ConvertToProject({ detail }: { detail: TenderDetail }) {
   const db = useDb();
   const persona = useCurrentPersona();
+  const router = useRouter();
   const upsert = useDataStore((s) => s.upsert);
   const [confirming, setConfirming] = useState(false);
   const [reason, setReason] = useState("");
 
-  const projectHref = (id: string) => `/projects?focus=${encodeURIComponent(id)}`;
+  const projectHref = (id: string) => entityHref("PROJECT", id);
   if (detail.projectId) {
     return (
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -53,7 +56,7 @@ export function ConvertToProject({ detail }: { detail: TenderDetail }) {
     instruments.forEach((i) => upsert("securityInstruments", i));
     toast.success(`Project ${project.code} created`, {
       description: "Client, region, GSTIN, value and dates were carried over.",
-      action: { label: "Open project", onClick: () => window.location.assign(projectHref(project.id)) },
+      action: { label: "Open project", onClick: () => router.push(projectHref(project.id)) },
     });
     setConfirming(false);
   };

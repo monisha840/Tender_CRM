@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AlertTriangle, ClipboardCheck } from "lucide-react";
 import { ImportExport } from "@/components/data/import-export";
-import { getAttendanceSummary } from "@/lib/data";
+import { countAttendanceNotMarked } from "@/lib/data";
 import { buildAttendance } from "@/modules/workforce/entry";
 import { useDataStore } from "@/store/data-store";
 import { PageHeader } from "@/components/layout/page-header";
@@ -16,12 +16,13 @@ import { WorkforceTabs } from "@/components/workforce/workforce-tabs";
 import { addDays, formatDate, formatMonth, getToday } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { attendanceMonths, getAttendanceGrid, getStaffedSites } from "@/modules/workforce/queries";
-import { useCurrentPersona, useDb, useRegionFilter } from "@/store/hooks";
+import { useCurrentPersona, useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 export default function AttendancePage() {
-  const db = useDb();
+  const db = useAsOfDb();
   const upsert = useDataStore((s) => s.upsert);
   const persona = useCurrentPersona();
   const { region } = useRegionFilter();
@@ -41,7 +42,7 @@ export default function AttendancePage() {
   const leave = grid.reduce((t, r) => t + r.leave, 0);
   const overtime = grid.reduce((t, r) => t + r.overtimeHours, 0);
 
-  const notMarkedToday = useMemo(() => getAttendanceSummary(db, today, region).notMarked, [db, region, today]);
+  const notMarkedToday = useMemo(() => countAttendanceNotMarked(db, today, region), [db, region, today]);
   const siteNotMarked = siteId ? Math.max(0, db.siteAssignments.filter((a) => a.siteId === siteId && a.fromDate <= today && (!a.toDate || a.toDate >= today)).length - db.attendance.filter((a) => a.siteId === siteId && a.date === today).length) : 0;
 
   const gridHeaders = ["code", "name", ...dates.map((d) => d.slice(8))];

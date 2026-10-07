@@ -10,7 +10,8 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { KpiTile } from "@/components/shared/kpi-tile";
 import { DeadlineBadge, StageBadge, StatusBadge } from "@/components/shared/status-badge";
 import { Timeline } from "@/components/shared/timeline";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import { ChartTooltipContent } from "@/components/charts/chart-tooltip";
+import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatINR, formatINRAxis } from "@/lib/money";
 import {

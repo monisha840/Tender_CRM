@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { ArrowRight, CalendarClock, CheckSquare, ChevronRight, ReceiptText, Wallet, type LucideIcon } from "lucide-react";
 import { DeadlineBadge } from "@/components/shared/status-badge";
-import { canView, entityHref, getPendingApprovalsFor, getSalaryPending, getUpcomingTenderDeadlines, listReceivables, type Dashboard, type RegionFilter } from "@/lib/data";
-import { inRegion } from "@/lib/data/shared";
+import { entityHref, type Dashboard, type RegionFilter } from "@/lib/data";
 import { addDays, dayOfWeek, getToday, relativeDeadline, toIstDate } from "@/lib/dates";
 import { formatINR, moneyToNumber } from "@/lib/money";
 import { cn } from "@/lib/utils";
-import { useCurrentPersona, useDb } from "@/store/hooks";
+import { useCurrentPersona } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
+import { ATTENTION_HREF, getAttention } from "./attention-data";
 
 type Kind = "tenders" | "approvals" | "money" | "people";
 
@@ -34,45 +35,40 @@ const cr = (v: Parameters<typeof formatINR>[0]) => formatINR(v, { compact: "auto
 const LINK = "font-semibold underline decoration-accent decoration-2 underline-offset-4";
 
 function useQueue(region: RegionFilter) {
-  const db = useDb();
+  const db = useAsOfDb();
   const userId = useCurrentPersona().user.id;
   return useMemo(() => {
     const items: Item[] = [];
-    const deadlines = getUpcomingTenderDeadlines(db, region, 7);
-    if (canView(db, userId, "tenders")) {
-      deadlines.rows.forEach((r) => {
-        const d = relativeDeadline(r.tender.submissionDeadlineAt);
-        items.push({
-          id: `t-${r.tender.id}`, kind: "tenders", icon: CalendarClock, title: r.tender.title, meta: `Bid closes · ${r.organisationName} · ${r.stage.name}`,
-          href: entityHref("TENDER", r.tender.id), urgency: d.days <= 2 ? 0 : 1, order: d.days, badge: <DeadlineBadge value={r.tender.submissionDeadlineAt} />,
-        });
+    const { deadlines, approvals, overdue, salary } = getAttention(db, userId, region);
+    deadlines?.rows.forEach((r) => {
+      const d = relativeDeadline(r.tender.submissionDeadlineAt);
+      items.push({
+        id: `t-${r.tender.id}`, kind: "tenders", icon: CalendarClock, title: r.tender.title, meta: `Bid closes · ${r.organisationName} · ${r.stage.name}`,
+        href: entityHref("TENDER", r.tender.id), urgency: d.days <= 2 ? 0 : 1, order: d.days, badge: <DeadlineBadge value={r.tender.submissionDeadlineAt} />,
       });
-    }
-    const approvals = canView(db, userId, "approvals") ? getPendingApprovalsFor(db, userId).filter((a) => inRegion(region, a.request.regionId)) : [];
-    approvals.forEach((a) => {
+    });
+    approvals?.forEach((a) => {
       const d = a.dueAt ? relativeDeadline(a.dueAt).days : 5;
       items.push({
         id: `a-${a.request.id}`, kind: "approvals", icon: CheckSquare, title: a.request.title, meta: `Needs your decision · ${a.typeLabel} · ${a.requestedBy}`,
-        href: "/approvals", urgency: d <= 2 ? 0 : 1, order: d, badge: a.dueAt ? <DeadlineBadge value={a.dueAt} /> : undefined,
+        href: ATTENTION_HREF.approvals, urgency: d <= 2 ? 0 : 1, order: d, badge: a.dueAt ? <DeadlineBadge value={a.dueAt} /> : undefined,
       });
     });
-    const overdue = canView(db, userId, "finance") ? listReceivables(db, region).filter((r) => r.daysOverdue > 0) : [];
-    overdue.forEach((r) => {
+    overdue?.forEach((r) => {
       items.push({
         id: `r-${r.invoice.id}`, kind: "money", icon: ReceiptText, title: `Chase ${r.organisationName}`, meta: `${cr(r.outstanding)} · ${r.invoice.invoiceNo} · ${r.projectName}`,
         href: entityHref("INVOICE", r.invoice.id), urgency: r.daysOverdue > 30 ? 0 : 1, order: -r.daysOverdue,
         badge: <span className="tabular rounded-md bg-status-danger-tint px-2 py-0.5 text-xs font-medium whitespace-nowrap text-status-danger">{r.daysOverdue} d late</span>,
       });
     });
-    const salary = canView(db, userId, "employees") ? getSalaryPending(db, region) : null;
     if (salary?.employeesPending) {
-      items.push({ id: "s-pending", kind: "people", icon: Wallet, title: `Pay ${salary.employeesPending} employees`, meta: `${cr(salary.pendingAmount)} salary not yet paid`, href: "/employees?salary=pending", urgency: 1, order: 10 });
+      items.push({ id: "s-pending", kind: "people", icon: Wallet, title: `Pay ${salary.employeesPending} employees`, meta: `${cr(salary.pendingAmount)} salary not yet paid`, href: ATTENTION_HREF.salaryPending, urgency: 1, order: 10 });
     }
     if (salary?.employeesOnHold) {
-      items.push({ id: "s-hold", kind: "people", icon: Wallet, title: `${salary.employeesOnHold} salaries on hold`, meta: `${cr(salary.onHoldAmount)} held · review and release`, href: "/employees?salary=on-hold", urgency: 2, order: 10 });
+      items.push({ id: "s-hold", kind: "people", icon: Wallet, title: `${salary.employeesOnHold} salaries on hold`, meta: `${cr(salary.onHoldAmount)} held · review and release`, href: ATTENTION_HREF.salaryOnHold, urgency: 2, order: 10 });
     }
     items.sort((a, b) => a.urgency - b.urgency || a.order - b.order);
-    return { items, deadlines };
+    return { items, deadlines: deadlines ?? { rows: [], count: 0, urgent: 0, withMissingDocuments: 0, withinDays: 7 } };
   }, [db, region, userId]);
 }
 
@@ -112,9 +108,9 @@ function Briefing({ dashboard, queue }: { dashboard: Dashboard; queue: ReturnTyp
   const health = dashboard.activeProjects;
 
   const bits: ReactNode[] = [];
-  if (count("tenders")) bits.push(<Link key="t" href="/tenders/deadlines" className={LINK}>{count("tenders")} bid{count("tenders") === 1 ? "" : "s"} close this week</Link>);
-  if (count("approvals")) bits.push(<Link key="a" href="/approvals" className={LINK}>{count("approvals")} approval{count("approvals") === 1 ? " is" : "s are"} waiting for you</Link>);
-  if (overdue > 0) bits.push(<Link key="r" href="/finance?view=receivables&overdue=1" className={LINK}>{cr(overdue)} is overdue from customers</Link>);
+  if (count("tenders")) bits.push(<Link key="t" href={ATTENTION_HREF.deadlines} className={LINK}>{count("tenders")} bid{count("tenders") === 1 ? "" : "s"} close this week</Link>);
+  if (count("approvals")) bits.push(<Link key="a" href={ATTENTION_HREF.approvals} className={LINK}>{count("approvals")} approval{count("approvals") === 1 ? " is" : "s are"} waiting for you</Link>);
+  if (overdue > 0) bits.push(<Link key="r" href={ATTENTION_HREF.receivables} className={LINK}>{cr(overdue)} is overdue from customers</Link>);
 
   return (
     <section aria-label="Today's briefing" className="rounded-lg border bg-surface">

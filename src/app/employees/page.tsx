@@ -16,8 +16,9 @@ import { WorkforceTabs } from "@/components/workforce/workforce-tabs";
 import { formatDate, getToday } from "@/lib/dates";
 import { formatINR, sumMoney } from "@/lib/money";
 import { getDirectory, type DirectoryRow, type PayFilter } from "@/modules/workforce/queries";
-import { useUrlParam } from "@/lib/use-url-param";
-import { useCurrentPersona, useDb, useRegionFilter } from "@/store/hooks";
+import { useUrlState } from "@/lib/use-url-param";
+import { useCurrentPersona, useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 import type { Database } from "@/types";
 
 const PAY_OPTIONS: { value: PayFilter; label: string }[] = [
@@ -65,7 +66,7 @@ function employeeFields(db: Database): FormField[] {
 }
 
 export default function EmployeesPage() {
-  const db = useDb();
+  const db = useAsOfDb();
   const upsert = useDataStore((s) => s.upsert);
   const persona = useCurrentPersona();
   const [adding, setAdding] = useState(false);
@@ -91,12 +92,13 @@ export default function EmployeesPage() {
     return { imported, errors };
   };
   const { region } = useRegionFilter();
-  const [site, setSite] = useState("ALL");
-  const [designation, setDesignation] = useState("ALL");
-  const [department, setDepartment] = useState("ALL");
-  const [payPick, setPay] = useState<string | null>(null);
-  const salaryParam = useUrlParam("salary");
-  const pay = payPick ?? (salaryParam === "pending" ? "PENDING" : salaryParam === "on-hold" ? "ON_HOLD" : "ALL");
+  // Filters live in the URL; dashboard links use ?salary=pending and ?salary=on-hold.
+  const [site, setSite] = useUrlState("site", "ALL");
+  const [designation, setDesignation] = useUrlState("designation", "ALL");
+  const [department, setDepartment] = useUrlState("department", "ALL");
+  const [salaryParam, setSalaryParam] = useUrlState("salary", "ALL");
+  const pay = salaryParam === "pending" ? "PENDING" : salaryParam === "on-hold" ? "ON_HOLD" : salaryParam;
+  const setPay = (v: string) => setSalaryParam(v === "PENDING" ? "pending" : v === "ON_HOLD" ? "on-hold" : v);
 
   const all = useMemo(() => getDirectory(db, region), [db, region]);
   const sites = useMemo(() => {

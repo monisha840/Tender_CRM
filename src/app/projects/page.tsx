@@ -13,10 +13,11 @@ import { FilterPills, ProgressBar } from "@/components/work/parts";
 import { listProjects, type ProjectRow } from "@/lib/data";
 import { formatDate } from "@/lib/dates";
 import { formatINR, sumMoney } from "@/lib/money";
-import { useUrlParam } from "@/lib/use-url-param";
+import { useUrlParam, useUrlState } from "@/lib/use-url-param";
 import { BILLING_CYCLES, buildProject, buildProjects, CONTRACT_TYPES, defaultProjectStatusId, nextProjectCode, PROJECT_CSV_HEADERS } from "@/modules/projects/entry";
 import { useDataStore } from "@/store/data-store";
-import { useDb, useRegionFilter } from "@/store/hooks";
+import { useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 
 type Filter = "ALL" | "RUNNING" | "COMPLETED" | "RED";
 
@@ -61,11 +62,14 @@ const columns: DataTableColumn<ProjectRow>[] = [
 ];
 
 export default function Page() {
-  const db = useDb();
+  const db = useAsOfDb();
   const upsert = useDataStore((s) => s.upsert);
   const { region, options: regionOptions } = useRegionFilter();
   const [adding, setAdding] = useState(false);
-  const [filter, setFilter] = useState<Filter>("ALL");
+  // The status pill lives in the URL (?status=RED) so it survives navigation and can be linked to.
+  const [filterParam, setFilterParam] = useUrlState("status", "ALL");
+  const filter: Filter = (["ALL", "RUNNING", "COMPLETED", "RED"] as const).find((f) => f === filterParam) ?? "ALL";
+  const setFilter = (f: Filter) => setFilterParam(f);
   const all = useMemo(() => listProjects(db, region), [db, region]);
   const byValue = useUrlParam("sort") === "value";
   const rows = useMemo(() => {

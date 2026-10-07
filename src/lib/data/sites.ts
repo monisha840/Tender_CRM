@@ -1,4 +1,4 @@
-import { dayOfWeek, getToday, lastNDays } from "@/lib/dates";
+import { dayOfWeek, getToday, lastNDays, nowIstTime } from "@/lib/dates";
 import type { Database, Id, IsoDate, Project, Site, SiteIssue } from "@/types";
 import { byId, inRegion, organisationName, regionName, sum, type RegionFilter } from "./shared";
 
@@ -65,13 +65,49 @@ export interface MissingReport {
   site: Site;
 }
 
-/** Running projects without a submitted report for `date` (one report per project per day). Sundays are off. */
-export function getMissingReports(db: Database, date: IsoDate = getToday(), region: RegionFilter = "ALL"): MissingReport[] {
+/** True once a site's report cutoff ("HH:mm" IST) has passed for `date`: always for a past day, never for a future one. */
+export function reportCutoffPassed(site: Pick<Site, "reportCutoffTime">, date: IsoDate, today: IsoDate = getToday(), nowTime: string = nowIstTime()): boolean {
+  if (date < today) return true;
+  if (date > today) return false;
+  return nowTime >= site.reportCutoffTime;
+}
+
+/**
+ * Running projects without a submitted report for `date` (one report per project per day). Sundays are off, and a
+ * project only counts as missing once its site's cutoff time has passed, so a 10 am check does not flag an 18:00 site.
+ */
+export function getMissingReports(
+  db: Database,
+  date: IsoDate = getToday(),
+  region: RegionFilter = "ALL",
+  nowTime: string = nowIstTime(),
+): MissingReport[] {
   if (dayOfWeek(date) === 0) return [];
+  const today = getToday();
   return db.projects
-    .filter((p) => !p.deletedAt && inRegion(region, p.regionId) && db.sites.some((s) => s.id === p.siteId && s.status === "ACTIVE"))
-    .filter((p) => !db.dailyReports.some((r) => r.projectId === p.id && r.reportDate === date && r.status !== "DRAFT"))
-    .map((project) => ({ project, site: byId(db.sites, project.siteId)! }));
+    .filter((p) => !p.deletedAt && inRegion(region, p.regionId))
+    .map((project) => ({ project, site: db.sites.find((s) => s.id === project.siteId) }))
+    .filter((m): m is MissingReport => !!m.site && m.site.status === "ACTIVE" && reportCutoffPassed(m.site, date, today, nowTime))
+    .filter(({ project }) => !db.dailyReports.some((r) => r.projectId === project.id && r.reportDate === date && r.status !== "DRAFT"));
+}
+
+/** Attendance statuses that mean "no work expected" rather than "not recorded". */
+const OFF_DAY = new Set(["WEEKOFF", "HOLIDAY"]);
+
+/**
+ * Employees assigned to a plant site on `date` who have no attendance row yet, counted once per employee (an employee
+ * on two assignments is still one person). A week-off or holiday for the whole workforce means nobody is outstanding.
+ */
+export function countAttendanceNotMarked(db: Database, date: IsoDate = getToday(), region: RegionFilter = "ALL"): number {
+  const rows = db.attendance.filter((a) => a.date === date && inRegion(region, a.regionId));
+  if (rows.length > 0 && rows.every((a) => OFF_DAY.has(a.status))) return 0;
+  const marked = new Set(rows.map((a) => a.employeeId));
+  const assigned = new Set(
+    db.siteAssignments
+      .filter((a) => a.fromDate <= date && (!a.toDate || a.toDate >= date) && inRegion(region, byId(db.sites, a.siteId)?.regionId))
+      .map((a) => a.employeeId),
+  );
+  return [...assigned].filter((id) => !marked.has(id)).length;
 }
 
 /** Daily manpower (sum of reported workers) for the last `days` days, for a trend chart. */

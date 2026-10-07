@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 import { AlertTriangle, ClipboardCheck, ClipboardList, Plus, Users } from "lucide-react";
 import { ChartCard } from "@/components/charts/chart-card";
+import { SizedContainer } from "@/components/charts/sized-container";
 import { ImportExport } from "@/components/data/import-export";
 import { RecordForm } from "@/components/data/record-form";
 import { toast } from "sonner";
@@ -15,23 +16,26 @@ import { KpiTile } from "@/components/shared/kpi-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { FilterPills, Section } from "@/components/work/parts";
 import { getDailyReports, getManpowerTrend, getMissingReports, listSiteIssues } from "@/lib/data";
-import { formatDate, getToday } from "@/lib/dates";
-import { useUrlParam } from "@/lib/use-url-param";
+import { formatDate, getToday, nowIso } from "@/lib/dates";
+import { useUrlParam, useUrlState } from "@/lib/use-url-param";
 import { newId } from "@/modules/finance/entry";
 import { useDataStore } from "@/store/data-store";
-import { useCurrentPersona, useDb, useRegionFilter } from "@/store/hooks";
+import { useCurrentPersona, useRegionFilter } from "@/store/hooks";
+import { useAsOfDb } from "@/components/layout/use-as-of-db";
 import type { DailyWorkReport } from "@/types";
 
 type Filter = "ALL" | "SUBMITTED" | "REVIEWED";
 const axis = { fontSize: 11, fill: "var(--text-secondary)" };
 
 export default function Page() {
-  const db = useDb();
+  const db = useAsOfDb();
   const { region } = useRegionFilter();
   const persona = useCurrentPersona();
   const upsert = useDataStore((s) => s.upsert);
   const [reportingIssue, setReportingIssue] = useState(false);
-  const [filter, setFilter] = useState<Filter>("ALL");
+  const [filterParam, setFilterParam] = useUrlState("status", "ALL");
+  const filter: Filter = (["ALL", "SUBMITTED", "REVIEWED"] as const).find((f) => f === filterParam) ?? "ALL";
+  const setFilter = (f: Filter) => setFilterParam(f);
   const siteParam = useUrlParam("site");
   const focusParam = useUrlParam("focus");
   const tabParam = useUrlParam("tab");
@@ -55,7 +59,7 @@ export default function Page() {
   const saveIssue = (v: Record<string, string>): string | void => {
     const p = activeProjects.find((x) => x.id === v.projectId);
     if (!p) return "Choose a project.";
-    const now = new Date().toISOString();
+    const now = nowIso();
     upsert("siteIssues", {
       id: newId("iss_new"),
       createdAt: now,
@@ -88,7 +92,7 @@ export default function Page() {
       if (!Number.isInteger(workers) || workers < 0) return void errors.push(`${row}: workers must be a whole number`);
       const dup = useDataStore.getState().db.dailyReports.some((x) => x.projectId === p.id && x.reportDate === date && !x.deletedAt);
       if (dup) return void errors.push(`${row}: a report for ${p.name} on ${date} already exists`);
-      const now = new Date().toISOString();
+      const now = nowIso();
       upsert("dailyReports", {
         id: newId("dr_imp"),
         createdAt: now,
@@ -176,7 +180,7 @@ export default function Page() {
       )}
 
       <ChartCard title="Daily manpower" unit="Workers reported, last 14 days" isEmpty={trend.every((d) => d.workers === 0)} className="mb-6">
-        <ResponsiveContainer width="100%" height="100%">
+        <SizedContainer>
           <BarChart data={trend} margin={{ left: -16, right: 8, top: 4 }}>
             <CartesianGrid stroke="var(--border)" vertical={false} />
             <XAxis dataKey="label" tick={axis} tickLine={false} axisLine={false} minTickGap={16} />
@@ -184,7 +188,7 @@ export default function Page() {
             <Tooltip formatter={(v) => [`${v} workers`, ""]} />
             <Bar dataKey="workers" fill="var(--chart-1)" stroke="var(--accent-strong)" radius={[3, 3, 0, 0]} />
           </BarChart>
-        </ResponsiveContainer>
+        </SizedContainer>
       </ChartCard>
 
       <div id="open-issues" className="scroll-mt-20">
