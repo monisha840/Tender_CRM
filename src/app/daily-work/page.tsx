@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AlertTriangle, ClipboardCheck, ClipboardList, Plus, Users } from "lucide-react";
@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { FilterPills, Section } from "@/components/work/parts";
 import { getDailyReports, getManpowerTrend, getMissingReports, listSiteIssues } from "@/lib/data";
 import { formatDate, getToday } from "@/lib/dates";
+import { useUrlParam } from "@/lib/use-url-param";
 import { useDb, useRegionFilter } from "@/store/hooks";
 import type { DailyWorkReport } from "@/types";
 
@@ -22,6 +23,9 @@ export default function Page() {
   const db = useDb();
   const { region } = useRegionFilter();
   const [filter, setFilter] = useState<Filter>("ALL");
+  const siteParam = useUrlParam("site");
+  const focusParam = useUrlParam("focus");
+  const tabParam = useUrlParam("tab");
   const today = getToday();
   const projectName = (id: string) => db.projects.find((p) => p.id === id)?.name ?? "—";
   const siteName = (id: string) => db.sites.find((s) => s.id === id)?.name ?? "—";
@@ -32,7 +36,11 @@ export default function Page() {
   const openIssues = listSiteIssues(db, region, true).length;
   const toReview = reports.filter((r) => r.status === "SUBMITTED").length;
   const todays = reports.filter((r) => r.reportDate === today);
-  const rows = reports.filter((r) => filter === "ALL" || r.status === filter);
+  const rows = reports.filter((r) => (filter === "ALL" || r.status === filter) && (!siteParam || r.siteId === siteParam));
+  const issues = useMemo(() => listSiteIssues(db, region, true), [db, region]);
+  useEffect(() => {
+    if (tabParam === "issues") document.getElementById("open-issues")?.scrollIntoView({ block: "start" });
+  }, [tabParam]);
 
   const columns: DataTableColumn<DailyWorkReport>[] = [
     {
@@ -93,7 +101,31 @@ export default function Page() {
         </ResponsiveContainer>
       </ChartCard>
 
-      <Section title="Reports">
+      <div id="open-issues" className="scroll-mt-20">
+        <Section title={`Open issues (${issues.length})`} className="mb-6">
+          {issues.length === 0 ? (
+            <p className="rounded-lg border bg-surface px-4 py-3 text-sm text-muted-foreground">No open site issues.</p>
+          ) : (
+            <ul className="divide-y rounded-lg border bg-surface">
+              {issues.map((i) => (
+                <li key={i.id} className={`flex min-h-11 items-center justify-between gap-3 px-4 py-2 text-sm ${focusParam === i.id ? "bg-accent-subtle" : ""}`}>
+                  <span className="min-w-0">
+                    <span className="font-medium">{i.title}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {siteName(i.siteId)} · {projectName(i.projectId)} · raised {formatDate(i.raisedOn)}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <StatusBadge status={i.severity} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+      </div>
+
+      <Section title={siteParam ? `Reports · ${siteName(siteParam)}` : "Reports"}>
         <DataTable
           caption="Daily work reports"
           columns={columns}

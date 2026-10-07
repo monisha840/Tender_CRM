@@ -1,25 +1,28 @@
 import type { Id } from "@/types";
 
-/**
- * Where an entity lives in the app. Module detail screens are not built yet, so everything
- * resolves to its module root with `?focus=<id>`; screens can read it to open the record.
- */
+/** Where an entity lives in the app: its detail page when one exists, otherwise the module list. */
+const ENTITY_DETAIL: Record<string, (id: string) => string> = {
+  TENDER: (id) => `/tenders/${id}`,
+  TENDER_GO_NO_GO: (id) => `/tenders/${id}`,
+  PROJECT: (id) => `/projects/${id}`,
+  SUBCONTRACTOR: (id) => `/subcontractors/${id}`,
+  INVOICE: (id) => `/finance/invoices/${id}`,
+  EMPLOYEE: (id) => `/employees/${id}`,
+  SITE: (id) => `/daily-work?site=${id}`,
+};
+
 const ENTITY_MODULE: Record<string, string> = {
-  TENDER: "/tenders",
-  TENDER_GO_NO_GO: "/tenders",
-  PROJECT: "/projects",
-  SITE: "/daily-work",
   SUBCONTRACTOR_BILL: "/subcontractors",
   PURCHASE_REQUEST: "/daily-work",
   PURCHASE_ORDER: "/daily-work",
-  PAYROLL_RUN: "/employees",
-  INVOICE: "/finance",
+  PAYROLL_RUN: "/employees/payroll",
   APPROVAL_REQUEST: "/approvals",
 };
 
 export function entityHref(entityType: string | null | undefined, id?: Id | null): string {
-  const base = (entityType && ENTITY_MODULE[entityType]) || "/dashboard";
-  return id ? `${base}?focus=${encodeURIComponent(id)}` : base;
+  const key = entityType ?? "";
+  if (id && ENTITY_DETAIL[key]) return ENTITY_DETAIL[key](encodeURIComponent(id));
+  return ENTITY_MODULE[key] ?? "/dashboard";
 }
 
 export const ENTITY_LABEL: Record<string, string> = {

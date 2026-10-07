@@ -101,7 +101,7 @@ export function AttentionArea({ region, only }: { region: RegionFilter; only?: P
         count={String(data.deadlines.count)}
         summary={data.deadlines.count ? `${data.deadlines.urgent} due within 2 days · ${data.deadlines.withMissingDocuments} with documents missing` : "No bid deadlines in the next 7 days"}
         rows={data.deadlines.rows.slice(0, 3).map((r) => ({ id: r.tender.id, title: r.tender.title, meta: `${r.organisationName} · ${r.stage.name}`, href: entityHref("TENDER", r.tender.id), badge: <DeadlineBadge value={r.tender.submissionDeadlineAt} /> }))}
-        href="/tenders?view=deadlines"
+        href="/tenders/deadlines"
         actionLabel="All upcoming deadlines"
         emptyText="Nothing due this week."
       />,
@@ -143,7 +143,7 @@ export function AttentionArea({ region, only }: { region: RegionFilter; only?: P
     const rows: Row[] = [];
     if (s.employeesPending) rows.push({ id: "p", title: `${s.employeesPending} employees awaiting salary`, meta: formatINR(s.pendingAmount, { compact: "auto" }), href: "/employees?salary=pending" });
     if (s.employeesOnHold) rows.push({ id: "h", title: `${s.employeesOnHold} employees on hold`, meta: formatINR(s.onHoldAmount, { compact: "auto" }), href: "/employees?salary=on-hold" });
-    s.runs.filter((r) => r.status !== "PAID" && r.status !== "LOCKED").slice(0, 2).forEach((r) => rows.push({ id: r.region, title: `${r.region} payroll run`, meta: "Not yet paid", href: "/employees?tab=payroll" }));
+    s.runs.filter((r) => r.status !== "PAID" && r.status !== "LOCKED").slice(0, 2).forEach((r) => rows.push({ id: r.region, title: `${r.region} payroll run`, meta: "Not yet paid", href: "/employees/payroll" }));
     blocks.push(
       <Block
         key="s"
@@ -166,7 +166,7 @@ export function AttentionArea({ region, only }: { region: RegionFilter; only?: P
         <h2 className="text-sm font-semibold">Needs attention</h2>
         <p className="text-xs text-muted-foreground">What is due, waiting or overdue right now, with a direct way to act.</p>
       </div>
-      <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-4 [&>*]:bg-surface">{blocks}</div>
+      <div className="grid gap-px bg-border sm:grid-cols-2 2xl:grid-cols-4 [&>*]:bg-surface">{blocks}</div>
     </section>
   );
 }

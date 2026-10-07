@@ -10,6 +10,7 @@ import { FilterPills, ProgressBar } from "@/components/work/parts";
 import { listProjects, type ProjectRow } from "@/lib/data";
 import { formatDate } from "@/lib/dates";
 import { formatINR, sumMoney } from "@/lib/money";
+import { useUrlParam } from "@/lib/use-url-param";
 import { useDb, useRegionFilter } from "@/store/hooks";
 
 type Filter = "ALL" | "RUNNING" | "COMPLETED" | "RED";
@@ -48,13 +49,13 @@ export default function Page() {
   const { region } = useRegionFilter();
   const [filter, setFilter] = useState<Filter>("ALL");
   const all = useMemo(() => listProjects(db, region), [db, region]);
-  const rows = useMemo(
-    () =>
-      all.filter((r) =>
+  const byValue = useUrlParam("sort") === "value";
+  const rows = useMemo(() => {
+    const filtered = all.filter((r) =>
         filter === "ALL" ? true : filter === "RED" ? r.health === "RED" : filter === "COMPLETED" ? r.status.systemKey === "COMPLETED" : r.status.systemKey !== "COMPLETED",
-      ),
-    [all, filter],
-  );
+    );
+    return byValue ? [...filtered].sort((a, b) => Number(b.project.contractValue) - Number(a.project.contractValue)) : filtered;
+  }, [all, filter, byValue]);
   const outstanding = sumMoney(all.map((r) => r.billing.outstanding));
 
   return (

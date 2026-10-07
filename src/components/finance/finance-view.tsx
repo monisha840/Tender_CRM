@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useUrlParam } from "@/lib/use-url-param";
 import { PageHeader } from "@/components/layout/page-header";
 import { cn } from "@/lib/utils";
 import { FinanceStrip } from "./finance-strip";
@@ -18,7 +19,10 @@ const TABS = [
 type Tab = (typeof TABS)[number]["key"];
 
 export function FinanceView() {
-  const [tab, setTab] = useState<Tab>("invoices");
+  const [picked, setTab] = useState<Tab | null>(null);
+  const viewParam = useUrlParam("view");
+  const fromUrl = TABS.find((t) => t.key === viewParam)?.key;
+  const tab: Tab = picked ?? fromUrl ?? "invoices";
   const go = (t: Tab) => {
     setTab(t);
     document.getElementById("finance-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });

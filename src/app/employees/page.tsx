@@ -11,6 +11,7 @@ import { WorkforceTabs } from "@/components/workforce/workforce-tabs";
 import { formatDate } from "@/lib/dates";
 import { formatINR, sumMoney } from "@/lib/money";
 import { getDirectory, type DirectoryRow, type PayFilter } from "@/modules/workforce/queries";
+import { useUrlParam } from "@/lib/use-url-param";
 import { useDb, useRegionFilter } from "@/store/hooks";
 
 const PAY_OPTIONS: { value: PayFilter; label: string }[] = [
@@ -28,7 +29,9 @@ export default function EmployeesPage() {
   const [site, setSite] = useState("ALL");
   const [designation, setDesignation] = useState("ALL");
   const [department, setDepartment] = useState("ALL");
-  const [pay, setPay] = useState("ALL");
+  const [payPick, setPay] = useState<string | null>(null);
+  const salaryParam = useUrlParam("salary");
+  const pay = payPick ?? (salaryParam === "pending" ? "PENDING" : salaryParam === "on-hold" ? "ON_HOLD" : "ALL");
 
   const all = useMemo(() => getDirectory(db, region), [db, region]);
   const sites = useMemo(() => {

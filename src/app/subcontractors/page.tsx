@@ -8,6 +8,7 @@ import { KpiTile } from "@/components/shared/kpi-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { listSubcontractorAssignments, listSubcontractors, type SubcontractorRow } from "@/lib/data";
 import { formatINR, moneyToNumber, sumMoney } from "@/lib/money";
+import { useUrlParam } from "@/lib/use-url-param";
 import { useDb, useRegionFilter } from "@/store/hooks";
 
 const columns: DataTableColumn<SubcontractorRow>[] = [
@@ -37,7 +38,9 @@ const columns: DataTableColumn<SubcontractorRow>[] = [
 export default function Page() {
   const db = useDb();
   const { region } = useRegionFilter();
-  const rows = useMemo(() => listSubcontractors(db, region), [db, region]);
+  const all = useMemo(() => listSubcontractors(db, region), [db, region]);
+  const pendingOnly = useUrlParam("payment") === "pending";
+  const rows = useMemo(() => (pendingOnly ? all.filter((r) => moneyToNumber(r.outstanding) > 0 || r.billsAwaitingApproval > 0) : all), [all, pendingOnly]);
   const workPending = useMemo(
     () =>
       listSubcontractorAssignments(db, { region })
@@ -61,7 +64,7 @@ export default function Page() {
         getRowId={(r) => r.subcontractor.id}
         getRowHref={(r) => `/subcontractors/${r.subcontractor.id}`}
         search={{ placeholder: "Search name, trade, contact", getText: (r) => `${r.party.name} ${r.party.contactName} ${r.trades.join(" ")} ${r.subcontractor.tradeCategory}` }}
-        emptyMessage="No subcontractors in this region."
+        emptyMessage={pendingOnly ? "No subcontractor payments are pending." : "No subcontractors in this region."}
       />
     </>
   );

@@ -14,6 +14,7 @@ import { getStageCounts, getTenderStats, listTenders, type TenderRow } from "@/l
 import { formatDate } from "@/lib/dates";
 import { formatINR } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { useUrlParam } from "@/lib/use-url-param";
 import { useDb, useRegionFilter } from "@/store/hooks";
 import { DeadlineList } from "./deadline-list";
 import { FilterSelect, type FilterOption } from "./parts";
@@ -89,6 +90,12 @@ export function TenderList() {
   const [lineId, setLineId] = useState(ALL);
   const [deadline, setDeadline] = useState(ALL);
   const [query, setQuery] = useState("");
+  // Dashboard links: ?status=open (live tenders) and ?result=decided (won or lost). Picking a stage chip overrides them.
+  const statusParam = useUrlParam("status");
+  const resultParam = useUrlParam("result");
+  const kindFromUrl = statusParam === "open" ? "OPEN" : resultParam === "decided" ? "DECIDED" : null;
+  const [kindOff, setKindOff] = useState(false);
+  const kind = kindOff ? null : kindFromUrl;
 
   // Everything in the region, before the other filters: the count bar and charts describe this set.
   const regionRows = useMemo(() => listTenders(db, { region }), [db, region]);
@@ -99,6 +106,7 @@ export function TenderList() {
     () =>
       regionRows
         .filter((r) => stageId === ALL || r.stage.id === stageId)
+        .filter((r) => !kind || (kind === "OPEN" ? r.stage.kind === "OPEN" : r.stage.kind === "WON" || r.stage.kind === "LOST"))
         .filter((r) => orgId === ALL || r.tender.organisationId === orgId)
         .filter((r) => lineId === ALL || r.tender.serviceLineId === lineId)
         .filter((r) => {
@@ -108,7 +116,7 @@ export function TenderList() {
         })
         .filter((r) => !query.trim() || searchText(r).includes(query.trim().toLowerCase()))
         .sort(byRelevance),
-    [regionRows, stageId, orgId, lineId, deadline, query],
+    [regionRows, kind, stageId, orgId, lineId, deadline, query],
   );
 
   const orgOptions: FilterOption[] = [
@@ -121,8 +129,9 @@ export function TenderList() {
   ];
   const regionSelect: FilterOption[] = [{ value: ALL, label: "All regions" }, ...regionOptions.map((r) => ({ value: r.id, label: r.name }))];
 
-  const filtered = stageId !== ALL || orgId !== ALL || lineId !== ALL || deadline !== ALL;
+  const filtered = !!kind || stageId !== ALL || orgId !== ALL || lineId !== ALL || deadline !== ALL;
   const clear = () => {
+    setKindOff(true);
     setStageId(ALL);
     setOrgId(ALL);
     setLineId(ALL);
@@ -161,7 +170,7 @@ export function TenderList() {
       </section>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <StageChart rows={regionRows} onSelectStage={(id) => setStageId((cur) => (cur === id ? ALL : id))} />
+        <StageChart rows={regionRows} onSelectStage={(id) => setKindOff(true) ?? setStageId((cur) => (cur === id ? ALL : id))} />
         <WonLostChart region={region} />
       </div>
 
@@ -169,9 +178,9 @@ export function TenderList() {
         <h2 className="mb-2 text-sm font-semibold">Tender register</h2>
 
         <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Filter by status">
-          <StatusChip active={stageId === ALL} onClick={() => setStageId(ALL)} label="All" count={regionRows.length} />
+          <StatusChip active={stageId === ALL && !kind} onClick={() => { setStageId(ALL); setKindOff(true); }} label="All" count={regionRows.length} />
           {stageCounts.map(({ stage, count }) => (
-            <StatusChip key={stage.id} active={stageId === stage.id} onClick={() => setStageId(stageId === stage.id ? ALL : stage.id)} label={stage.name} count={count} />
+            <StatusChip key={stage.id} active={stageId === stage.id} onClick={() => { setKindOff(true); setStageId(stageId === stage.id ? ALL : stage.id); }} label={stage.name} count={count} />
           ))}
         </div>
 
