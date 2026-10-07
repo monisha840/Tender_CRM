@@ -38,3 +38,9 @@ Scope change from the user: ship a minimal version. Only two roles: System Admin
 
 ## Latest test run
 S1b: lint clean, tsc clean, vitest 19 files / 247 passed + 6 todo (includes tests/integration/load-database.test.ts against the dev DB).
+
+## Scope update 2 (decisions D9-D13)
+- D9 Users: the System Admin and Director logins use the EXISTING seeded names/emails (demo users); no new users. e2e must link Supabase Auth accounts to those seeded User rows (replaces the test.sprince.local users from T1).
+- D10 No real starting data. All mock/demo data kept (incl. Employees/Payroll and GST/Finance demo records, hidden behind PHASE67 flag); only dropped roles' personas are removed. App ships WITH demo data. Seeded records carry an isDemo marker; guarded script `db:clear-demo` removes only demo records when the client starts real use. This REPLACES the rule "demo seed never in production".
+- D11 Deployment target = Vercel (not Hostinger VPS); still no deployment work in this run. Build compatibly: no long-running worker (no pg-boss); deadline notifications computed on read or via a cron-callable API route secured with a secret; Prisma uses the Supabase pooled connection (pgbouncer=true) at runtime and DIRECT_URL only for migrations; nothing writes to the local filesystem at runtime.
+- D12 GSTINs stay placeholders, clearly marked as placeholders in settings; real ones entered later without code changes.
