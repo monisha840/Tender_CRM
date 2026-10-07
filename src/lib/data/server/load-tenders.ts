@@ -1,0 +1,121 @@
+import type * as P from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
+import type { Database, Tender, TenderStageHistory, GoNoGoDecision, TenderDocumentItem, SecurityInstrument, SecurityInstrumentEvent, Bid, BidClarification, CompetitorBid, TenderAward, AwardCondition, ProjectConversion } from "@/types";
+import { base, day, dayOrNull, inIds, money, moneyOrNull, pct, ts, tsOrNull, type LoadScope } from "./convert";
+
+export const mapTender = (r: P.Tender): Tender => ({
+  ...base(r),
+  tenderNo: r.tenderNo, title: r.title, workDescription: r.workDescription, eligibility: r.eligibility,
+  serviceLineId: r.serviceLineId, siteId: r.siteId, openingDate: day(r.openingDate),
+  organisationId: r.organisationId, regionId: r.regionId, location: r.location, tenderTypeId: r.tenderTypeId,
+  portalId: r.portalId, sourceUrl: r.sourceUrl,
+  estimatedValue: money(r.estimatedValue), emdAmount: money(r.emdAmount), tenderFee: money(r.tenderFee),
+  publishedOn: dayOrNull(r.publishedOn), preBidAt: tsOrNull(r.preBidAt),
+  submissionDeadlineAt: ts(r.submissionDeadlineAt), technicalOpeningAt: tsOrNull(r.technicalOpeningAt),
+  financialOpeningAt: tsOrNull(r.financialOpeningAt),
+  currentStageId: r.currentStageId, resultId: r.resultId, ownerId: r.ownerId, gstRegistrationId: r.gstRegistrationId,
+});
+
+export const mapStageHistory = (r: P.TenderStageHistory): TenderStageHistory => ({
+  ...base(r), tenderId: r.tenderId, fromStageId: r.fromStageId, toStageId: r.toStageId,
+  changedById: r.changedById, changedAt: ts(r.changedAt), reason: r.reason,
+});
+
+export const mapGoNoGo = (r: P.GoNoGoDecision): GoNoGoDecision => ({
+  ...base(r), tenderId: r.tenderId, decision: r.decision, decidedById: r.decidedById,
+  decidedAt: ts(r.decidedAt), reason: r.reason, approvalRequestId: r.approvalRequestId,
+});
+
+export const mapDocumentItem = (r: P.TenderDocumentItem): TenderDocumentItem => ({
+  ...base(r), tenderId: r.tenderId, name: r.name, documentTypeId: r.documentTypeId, isMandatory: r.isMandatory,
+  status: r.status, assigneeId: r.assigneeId, dueDate: dayOrNull(r.dueDate),
+});
+
+export const mapInstrument = (r: P.SecurityInstrument): SecurityInstrument => ({
+  ...base(r), type: r.type, tenderId: r.tenderId, projectId: r.projectId, mode: r.mode, amount: money(r.amount),
+  instrumentNo: r.instrumentNo, bank: r.bank, issueDate: dayOrNull(r.issueDate), expiryDate: dayOrNull(r.expiryDate),
+  status: r.status,
+});
+
+export const mapInstrumentEvent = (r: P.SecurityInstrumentEvent): SecurityInstrumentEvent => ({
+  ...base(r), securityInstrumentId: r.securityInstrumentId, type: r.type, amount: moneyOrNull(r.amount),
+  date: day(r.date), reference: r.reference,
+});
+
+export const mapBid = (r: P.Bid): Bid => ({
+  ...base(r), tenderId: r.tenderId, quotedAmount: money(r.quotedAmount), percentVsEstimate: pct(r.percentVsEstimate),
+  submittedAt: tsOrNull(r.submittedAt), technicalResult: r.technicalResult, financialRank: r.financialRank,
+  isL1: r.isL1, isFinal: r.isFinal,
+});
+
+export const mapBidClarification = (r: P.BidClarification): BidClarification => ({
+  ...base(r), bidId: r.bidId, request: r.request, requestedOn: day(r.requestedOn), dueDate: dayOrNull(r.dueDate),
+  response: r.response, respondedOn: dayOrNull(r.respondedOn),
+});
+
+export const mapCompetitorBid = (r: P.CompetitorBid): CompetitorBid => ({
+  ...base(r), tenderId: r.tenderId, competitorName: r.competitorName, amount: money(r.amount), rank: r.rank, isL1: r.isL1,
+});
+
+export const mapAward = (r: P.TenderAward): TenderAward => ({
+  ...base(r), tenderId: r.tenderId, loaNo: r.loaNo, loaDate: day(r.loaDate), awardedAmount: money(r.awardedAmount),
+  agreementNo: r.agreementNo, agreementDate: dayOrNull(r.agreementDate), completionPeriodDays: r.completionPeriodDays,
+  startDate: dayOrNull(r.startDate), conditionsNote: r.conditionsNote,
+});
+
+export const mapAwardCondition = (r: P.AwardCondition): AwardCondition => ({
+  ...base(r), awardId: r.awardId, description: r.description, isMandatory: r.isMandatory, status: r.status,
+  dueDate: dayOrNull(r.dueDate),
+});
+
+export const mapConversion = (r: P.ProjectConversion): ProjectConversion => ({
+  ...base(r), tenderId: r.tenderId, projectId: r.projectId, convertedById: r.convertedById,
+  convertedAt: ts(r.convertedAt), snapshot: (r.snapshot ?? {}) as Record<string, unknown>,
+  overrideReason: r.overrideReason, approvalRequestId: r.approvalRequestId,
+});
+
+export type TenderTables = Pick<Database, "tenders" | "tenderStageHistory" | "goNoGoDecisions" | "tenderDocumentItems" | "securityInstruments" | "securityInstrumentEvents" | "bids" | "bidClarifications" | "competitorBids" | "tenderAwards" | "awardConditions" | "projectConversions">;
+
+/**
+ * Loads every tender-domain table as `Database` slices. Soft-deleted rows are included (readers use `live()`).
+ * Scope: regionIds -> tender.regionId; siteIds -> tender.siteId; projectIds -> tenders converted to those projects.
+ * Child tables are restricted to the loaded tenders.
+ */
+export async function loadTenderTables(prisma: PrismaClient, scope: LoadScope = {}): Promise<TenderTables> {
+  const where: P.Prisma.TenderWhereInput = {
+    regionId: inIds(scope.regionIds),
+    siteId: inIds(scope.siteIds),
+    ...(scope.projectIds ? { project: { is: { id: { in: scope.projectIds } } } } : {}),
+  };
+  const tenders = await prisma.tender.findMany({ where, orderBy: { id: "asc" } });
+  const byTender = { tenderId: { in: tenders.map((t) => t.id) } };
+  const [history, decisions, docs, instruments, bids, competitors, awards, conversions] = await Promise.all([
+    prisma.tenderStageHistory.findMany({ where: byTender, orderBy: { id: "asc" } }),
+    prisma.goNoGoDecision.findMany({ where: byTender, orderBy: { id: "asc" } }),
+    prisma.tenderDocumentItem.findMany({ where: byTender, orderBy: { id: "asc" } }),
+    prisma.securityInstrument.findMany({ where: byTender, orderBy: { id: "asc" } }),
+    prisma.bid.findMany({ where: byTender, orderBy: { id: "asc" } }),
+    prisma.competitorBid.findMany({ where: byTender, orderBy: { id: "asc" } }),
+    prisma.tenderAward.findMany({ where: byTender, orderBy: { id: "asc" } }),
+    prisma.projectConversion.findMany({ where: byTender, orderBy: { id: "asc" } }),
+  ]);
+  const [events, clarifications, conditions] = await Promise.all([
+    prisma.securityInstrumentEvent.findMany({ where: { securityInstrumentId: { in: instruments.map((i) => i.id) } }, orderBy: { id: "asc" } }),
+    prisma.bidClarification.findMany({ where: { bidId: { in: bids.map((b) => b.id) } }, orderBy: { id: "asc" } }),
+    prisma.awardCondition.findMany({ where: { awardId: { in: awards.map((a) => a.id) } }, orderBy: { id: "asc" } }),
+  ]);
+  return {
+    tenders: tenders.map(mapTender),
+    tenderStageHistory: history.map(mapStageHistory),
+    goNoGoDecisions: decisions.map(mapGoNoGo),
+    tenderDocumentItems: docs.map(mapDocumentItem),
+    securityInstruments: instruments.map(mapInstrument),
+    securityInstrumentEvents: events.map(mapInstrumentEvent),
+    bids: bids.map(mapBid),
+    bidClarifications: clarifications.map(mapBidClarification),
+    competitorBids: competitors.map(mapCompetitorBid),
+    tenderAwards: awards.map(mapAward),
+    awardConditions: conditions.map(mapAwardCondition),
+    projectConversions: conversions.map(mapConversion),
+  };
+}
