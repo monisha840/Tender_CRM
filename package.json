@@ -21,7 +21,10 @@
     "db:verify": "dotenv -e .env.local -- tsx scripts/db-verify.ts",
     "db:seed:base": "dotenv -e .env.local -- tsx prisma/seed-base.ts",
     "db:validate": "dotenv -e .env.local -- prisma validate",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright show-report",
+    "e2e:users": "dotenv -e .env.local -- tsx scripts/e2e-users.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -42,6 +45,8 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^22.20.5",
     "@types/react": "^19",
