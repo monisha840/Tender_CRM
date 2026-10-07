@@ -42,10 +42,15 @@ interface DataTableProps<T> {
   loading?: boolean;
   /** Rows shown initially; "Show more" reveals the next page. */
   pageSize?: number;
+  /** Danger / warning rows get a coloured edge and tint (overdue, due in 1-2 days). Pair with a badge: colour is never the only signal. */
+  getRowTone?: (row: T) => "danger" | "warning" | undefined;
   /** Accessible name for the table. */
   caption: string;
   className?: string;
 }
+
+const toneRow = (t?: "danger" | "warning") => (t === "danger" ? "bg-status-danger/5 shadow-[inset_3px_0_0_var(--status-danger)]" : t === "warning" ? "shadow-[inset_3px_0_0_var(--status-warning)]" : undefined);
+const toneCard = (t?: "danger" | "warning") => (t === "danger" ? "border-l-4 border-l-status-danger bg-status-danger/5" : t === "warning" ? "border-l-4 border-l-status-warning" : undefined);
 
 /**
  * Responsive table. From `md` up it is a compact table; below that every row becomes a stacked
@@ -63,6 +68,7 @@ export function DataTable<T>({
   loading,
   pageSize = 25,
   caption,
+  getRowTone,
   className,
 }: DataTableProps<T>) {
   const router = useRouter();
@@ -168,7 +174,7 @@ export function DataTable<T>({
                     <tr
                       key={getRowId(row)}
                       onClick={href ? () => router.push(href) : undefined}
-                      className={cn("h-10 align-middle", href && "cursor-pointer hover:bg-accent-subtle")}
+                      className={cn("h-10 align-middle", href && "cursor-pointer hover:bg-accent-subtle", toneRow(getRowTone?.(row)))}
                     >
                       {columns.map((c, i) => (
                         <td key={c.key} className={cn("px-3 py-1.5", c.numeric && "tabular text-right", c.className)}>
@@ -213,12 +219,12 @@ export function DataTable<T>({
               return (
                 <li key={getRowId(row)}>
                   {href ? (
-                    <Link href={href} className="flex min-h-11 items-center gap-2 rounded-lg border bg-surface p-3 active:bg-accent-subtle">
+                    <Link href={href} className={cn("flex min-h-11 items-center gap-2 rounded-lg border bg-surface p-3 active:bg-accent-subtle", toneCard(getRowTone?.(row)))}>
                       <div className="min-w-0 flex-1">{content}</div>
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                     </Link>
                   ) : (
-                    <div className="rounded-lg border bg-surface p-3">{content}</div>
+                    <div className={cn("rounded-lg border bg-surface p-3", toneCard(getRowTone?.(row)))}>{content}</div>
                   )}
                 </li>
               );

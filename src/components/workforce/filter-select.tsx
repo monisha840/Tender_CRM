@@ -17,6 +17,7 @@ export function FilterSelect({ label, value, onChange, options, className }: Fil
       onChange={(e) => onChange(e.target.value)}
       className={cn(
         "h-11 w-full min-w-0 rounded-md border bg-surface px-2.5 text-sm text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:w-auto md:h-9",
+        value !== "ALL" && value !== "" && "border-accent-strong bg-accent-subtle font-medium ring-1 ring-accent-strong/40",
         className,
       )}
     >

@@ -67,7 +67,7 @@ export function FilterSelect({
 }) {
   return (
     <Select items={options} value={value} onValueChange={(v) => v && onChange(v)}>
-      <SelectTrigger aria-label={label} className={cn("h-11 w-full min-w-0 md:h-8 md:w-44", className)}>
+      <SelectTrigger aria-label={label} className={cn("h-11 w-full min-w-0 md:h-8 md:w-44", value !== "ALL" && value !== "" && "border-accent-strong bg-accent-subtle font-medium ring-1 ring-accent-strong/40", className)}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent alignItemWithTrigger={false} className="min-w-48">

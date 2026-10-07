@@ -8,7 +8,9 @@ import { KpiTile } from "@/components/shared/kpi-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { FilterSelect, allOption } from "@/components/workforce/filter-select";
 import { WorkforceTabs } from "@/components/workforce/workforce-tabs";
-import { listEmployeePay, listPayrollPeriods, type EmployeePayRow } from "@/lib/data";
+import { ImportExport } from "@/components/data/import-export";
+import { PfBanner } from "@/components/workforce/pf-banner";
+import { getPfStatus, listEmployeePay, listPayrollPeriods, type EmployeePayRow } from "@/lib/data";
 import { formatMonth } from "@/lib/dates";
 import { formatINR, sumMoney } from "@/lib/money";
 import { useDb, useRegionFilter } from "@/store/hooks";
@@ -35,6 +37,7 @@ export default function PayrollPage() {
     return m;
   }, [db]);
 
+  const pf = useMemo(() => getPfStatus(db, region), [db, region]);
   const slips = all.map((r) => r.payslip!);
   const dayRate = (r: EmployeePayRow) => db.labourTypes.find((l) => l.id === r.profile.labourTypeId)?.payrollMode === "DAILY";
 
@@ -64,6 +67,12 @@ export default function PayrollPage() {
     { key: "status", header: "Status", mobile: "badge", cell: (r) => <StatusBadge status={r.payslip!.paymentStatus} />, sortValue: (r) => r.payslip!.paymentStatus },
   ];
 
+  const headers = ["code", "name", "site", "salary", "days", "gross", "advance recovered", "pf employee", "pf employer", "esi employee", "deductions", "net", "status"];
+  const exportRows = rows.map((r) => {
+    const p = r.payslip!;
+    return [r.employee.code, r.employee.name, siteOf.get(r.employee.id) ?? "Office", r.profile.wageAmount, p.daysWorked, p.gross, p.advanceRecovered, p.epfEmployee, p.epfEmployer, p.esiEmployee, p.totalDeductions, p.net, p.paymentStatus];
+  });
+
   return (
     <>
       <PageHeader
@@ -72,13 +81,16 @@ export default function PayrollPage() {
         primaryAction={{ label: "Payroll dashboard", href: "/employees/payroll/dashboard" }}
       />
       <WorkforceTabs />
+      <PfBanner pf={pf} href="/employees/payroll/dashboard" />
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiTile label="On payroll" value={String(all.length)} icon={Users} />
         <KpiTile label="Gross" value={formatINR(sumMoney(slips.map((s) => s.gross)), { compact: true })} icon={Banknote} />
         <KpiTile label="PF + ESI (employee)" value={formatINR(sumMoney(slips.flatMap((s) => [s.epfEmployee, s.esiEmployee])), { compact: true })} icon={HandCoins} />
         <KpiTile label="Net salary" value={formatINR(sumMoney(slips.map((s) => s.net)), { compact: true })} icon={CircleDollarSign} />
       </div>
+      <ImportExport filename={`payroll-${period}`} headers={headers} rows={exportRows} />
       <DataTable
+        getRowTone={(r) => (r.payslip!.paymentStatus === "ON_HOLD" ? "danger" : r.payslip!.paymentStatus === "PENDING" ? "warning" : undefined)}
         caption={`Payroll ${period}`}
         rows={rows}
         columns={columns}

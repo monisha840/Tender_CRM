@@ -1,15 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { ChartCard, LegendItem } from "@/components/charts/chart-card";
 import { PageHeader } from "@/components/layout/page-header";
 import { KpiTile } from "@/components/shared/kpi-tile";
-import { StatusBadge, type StatusTone } from "@/components/shared/status-badge";
+import { ImportExport } from "@/components/data/import-export";
+import { PfBanner, pfNeedsAttention } from "@/components/workforce/pf-banner";
+import { AlertTriangle } from "lucide-react";
+import { DeadlineBadge, StatusBadge, type StatusTone } from "@/components/shared/status-badge";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { WorkforceTabs } from "@/components/workforce/workforce-tabs";
 import { getPfStatus, getSalaryPending, listEmployees } from "@/lib/data";
-import { formatDate, formatMonth } from "@/lib/dates";
+import { formatDate, formatMonth, nextMonth15th } from "@/lib/dates";
 import { formatINR, formatINRAxis } from "@/lib/money";
 import { getPayrollTrend } from "@/modules/workforce/queries";
 import { useDb, useRegionFilter } from "@/store/hooks";
@@ -38,10 +42,25 @@ export default function PayrollDashboardPage() {
   const month = salary.period ? formatMonth(salary.period) : "—";
   const pendingTotal = Number(salary.pendingAmount) + Number(salary.onHoldAmount);
 
+  const pfWarn = pfNeedsAttention(pf, 7);
+  const exportRows = [...pf.history].reverse().map((h) => [formatMonth(h.period), h.total.toFixed(2), PF_TONE[h.status].label, formatDate(nextMonth15th(h.period))]);
+
   return (
     <>
       <PageHeader title="Payroll dashboard" description={`Salary and PF position for ${month}.`} />
       <WorkforceTabs />
+      <PfBanner pf={pf} />
+      {(salary.employeesOnHold > 0 || salary.employeesPending > 0) && (
+        <div role="status" className={`mb-4 flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${salary.employeesOnHold > 0 ? "border-status-danger bg-status-danger-tint text-status-danger" : "border-status-warning bg-status-warning-tint text-status-warning"}`}>
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p>
+            {salary.employeesOnHold > 0 && <>{salary.employeesOnHold} salaries on hold. </>}
+            {salary.employeesPending > 0 && <>{salary.employeesPending} salaries pending for {month}. </>}
+            <Link href="/employees?salary=pending" className="font-medium underline">Review employees</Link>
+          </p>
+        </div>
+      )}
+      <ImportExport filename="pf-summary" headers={["month", "pf total (employee + employer)", "status", "due date"]} rows={exportRows} />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiTile label="Employees" value={String(headcount)} hint={`${trend.at(-1)?.employees ?? 0} on ${month} payroll`} href="/employees" />
@@ -55,7 +74,7 @@ export default function PayrollDashboardPage() {
         <KpiTile
           label="PF status"
           value={formatINR(pf.total, { compact: true })}
-          hint={pf.dueDate ? `Due ${formatDate(pf.dueDate)}` : undefined}
+          hint={pf.dueDate ? `${pfWarn ? "Attention: " : ""}due ${formatDate(pf.dueDate)}` : undefined}
           trend={pf.history.map((h) => h.total)}
         />
       </div>
@@ -113,6 +132,7 @@ export default function PayrollDashboardPage() {
                 <div className="flex items-center gap-3">
                   <span className="tabular text-sm">{formatINR(h.total)}</span>
                   <StatusBadge tone={t.tone} label={t.label} />
+                  {h.status !== "REMITTED" && <DeadlineBadge value={nextMonth15th(h.period)} />}
                 </div>
               </div>
             );

@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { formatDate, formatMonth } from "@/lib/dates";
+import { ImportExport } from "@/components/data/import-export";
+import { DeadlineBadge, StatusBadge } from "@/components/shared/status-badge";
+import { daysBetween, formatDate, formatMonth, getToday } from "@/lib/dates";
 import { formatINR, moneyToNumber, sumMoney } from "@/lib/money";
 import { useDb } from "@/store/hooks";
 import { FilterSelect, Stack, taxOf, useInvoiceRows } from "./helpers";
@@ -73,7 +74,7 @@ export function GstSummary() {
       key: "status",
       header: "Filing status",
       mobile: "badge",
-      cell: (r) => <Stack main={<StatusBadge status={r.status} />} sub={[`${r.filedCount} of ${r.count} filed`, ...(r.status === "FILED" ? [] : [`Due ${formatDate(r.dueDate)}`])]} />,
+      cell: (r) => <Stack main={<StatusBadge status={r.status} />} sub={[`${r.filedCount} of ${r.count} filed`, ...(r.status === "FILED" ? [] : [`Due ${formatDate(r.dueDate)}`, <DeadlineBadge key="d" value={r.dueDate} />])]} />,
     },
     {
       key: "refs",
@@ -82,8 +83,16 @@ export function GstSummary() {
     },
   ];
 
+  const exportRows = groups.flatMap(({ reg, rows }) =>
+    rows.map((r) => [reg.gstin, r.month, r.count, r.filedCount, r.taxable, r.cgst, r.sgst, r.igst, r.tax, r.status, r.dueDate, r.refs.join("; ")]),
+  );
   return (
     <div className="space-y-6">
+      <ImportExport
+        filename="gst-summary"
+        headers={["GSTIN", "Month", "Invoices", "Filed", "Taxable", "CGST", "SGST", "IGST", "Total tax", "Filing status", "Filing due", "Reference"]}
+        rows={exportRows}
+      />
       <div className="flex">
         <FilterSelect
           label="GSTIN"
@@ -106,7 +115,7 @@ export function GstSummary() {
                 Pending filing: <span className="tabular font-medium text-foreground">{formatINR(pendingTax)}</span>
               </p>
             </div>
-            <DataTable caption={`GST by month for ${reg.gstin}`} columns={columns} rows={rows} getRowId={(r) => r.key} pageSize={12} emptyMessage="No invoices for this GSTIN." />
+            <DataTable caption={`GST by month for ${reg.gstin}`} columns={columns} rows={rows} getRowId={(r) => r.key} getRowTone={(r) => (r.status === "OVERDUE" ? "danger" : r.status === "PENDING" && daysBetween(getToday(), r.dueDate) <= 7 ? "warning" : undefined)} pageSize={12} emptyMessage="No invoices for this GSTIN." />
           </section>
         );
       })}

@@ -5,7 +5,9 @@ import { useMemo } from "react";
 import { BellRing, CalendarClock, ChevronRight, FileWarning } from "lucide-react";
 import { DeadlineBadge, StageBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
-import { getUpcomingDeadlines, missingMandatoryDocs, reminderBand, type TenderRow } from "@/lib/data/tenders";
+import { cn } from "@/lib/utils";
+import { tenderTone, toneClass } from "./urgency";
+import { getUpcomingDeadlines, listTenders, missingMandatoryDocs, reminderBand, type TenderRow } from "@/lib/data/tenders";
 import { formatDateTime } from "@/lib/dates";
 import { formatINR } from "@/lib/money";
 import { useDb, useRegionFilter } from "@/store/hooks";
@@ -25,13 +27,18 @@ export function DeadlineList({ withinDays = 30, limit }: { withinDays?: number; 
   const db = useDb();
   const { region } = useRegionFilter();
   const rows = useMemo(() => getUpcomingDeadlines(db, region, withinDays), [db, region, withinDays]);
+  // Overdue open tenders are the most urgent; shown on the full page only (not the short register version).
+  const overdue = useMemo(
+    () => (limit ? [] : listTenders(db, { region, stageKind: "OPEN" }).filter((r) => r.stage.systemKey !== "SUBMITTED" && r.daysToDeadline < 0).sort((a, b) => b.daysToDeadline - a.daysToDeadline)),
+    [db, region, limit],
+  );
   const missing = useMemo(() => {
     const m = new Map<string, number>();
-    rows.forEach((r) => m.set(r.tender.id, missingMandatoryDocs(db.tenderDocumentItems.filter((d) => d.tenderId === r.tender.id)).length));
+    [...overdue, ...rows].forEach((r) => m.set(r.tender.id, missingMandatoryDocs(db.tenderDocumentItems.filter((d) => d.tenderId === r.tender.id)).length));
     return m;
-  }, [db.tenderDocumentItems, rows]);
+  }, [db.tenderDocumentItems, rows, overdue]);
 
-  if (rows.length === 0) {
+  if (rows.length === 0 && overdue.length === 0) {
     return (
       <div className="rounded-lg border bg-surface">
         <EmptyState icon={CalendarClock} message={`No tender deadlines in the next ${withinDays} days for this selection.`} />
@@ -40,14 +47,17 @@ export function DeadlineList({ withinDays = 30, limit }: { withinDays?: number; 
   }
 
   const shown = limit ? rows.slice(0, limit) : rows;
-  const groups = BANDS.map((b) => ({ ...b, items: shown.filter((r) => reminderBand(r.daysToDeadline) === b.key) })).filter((g) => g.items.length);
+  const groups = [
+    ...(overdue.length ? [{ key: "overdue" as const, title: "Deadline passed", hint: "Not yet submitted", items: overdue }] : []),
+    ...BANDS.map((b) => ({ ...b, items: shown.filter((r) => reminderBand(r.daysToDeadline) === b.key) })),
+  ].filter((g) => g.items.length);
 
   return (
     <div className="space-y-4">
       {groups.map((g) => (
         <section key={String(g.key)} aria-label={g.title}>
           <div className="mb-1.5 flex items-center gap-2 px-1">
-            {g.key !== null && <BellRing className="size-3.5 text-muted-foreground" aria-hidden="true" />}
+            {g.key !== null && g.key !== "overdue" && <BellRing className="size-3.5 text-muted-foreground" aria-hidden="true" />}
             <h3 className="text-sm font-semibold">{g.title}</h3>
             <span className="text-xs text-muted-foreground">
               {g.items.length} · {g.hint}
@@ -68,7 +78,7 @@ function DeadlineRow({ row, missingDocs }: { row: TenderRow; missingDocs: number
   const t = row.tender;
   return (
     <li>
-      <Link href={`/tenders/${t.id}`} className="flex min-h-11 items-center gap-3 px-3 py-3 hover:bg-accent-subtle">
+      <Link href={`/tenders/${t.id}`} className={cn("flex min-h-11 items-center gap-3 px-3 py-3 hover:bg-accent-subtle", toneClass(tenderTone(row)))}>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
             <p className="min-w-0 text-sm font-medium">{t.title}</p>

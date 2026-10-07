@@ -21,6 +21,18 @@ export function useInvoiceRows(): InvoiceRow[] {
 export const filingKey = (r: InvoiceRow): "FILED" | "PENDING" | "OVERDUE" =>
   r.invoice.gstFilingStatus === "FILED" ? "FILED" : r.filingDaysOverdue > 0 ? "OVERDUE" : "PENDING";
 
+/** Danger = payment or GST filing overdue; warning = payment due within 3 days or filing due within 7 days. */
+export function invoiceTone(r: InvoiceRow): "danger" | "warning" | undefined {
+  const today = getToday();
+  const owes = Number(r.outstanding) > 0;
+  const filing = r.invoice.gstFilingStatus === "PENDING";
+  if (r.daysOverdue > 0 || (filing && r.filingDaysOverdue > 0)) return "danger";
+  const payIn = daysBetween(today, r.invoice.dueDate);
+  const fileIn = daysBetween(today, r.invoice.gstFilingDueDate);
+  if ((owes && payIn >= 0 && payIn <= 3) || (filing && fileIn >= 0 && fileIn <= 7)) return "warning";
+  return undefined;
+}
+
 export const AGEING_BUCKETS = ["0–30", "31–60", "61–90", "90+"] as const;
 export type AgeingBucket = (typeof AGEING_BUCKETS)[number];
 

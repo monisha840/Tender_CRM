@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
-import { CalendarClock, ChevronRight, Gavel, Percent, Search, Wallet } from "lucide-react";
+import { AlertTriangle, CalendarClock, ChevronRight, Gavel, Percent, Plus, Search, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -18,6 +18,8 @@ import { useUrlParam } from "@/lib/use-url-param";
 import { useDb, useRegionFilter } from "@/store/hooks";
 import { DeadlineList } from "./deadline-list";
 import { FilterSelect, type FilterOption } from "./parts";
+import { AddTenderForm, TenderImportExport } from "./tender-entry";
+import { tenderTone, toneClass } from "./urgency";
 import { StageChart, WonLostChart } from "./tender-charts";
 
 const ALL = "ALL";
@@ -90,6 +92,7 @@ export function TenderList() {
   const [lineId, setLineId] = useState(ALL);
   const [deadline, setDeadline] = useState(ALL);
   const [query, setQuery] = useState("");
+  const [adding, setAdding] = useState(false);
   // Dashboard links: ?status=open (live tenders) and ?result=decided (won or lost). Picking a stage chip overrides them.
   const statusParam = useUrlParam("status");
   const resultParam = useUrlParam("result");
@@ -129,6 +132,7 @@ export function TenderList() {
   ];
   const regionSelect: FilterOption[] = [{ value: ALL, label: "All regions" }, ...regionOptions.map((r) => ({ value: r.id, label: r.name }))];
 
+  const urgentCount = regionRows.filter((r) => tenderTone(r) === "danger").length;
   const filtered = !!kind || stageId !== ALL || orgId !== ALL || lineId !== ALL || deadline !== ALL;
   const clear = () => {
     setKindOff(true);
@@ -143,8 +147,21 @@ export function TenderList() {
       <PageHeader
         title="Tenders"
         description="Every tender from identification to result, with deadlines, EMD and documents."
+        primaryAction={{ label: "Add tender", icon: Plus, onClick: () => setAdding(true) }}
         secondaryActions={[{ label: "Upcoming deadlines", icon: CalendarClock, href: "/tenders/deadlines" }]}
       />
+      <AddTenderForm open={adding} onOpenChange={setAdding} />
+
+      {urgentCount > 0 && (
+        <Link
+          href="/tenders/deadlines"
+          className="mb-4 inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-status-danger/30 bg-status-danger/10 px-3 text-sm font-medium text-status-danger outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-8"
+        >
+          <AlertTriangle className="size-4" aria-hidden="true" />
+          {urgentCount} urgent: overdue or due within 2 days
+        </Link>
+      )}
+      <TenderImportExport rows={rows} />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiTile label="Active tenders" value={String(stats.activeCount)} hint={`${formatINR(stats.activeValue, { compact: true })} estimated`} icon={Gavel} />
@@ -218,7 +235,7 @@ export function TenderList() {
             {/* Cards below 1280px: with the sidebar open the table only has room from xl up. */}
             <TenderCards rows={rows} />
             <div className="hidden xl:block">
-              <DataTable caption="Tender register" rows={rows} columns={COLUMNS} getRowId={(r) => r.tender.id} getRowHref={(r) => `/tenders/${r.tender.id}`} pageSize={40} />
+              <DataTable caption="Tender register" rows={rows} columns={COLUMNS} getRowId={(r) => r.tender.id} getRowHref={(r) => `/tenders/${r.tender.id}`} getRowTone={tenderTone} pageSize={40} />
             </div>
           </>
         )}
@@ -256,7 +273,7 @@ function TenderCards({ rows }: { rows: TenderRow[] }) {
       <ul className="space-y-2" aria-label="Tender register">
         {shown.map((r) => (
           <li key={r.tender.id}>
-            <Link href={`/tenders/${r.tender.id}`} className="flex h-full min-h-11 items-center gap-2 rounded-lg border bg-surface p-3 active:bg-accent-subtle md:hover:bg-accent-subtle">
+            <Link href={`/tenders/${r.tender.id}`} className={cn("flex h-full min-h-11 items-center gap-2 rounded-lg border bg-surface p-3 active:bg-accent-subtle md:hover:bg-accent-subtle", toneClass(tenderTone(r)))}>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 text-sm font-medium">

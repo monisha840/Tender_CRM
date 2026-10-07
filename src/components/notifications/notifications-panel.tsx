@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Bell, BellOff, CheckCheck } from "lucide-react";
+import { ImportExport } from "@/components/data/import-export";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,11 @@ export function NotificationsPanel() {
           ))}
         </select>
       </div>
+      <ImportExport
+        filename="notifications"
+        headers={["Date", "Type", "Title", "Details", "Read"]}
+        rows={rows.map((n) => [n.createdAt, humanise(n.type), n.title, n.body ?? "", n.readAt ? "Yes" : "No"])}
+      />
       {rows.length === 0 ? (
         <div className="rounded-lg border bg-surface">
           <EmptyState icon={BellOff} message="No notifications match. Deadlines and approvals will show up here." />

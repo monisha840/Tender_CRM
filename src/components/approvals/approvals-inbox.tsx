@@ -2,8 +2,12 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Check, ChevronDown, ChevronUp, ExternalLink, Inbox, X } from "lucide-react";
+import { Check, Plus, ChevronDown, ChevronUp, ExternalLink, Inbox, X } from "lucide-react";
 import { toast } from "sonner";
+import { ImportExport } from "@/components/data/import-export";
+import { RecordForm } from "@/components/data/record-form";
+import { buildApprovalRequest, REQUEST_TYPES } from "@/modules/approvals/entry";
+import { relativeDeadline } from "@/lib/dates";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { DeadlineBadge, StatusBadge } from "@/components/shared/status-badge";
@@ -29,6 +33,7 @@ export function ApprovalsInbox() {
   const [open, setOpen] = useState<string | null>(null);
   const [deciding, setDeciding] = useState<{ row: ApprovalRow; decision: "APPROVE" | "REJECT" } | null>(null);
   const [comment, setComment] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const userId = persona.user.id;
   const canApproveAll = getScope(db, userId, "approvals", "APPROVE") === "ALL";
@@ -60,6 +65,29 @@ export function ApprovalsInbox() {
     setComment("");
   }
 
+  const createRequest = (v: Record<string, string>): string | void => {
+    const built = buildApprovalRequest(db, {
+      entityType: v.entityType,
+      title: v.title,
+      amount: v.amount ?? "",
+      regionId: v.regionId,
+      projectId: v.projectId ?? "",
+      approverId: v.approverId,
+      requestedById: userId,
+    });
+    if (!built.ok) return built.error;
+    upsert("approvalRequests", built.request);
+    upsert("approvalSteps", built.step);
+    toast.success("Request sent for approval", { description: built.request.title });
+    setTab("all");
+  };
+
+  const toneOf = (r: ApprovalRow): "danger" | "warning" | undefined => {
+    if (r.request.status !== "PENDING" || !r.dueAt) return undefined;
+    const d = relativeDeadline(r.dueAt).days;
+    return d < 0 ? "danger" : d <= 2 ? "warning" : undefined;
+  };
+
   const tabs: { key: Tab; label: string }[] = [
     { key: "mine", label: "Waiting for me" },
     { key: "all", label: "All pending" },
@@ -68,7 +96,34 @@ export function ApprovalsInbox() {
 
   return (
     <>
-      <PageHeader title="Approvals" description="Everything waiting for a decision, in one place. Approve or reject with a comment." />
+      <PageHeader
+        title="Approvals"
+        description="Everything waiting for a decision, in one place. Approve or reject with a comment."
+        primaryAction={{ label: "New request", icon: Plus, onClick: () => setAdding(true) }}
+      />
+      {adding && (
+        <RecordForm
+          open
+          onOpenChange={setAdding}
+          title="New approval request"
+          description="Goes to the approver you pick; they get it in their inbox."
+          submitLabel="Send for approval"
+          onSubmit={createRequest}
+          fields={[
+            { name: "entityType", label: "Type", type: "select", required: true, options: REQUEST_TYPES },
+            { name: "title", label: "Title", required: true, placeholder: "e.g. Scaffolding material for Korba CHP" },
+            { name: "amount", label: "Amount (₹)", type: "number", placeholder: "Optional" },
+            { name: "regionId", label: "Region", type: "select", required: true, defaultValue: region !== "ALL" ? region : undefined, options: db.regions.filter((r) => r.isActive).map((r) => ({ value: r.id, label: r.name })) },
+            { name: "projectId", label: "Project", type: "select", options: db.projects.filter((p) => !p.deletedAt).map((p) => ({ value: p.id, label: p.name })) },
+            { name: "approverId", label: "Approver", type: "select", required: true, options: db.users.filter((u) => u.isActive && u.id !== userId).map((u) => ({ value: u.id, label: u.name })) },
+          ]}
+        />
+      )}
+      <ImportExport
+        filename={`approvals-${tab}`}
+        headers={["Title", "Type", "Region", "Amount", "Status", "Requested by", "Requested on", "With", "Due"]}
+        rows={rows.map((r) => [r.request.title, r.typeLabel, r.regionName, r.request.amount ?? "", r.request.status, r.requestedBy, r.request.submittedAt.slice(0, 10), r.assignedToName, r.dueAt?.slice(0, 10) ?? ""])}
+      />
       <div role="tablist" aria-label="Approval views" className="mb-4 flex gap-1 overflow-x-auto border-b">
         {tabs.map((t) => (
           <button
@@ -93,7 +148,7 @@ export function ApprovalsInbox() {
           {rows.map((r) => {
             const expanded = open === r.request.id;
             return (
-              <li key={r.request.id} className="rounded-lg border bg-surface">
+              <li key={r.request.id} className={cn("rounded-lg border bg-surface", toneOf(r) === "danger" && "border-l-4 border-l-status-danger bg-status-danger/5", toneOf(r) === "warning" && "border-l-4 border-l-status-warning")}>
                 <div className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

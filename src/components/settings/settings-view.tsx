@@ -1,14 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Plus } from "lucide-react";
+import { toast } from "sonner";
+import { ImportExport } from "@/components/data/import-export";
+import { RecordForm, type FormField } from "@/components/data/record-form";
+import { newId } from "@/modules/finance/entry";
+import { useDataStore } from "@/store/data-store";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { StageBadge, StatusBadge } from "@/components/shared/status-badge";
-import type { PermissionScope, Region, Role, ServiceLine, TenderStage } from "@/types";
+import type { ExpenseCategory, PermissionScope, Region, Role, ServiceLine, TenderStage } from "@/types";
 import { cn } from "@/lib/utils";
 import { useDb } from "@/store/hooks";
 
-type Tab = "stages" | "services" | "roles" | "regions";
+type Tab = "stages" | "services" | "expenses" | "roles" | "regions";
 
 const SCOPE_LABEL: Record<PermissionScope, string> = { ALL: "All regions", OWN_REGION: "Own region", OWN_PROJECTS: "Own projects", OWN_SITES: "Own sites" };
 const KIND_LABEL: Record<TenderStage["kind"], string> = { OPEN: "In progress", WON: "Won", LOST: "Lost", NO_GO: "No-Go", TERMINAL: "Closed" };
@@ -17,6 +23,8 @@ const KIND_LABEL: Record<TenderStage["kind"], string> = { OPEN: "In progress", W
 export function SettingsView() {
   const db = useDb();
   const [tab, setTab] = useState<Tab>("stages");
+  const [adding, setAdding] = useState(false);
+  const upsert = useDataStore((s) => s.upsert);
 
   const stages = useMemo(() => [...db.tenderStages].sort((a, b) => a.sequence - b.sequence), [db.tenderStages]);
   const roleRows = useMemo(
@@ -70,16 +78,79 @@ export function SettingsView() {
     { key: "a", header: "Status", cell: (r) => <StatusBadge status={r.region.isActive ? "ACTIVE" : "INACTIVE"} />, mobile: "badge" },
   ];
 
+  const expenseCols: DataTableColumn<ExpenseCategory>[] = [
+    { key: "name", header: "Expense category", cell: (r) => r.name, mobile: "title", sortValue: (r) => r.name },
+    { key: "a", header: "Status", cell: (r) => <StatusBadge status={r.isActive ? "ACTIVE" : "INACTIVE"} />, mobile: "badge" },
+  ];
+
+  const nowIso = () => new Date().toISOString();
+  const exists = (names: string[], name: string) => names.some((n) => n.trim().toLowerCase() === name.trim().toLowerCase());
+  const ADD: Partial<Record<Tab, { label: string; fields: FormField[]; save: (v: Record<string, string>) => string | void }>> = {
+    stages: {
+      label: "tender stage",
+      fields: [
+        { name: "name", label: "Stage name", required: true },
+        { name: "kind", label: "Meaning", type: "select", required: true, defaultValue: "OPEN", options: Object.entries(KIND_LABEL).map(([value, label]) => ({ value, label })) },
+        { name: "sequence", label: "Order", type: "number", required: true, defaultValue: String(Math.max(0, ...stages.map((x) => x.sequence)) + 1), hint: "Position in the pipeline; lower comes first." },
+      ],
+      save: (v) => {
+        if (exists(db.tenderStages.map((x) => x.name), v.name)) return "A stage with this name already exists.";
+        const seq = Number(v.sequence);
+        if (!Number.isInteger(seq) || seq < 1) return "Order must be a whole number from 1.";
+        const now = nowIso();
+        upsert("tenderStages", { id: newId("stg_new"), createdAt: now, updatedAt: now, name: v.name, sequence: seq, kind: v.kind as TenderStage["kind"], systemKey: null, isActive: true });
+        toast.success(`Stage "${v.name}" added`);
+      },
+    },
+    services: {
+      label: "service line",
+      fields: [
+        { name: "name", label: "Service line", required: true },
+        { name: "defaultUnit", label: "Default unit", required: true, placeholder: "man-day, sq m, running metre, MT" },
+      ],
+      save: (v) => {
+        if (exists(db.serviceLines.map((x) => x.name), v.name)) return "A service line with this name already exists.";
+        const now = nowIso();
+        upsert("serviceLines", { id: newId("svc_new"), createdAt: now, updatedAt: now, name: v.name, defaultUnit: v.defaultUnit, isActive: true });
+        toast.success(`Service line "${v.name}" added`);
+      },
+    },
+    expenses: {
+      label: "expense category",
+      fields: [{ name: "name", label: "Expense category", required: true }],
+      save: (v) => {
+        if (exists(db.expenseCategories.map((x) => x.name), v.name)) return "This category already exists.";
+        const now = nowIso();
+        upsert("expenseCategories", { id: newId("exp_new"), createdAt: now, updatedAt: now, name: v.name, isActive: true });
+        toast.success(`Category "${v.name}" added`);
+      },
+    },
+  };
+  const add = ADD[tab];
+  const yn = (b: boolean) => (b ? "Active" : "Inactive");
+  const exportSpec: Record<Tab, { headers: string[]; rows: (string | number)[][] }> = {
+    stages: { headers: ["Order", "Stage", "Meaning", "Status"], rows: stages.map((r) => [r.sequence, r.name, KIND_LABEL[r.kind], yn(r.isActive)]) },
+    services: { headers: ["Service line", "Default unit", "Status"], rows: db.serviceLines.map((r) => [r.name, r.defaultUnit, yn(r.isActive)]) },
+    expenses: { headers: ["Expense category", "Status"], rows: db.expenseCategories.map((r) => [r.name, yn(r.isActive)]) },
+    roles: { headers: ["Role", "Description", "Data access", "Modules", "Users", "Layout"], rows: roleRows.map((r) => [r.role.name, r.role.description ?? "", SCOPE_LABEL[r.scope], r.modules, r.users, r.role.layout]) },
+    regions: { headers: ["Region", "Code", "State", "Offices", "GSTINs", "Plant sites", "Status"], rows: regionRows.map((r) => [r.region.name, r.region.code, r.state, r.offices.map((o) => o.name).join("; "), r.gstins.map((g) => g.gstin).join("; "), r.sites, yn(r.region.isActive)]) },
+  };
+
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: "stages", label: "Tender stages", count: stages.length },
     { key: "services", label: "Service lines", count: db.serviceLines.length },
+    { key: "expenses", label: "Expense categories", count: db.expenseCategories.length },
     { key: "roles", label: "Roles", count: db.roles.length },
     { key: "regions", label: "Regions", count: db.regions.length },
   ];
 
   return (
     <>
-      <PageHeader title="Settings" description="Read-only view of the configuration that drives the app. Editing arrives with the backend." />
+      <PageHeader title="Settings" description="Configuration that drives the app. Stages, service lines and expense categories can be added here; roles and regions are view and export only."
+        primaryAction={add ? { label: `Add ${add.label}`, icon: Plus, onClick: () => setAdding(true) } : undefined}
+      />
+      {adding && add && <RecordForm key={tab} open onOpenChange={setAdding} title={`Add ${add.label}`} fields={add.fields} onSubmit={add.save} />}
+      <ImportExport filename={`settings-${tab}`} headers={exportSpec[tab].headers} rows={exportSpec[tab].rows} />
       <div role="tablist" aria-label="Settings lists" className="mb-4 flex gap-1 overflow-x-auto border-b">
         {tabs.map((t) => (
           <button
@@ -96,6 +167,7 @@ export function SettingsView() {
       </div>
       {tab === "stages" && <DataTable caption="Tender stages" columns={stageCols} rows={stages} getRowId={(r) => r.id} pageSize={50} />}
       {tab === "services" && <DataTable caption="Service lines" columns={serviceCols} rows={db.serviceLines} getRowId={(r) => r.id} pageSize={50} search={{ placeholder: "Search service lines", getText: (r) => r.name }} />}
+      {tab === "expenses" && <DataTable caption="Expense categories" columns={expenseCols} rows={db.expenseCategories} getRowId={(r) => r.id} pageSize={50} search={{ placeholder: "Search categories", getText: (r) => r.name }} />}
       {tab === "roles" && <DataTable caption="Roles" columns={roleCols} rows={roleRows} getRowId={(r) => (r.role as Role).id} pageSize={50} />}
       {tab === "regions" && <DataTable caption="Regions" columns={regionCols} rows={regionRows} getRowId={(r) => (r.region as Region).id} pageSize={50} />}
     </>

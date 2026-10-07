@@ -2,18 +2,22 @@
 
 import { useMemo, useState } from "react";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
-import { StatusBadge } from "@/components/shared/status-badge";
+import { ImportExport } from "@/components/data/import-export";
+import { DeadlineBadge, StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatMonth } from "@/lib/dates";
 import type { InvoiceRow } from "@/lib/data/accounts";
 import { formatINR, moneyToNumber } from "@/lib/money";
 import { useDb } from "@/store/hooks";
-import { FilterSelect, filingKey, Stack, useInvoiceRows } from "./helpers";
+import { INVOICE_HEADERS } from "@/modules/finance/entry";
+import { useInvoiceImport } from "./invoice-form";
+import { FilterSelect, filingKey, invoiceTone, Stack, taxOf, useInvoiceRows } from "./helpers";
 
 const amount = (m: string) => (moneyToNumber(m) === 0 ? "—" : formatINR(m));
 
 export function InvoiceList() {
   const db = useDb();
+  const importInvoices = useInvoiceImport();
   const all = useInvoiceRows();
   const [gstin, setGstin] = useState("ALL");
   const [customer, setCustomer] = useState("ALL");
@@ -80,7 +84,7 @@ export function InvoiceList() {
       cell: (r) => (
         <Stack
           main={<StatusBadge status={r.invoice.paymentStatus} />}
-          sub={[`Due ${formatDate(r.invoice.dueDate)}`, ...(r.daysOverdue > 0 ? [`${r.daysOverdue} days overdue`] : [])]}
+          sub={[`Due ${formatDate(r.invoice.dueDate)}`, ...(Number(r.outstanding) > 0 ? [<DeadlineBadge key="d" value={r.invoice.dueDate} />] : [])]}
         />
       ),
     },
@@ -90,14 +94,22 @@ export function InvoiceList() {
       cell: (r) => (
         <Stack
           main={<StatusBadge status={filingKey(r)} />}
-          sub={[`Ref ${r.invoice.filingReference ?? "—"}`, `Due ${formatDate(r.invoice.gstFilingDueDate)}`]}
+          sub={[`Ref ${r.invoice.filingReference ?? "—"}`, `Due ${formatDate(r.invoice.gstFilingDueDate)}`, ...(r.invoice.gstFilingStatus === "PENDING" ? [<DeadlineBadge key="f" value={r.invoice.gstFilingDueDate} />] : [])]}
         />
       ),
     },
   ];
 
+  const exportRows = rows.map((r) => [
+    r.invoice.invoiceNo, r.invoice.invoiceDate, gstinOf.get(r.invoice.gstRegistrationId) ?? "", r.organisationName, r.projectName, r.invoice.invoiceType,
+    r.invoice.periodFrom, r.invoice.periodTo, r.invoice.taxableValue, moneyToNumber(r.invoice.taxableValue) ? Math.round((moneyToNumber(taxOf(r.invoice)) / moneyToNumber(r.invoice.taxableValue)) * 10000) / 100 : "", r.invoice.totalDeductions, "",
+  ]);
+
   return (
+    <>
+    <ImportExport filename="invoices" headers={INVOICE_HEADERS} rows={exportRows} onImport={importInvoices} />
     <DataTable
+      getRowTone={invoiceTone}
       caption="Invoices"
       columns={columns}
       rows={rows}
@@ -141,5 +153,6 @@ export function InvoiceList() {
         </>
       }
     />
+    </>
   );
 }

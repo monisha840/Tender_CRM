@@ -2,22 +2,28 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ClipboardCheck } from "lucide-react";
+import { AlertTriangle, ClipboardCheck } from "lucide-react";
+import { ImportExport } from "@/components/data/import-export";
+import { getAttendanceSummary } from "@/lib/data";
+import { buildAttendance } from "@/modules/workforce/entry";
+import { useDataStore } from "@/store/data-store";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { KpiTile } from "@/components/shared/kpi-tile";
 import { STATUS_CELL, STATUS_CODE } from "@/components/workforce/attendance-style";
 import { FilterSelect } from "@/components/workforce/filter-select";
 import { WorkforceTabs } from "@/components/workforce/workforce-tabs";
-import { addDays, formatMonth, getToday } from "@/lib/dates";
+import { addDays, formatDate, formatMonth, getToday } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { attendanceMonths, getAttendanceGrid, getStaffedSites } from "@/modules/workforce/queries";
-import { useDb, useRegionFilter } from "@/store/hooks";
+import { useCurrentPersona, useDb, useRegionFilter } from "@/store/hooks";
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 export default function AttendancePage() {
   const db = useDb();
+  const upsert = useDataStore((s) => s.upsert);
+  const persona = useCurrentPersona();
   const { region } = useRegionFilter();
   const sites = useMemo(() => getStaffedSites(db, region), [db, region]);
   const months = useMemo(() => attendanceMonths(), []);
@@ -35,6 +41,27 @@ export default function AttendancePage() {
   const leave = grid.reduce((t, r) => t + r.leave, 0);
   const overtime = grid.reduce((t, r) => t + r.overtimeHours, 0);
 
+  const notMarkedToday = useMemo(() => getAttendanceSummary(db, today, region).notMarked, [db, region, today]);
+  const siteNotMarked = siteId ? Math.max(0, db.siteAssignments.filter((a) => a.siteId === siteId && a.fromDate <= today && (!a.toDate || a.toDate >= today)).length - db.attendance.filter((a) => a.siteId === siteId && a.date === today).length) : 0;
+
+  const gridHeaders = ["code", "name", ...dates.map((d) => d.slice(8))];
+  const gridRows = grid.map((r) => [r.code, r.name, ...dates.map((d) => (r.byDate[d] ? STATUS_CODE[r.byDate[d].status] : ""))]);
+  const flatRows = grid.flatMap((r) => dates.filter((d) => r.byDate[d]).map((d) => [r.code, d, r.byDate[d].status]));
+
+  const importAttendance = (records: Record<string, string>[]) => {
+    const errors: string[] = [];
+    let imported = 0;
+    records.forEach((rec, i) => {
+      const res = buildAttendance(useDataStore.getState().db, rec, persona.user.id);
+      if ("error" in res) errors.push(`Row ${i + 2}: ${res.error}`);
+      else {
+        upsert("attendance", res.row);
+        imported++;
+      }
+    });
+    return { imported, errors };
+  };
+
   return (
     <>
       <PageHeader
@@ -47,6 +74,27 @@ export default function AttendancePage() {
       <div className="mb-4 grid grid-cols-2 gap-2 sm:flex">
         <FilterSelect label="Site" value={siteId} onChange={setSite} options={sites.map((s) => ({ value: s.id, label: s.name }))} className="col-span-2 sm:min-w-56" />
         <FilterSelect label="Month" value={month} onChange={setMonth} options={months.map((p) => ({ value: p, label: formatMonth(p) }))} className="col-span-2" />
+      </div>
+
+      {notMarkedToday > 0 && (
+        <div role="status" className="mb-4 flex items-start gap-2 rounded-lg border border-status-warning bg-status-warning-tint px-3 py-2 text-sm text-status-warning">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p>
+            Attendance not marked today ({formatDate(today)}) for {notMarkedToday} {notMarkedToday === 1 ? "person" : "people"}
+            {siteId && siteNotMarked > 0 ? `, ${siteNotMarked} at this site` : ""}.{" "}
+            <Link href="/employees/attendance/mark" className="font-medium underline">Mark attendance</Link>
+          </p>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-x-4">
+        <ImportExport filename={`attendance-grid-${month}`} headers={gridHeaders} rows={gridRows} />
+        <ImportExport
+          filename={`attendance-${month}`}
+          headers={["code", "date", "status"]}
+          rows={flatRows}
+          onImport={importAttendance}
+        />
       </div>
 
       {grid.length === 0 ? (

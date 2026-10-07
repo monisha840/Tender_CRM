@@ -1,18 +1,24 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { IndianRupee, UserCheck, Users, Wallet } from "lucide-react";
+import { IndianRupee, UserCheck, UserPlus, Users, Wallet } from "lucide-react";
+import { toast } from "sonner";
+import { ImportExport } from "@/components/data/import-export";
+import { RecordForm, type FormField } from "@/components/data/record-form";
+import { buildEmployee, nextEmployeeCode, type EmployeeEntry } from "@/modules/workforce/entry";
+import { useDataStore } from "@/store/data-store";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { KpiTile } from "@/components/shared/kpi-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { FilterSelect, allOption } from "@/components/workforce/filter-select";
 import { WorkforceTabs } from "@/components/workforce/workforce-tabs";
-import { formatDate } from "@/lib/dates";
+import { formatDate, getToday } from "@/lib/dates";
 import { formatINR, sumMoney } from "@/lib/money";
 import { getDirectory, type DirectoryRow, type PayFilter } from "@/modules/workforce/queries";
 import { useUrlParam } from "@/lib/use-url-param";
-import { useDb, useRegionFilter } from "@/store/hooks";
+import { useCurrentPersona, useDb, useRegionFilter } from "@/store/hooks";
+import type { Database } from "@/types";
 
 const PAY_OPTIONS: { value: PayFilter; label: string }[] = [
   { value: "PAID", label: "Paid" },
@@ -23,8 +29,67 @@ const PAY_OPTIONS: { value: PayFilter; label: string }[] = [
 
 const uniq = (values: string[]) => [...new Set(values)].sort().map((v) => ({ value: v, label: v }));
 
+const PAY_LABEL: Record<string, string> = { PAID: "Paid", PENDING: "Pending", ON_HOLD: "On hold", NOT_ON_PAYROLL: "Not on payroll" };
+
+const HEADERS = ["code", "name", "phone", "site", "designation", "department", "labour type", "joining date", "wage", "advance", "salary status (export only)", "region", "pf", "esi", "uan"];
+
+function entryFromRecord(r: Record<string, string>): EmployeeEntry {
+  return {
+    code: r["code"], name: r["name"], phone: r["phone"], site: r["site"], designation: r["designation"], department: r["department"],
+    labourType: r["labour type"], joiningDate: r["joining date"], wage: r["wage"], advance: r["advance"], region: r["region"],
+    pf: r["pf"], esi: r["esi"], uan: r["uan"],
+  };
+}
+
+function employeeFields(db: Database): FormField[] {
+  const regions = db.regions.filter((r) => r.isActive);
+  return [
+    { name: "name", label: "Full name", required: true },
+    { name: "phone", label: "Phone", type: "tel" },
+    { name: "code", label: "Employee code", required: true, defaultValue: nextEmployeeCode(db), hint: "Next free code suggested." },
+    { name: "region", label: "Home region", type: "select", required: true, options: regions.map((r) => ({ value: r.id, label: r.name })) },
+    { name: "designation", label: "Designation", required: true },
+    { name: "department", label: "Department", defaultValue: "Site Operations" },
+    {
+      name: "labourType", label: "Labour type", type: "select", required: true,
+      options: db.labourTypes.filter((l) => l.isActive).map((l) => ({ value: l.id, label: `${l.name} (${l.payrollMode === "DAILY" ? "daily rate" : l.payrollMode === "MONTHLY" ? "monthly salary" : "paid via contractor"})` })),
+    },
+    { name: "wage", label: "Wage amount (₹)", type: "number", required: true, hint: "Monthly salary for monthly staff, daily rate for daily workers." },
+    { name: "joiningDate", label: "Joining date", type: "date", required: true, defaultValue: getToday() },
+    { name: "pf", label: "PF applicable", type: "select", required: true, options: [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }] },
+    { name: "esi", label: "ESI applicable", type: "select", required: true, defaultValue: "no", options: [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }] },
+    { name: "uan", label: "UAN (optional)" },
+    { name: "advance", label: "Opening advance (₹)", type: "number", defaultValue: "0" },
+    { name: "site", label: "Plant site (optional)", type: "select", options: db.sites.filter((s) => !s.deletedAt).sort((a, b) => a.name.localeCompare(b.name)).map((s) => ({ value: s.id, label: s.name })) },
+  ];
+}
+
 export default function EmployeesPage() {
   const db = useDb();
+  const upsert = useDataStore((s) => s.upsert);
+  const persona = useCurrentPersona();
+  const [adding, setAdding] = useState(false);
+
+  const save = (entry: EmployeeEntry, takenCodes?: Set<string>) => {
+    const res = buildEmployee(useDataStore.getState().db, entry, { userId: persona.user.id, takenCodes });
+    if ("error" in res) return res.error;
+    takenCodes?.add(res.rows.employee.code);
+    upsert("employees", res.rows.employee);
+    upsert("employeeProfiles", res.rows.profile);
+    if (res.rows.assignment) upsert("siteAssignments", res.rows.assignment);
+    return undefined;
+  };
+  const importRecords = (records: Record<string, string>[]) => {
+    const taken = new Set<string>();
+    const errors: string[] = [];
+    let imported = 0;
+    records.forEach((r, i) => {
+      const err = save(entryFromRecord(r), taken);
+      if (err) errors.push(`Row ${i + 2}: ${err}`);
+      else imported++;
+    });
+    return { imported, errors };
+  };
   const { region } = useRegionFilter();
   const [site, setSite] = useState("ALL");
   const [designation, setDesignation] = useState("ALL");
@@ -83,13 +148,25 @@ export default function EmployeesPage() {
       sortValue: (r) => r.payStatus,
     },
   ];
+  const tone = (r: DirectoryRow) => (r.payStatus === "ON_HOLD" ? ("danger" as const) : r.payStatus === "PENDING" ? ("warning" as const) : undefined);
+  const exportRows = rows.map((r) => {
+    const p = db.employeeProfiles.find((x) => x.employeeId === r.id);
+    return [
+      r.code, r.name, r.phone === "—" ? "" : r.phone, r.siteNames, r.designation, r.department, r.labourType, formatDate(r.joiningDate), r.wage, r.advance,
+      PAY_LABEL[r.payStatus], r.regionName, p?.pfApplicable ? "yes" : "no", p?.esiApplicable ? "yes" : "no", p?.uan ?? "",
+    ];
+  });
 
   const pendingCount = all.filter((r) => r.payStatus === "PENDING").length;
   const monthly = sumMoney(all.filter((r) => r.wageUnit === "month").map((r) => r.wage));
 
   return (
     <>
-      <PageHeader title="Employees" description="Employee master with salary, advance and salary status for the latest payroll month." />
+      <PageHeader
+        title="Employees"
+        description="Employee master with salary, advance and salary status for the latest payroll month."
+        primaryAction={{ label: "Add employee", icon: UserPlus, onClick: () => setAdding(true) }}
+      />
       <WorkforceTabs />
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiTile label="Employees" value={String(all.length)} icon={Users} hint={`${rows.length} shown`} />
@@ -97,7 +174,23 @@ export default function EmployeesPage() {
         <KpiTile label="Salary pending" value={String(pendingCount)} icon={Wallet} hint="employees, latest month" href="/employees/payroll" />
         <KpiTile label="Advance outstanding" value={formatINR(sumMoney(all.map((r) => r.advance)), { compact: true })} icon={UserCheck} />
       </div>
+      <ImportExport filename="employees" headers={HEADERS} rows={exportRows} onImport={importRecords} />
+      <RecordForm
+        key={adding ? "open" : "closed"}
+        open={adding}
+        onOpenChange={setAdding}
+        title="Add employee"
+        description="Creates the employee, wage profile and site assignment."
+        submitLabel="Add employee"
+        fields={employeeFields(db)}
+        onSubmit={(v) => {
+          const err = save({ ...v });
+          if (!err) toast.success(`${v.name} added`);
+          return err;
+        }}
+      />
       <DataTable
+        getRowTone={tone}
         caption="Employees"
         rows={rows}
         columns={columns}

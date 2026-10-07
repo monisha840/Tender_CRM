@@ -4,13 +4,14 @@ import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartCard } from "@/components/charts/chart-card";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
-import { StatusBadge } from "@/components/shared/status-badge";
+import { ImportExport } from "@/components/data/import-export";
+import { DeadlineBadge, StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/dates";
 import type { InvoiceRow } from "@/lib/data/accounts";
 import { formatINR, formatINRAxis, moneyToNumber, sumMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
-import { AGEING_BUCKETS, bucketOf, invoiceAge, Stack, useInvoiceRows, type AgeingBucket } from "./helpers";
+import { AGEING_BUCKETS, bucketOf, invoiceAge, invoiceTone, Stack, useInvoiceRows, type AgeingBucket } from "./helpers";
 
 interface Row {
   row: InvoiceRow;
@@ -51,7 +52,7 @@ export function Receivables() {
     { key: "customer", header: "Customer", sortValue: (r) => r.row.organisationName, cell: (r) => <Stack main={r.row.organisationName} sub={[r.row.projectName]} /> },
     { key: "age", header: "Age", numeric: true, sortValue: (r) => r.age, cell: (r) => `${r.age} days` },
     { key: "bucket", header: "Bucket", cell: (r) => r.bucket },
-    { key: "due", header: "Payment due", cell: (r) => <Stack main={formatDate(r.row.invoice.dueDate)} sub={r.row.daysOverdue > 0 ? [`${r.row.daysOverdue} days overdue`] : undefined} /> },
+    { key: "due", header: "Payment due", cell: (r) => <Stack main={formatDate(r.row.invoice.dueDate)} sub={[<DeadlineBadge key="d" value={r.row.invoice.dueDate} />]} /> },
     { key: "net", header: "Receivable", numeric: true, cell: (r) => formatINR(r.row.invoice.netReceivable) },
     { key: "out", header: "Outstanding", numeric: true, sortValue: (r) => moneyToNumber(r.row.outstanding), cell: (r) => <span className="font-medium">{formatINR(r.row.outstanding)}</span> },
     { key: "status", header: "Status", mobile: "badge", cell: (r) => <StatusBadge status={r.row.daysOverdue > 0 ? "OVERDUE" : r.row.invoice.paymentStatus} /> },
@@ -101,7 +102,13 @@ export function Receivables() {
         </ResponsiveContainer>
       </ChartCard>
 
+      <ImportExport
+        filename="receivables"
+        headers={["Invoice no", "Invoice date", "Customer", "Project", "Age (days)", "Bucket", "Payment due", "Days overdue", "Receivable", "Outstanding", "Status"]}
+        rows={rows.map((r) => [r.row.invoice.invoiceNo, r.row.invoice.invoiceDate, r.row.organisationName, r.row.projectName, r.age, r.bucket, r.row.invoice.dueDate, r.row.daysOverdue, r.row.invoice.netReceivable, r.row.outstanding, r.row.daysOverdue > 0 ? "Overdue" : r.row.invoice.paymentStatus])}
+      />
       <DataTable
+        getRowTone={(r) => invoiceTone(r.row)}
         caption="Outstanding invoices"
         columns={columns}
         rows={rows}
