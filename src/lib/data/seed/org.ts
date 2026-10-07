@@ -1,3 +1,4 @@
+import { makeGstin } from "@/lib/gst-validation";
 import type { PermissionAction, PermissionScope } from "@/types";
 import { meta, RegionKey, StateOf, type RegionKeyName, type SeedCtx } from "./helpers";
 
@@ -171,7 +172,7 @@ export const userId = (key: string) => `usr_${key}`;
 export const employeeIdOfUser = (key: string) => `emp_${key}`;
 export const roleId = (key: string) => `role_${key}`;
 
-/** Customer organisations. `pan` is used to build the customer GSTIN on invoices (demo values). */
+/** Customer organisations. `pan` plus the state code gives each organisation's GSTIN (demo values with a valid checksum). */
 export const ORGANISATIONS = [
   { id: "org_ntpc", name: "NTPC Limited", short: "NTPC", state: "st_dl", pan: "AAACN0255D" },
   { id: "org_cspgcl", name: "Chhattisgarh State Power Generation Company Ltd.", short: "CSPGCL", state: "st_cg", pan: "AAFCC9140M" },
@@ -221,11 +222,12 @@ export function seedOrg({ db }: SeedCtx) {
   );
 
   // One GSTIN per operating office state. Other plant states are served from the nearest registration (IGST).
+  const gstinOf = (stateId: string) => makeGstin(GST_STATE_CODE[stateId], COMPANY.pan);
   const gst = [
-    { id: "gst_mh", gstin: "27AAECS4128K1ZP", state: "st_mh", addr: "Registered Office, Mumbai, Maharashtra" },
-    { id: "gst_tn", gstin: "33AAECS4128K1ZM", state: "st_tn", addr: "Branch Office, Chennai, Tamil Nadu" },
-    { id: "gst_dl", gstin: "07AAECS4128K1ZT", state: "st_dl", addr: "Delhi Regional Office, New Delhi" },
-    { id: "gst_cg", gstin: "22AAECS4128K1ZK", state: "st_cg", addr: "Korba Site Office, Korba, Chhattisgarh" },
+    { id: "gst_mh", gstin: gstinOf("st_mh"), state: "st_mh", addr: "Registered Office, Mumbai, Maharashtra" },
+    { id: "gst_tn", gstin: gstinOf("st_tn"), state: "st_tn", addr: "Branch Office, Chennai, Tamil Nadu" },
+    { id: "gst_dl", gstin: gstinOf("st_dl"), state: "st_dl", addr: "Delhi Regional Office, New Delhi" },
+    { id: "gst_cg", gstin: gstinOf("st_cg"), state: "st_cg", addr: "Korba Site Office, Korba, Chhattisgarh" },
   ];
   gst.forEach((g) =>
     db.gstRegistrations.push({
@@ -240,7 +242,7 @@ export function seedOrg({ db }: SeedCtx) {
   );
 
   ORGANISATIONS.forEach((o) =>
-    db.organisations.push({ ...meta(o.id), name: o.name, shortName: o.short, gstin: null, address: null, stateId: o.state, parentId: null }),
+    db.organisations.push({ ...meta(o.id), name: o.name, shortName: o.short, gstin: makeGstin(GST_STATE_CODE[o.state], o.pan), address: null, stateId: o.state, parentId: null }),
   );
 
   ROLE_SPECS.forEach((r) =>

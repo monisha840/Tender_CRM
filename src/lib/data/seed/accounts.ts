@@ -1,8 +1,10 @@
 import { addDays, DEMO_TODAY } from "@/lib/dates";
-import { addMoney, percentOf, subMoney, sumMoney } from "@/lib/money";
+import { makeGstin } from "@/lib/gst-validation";
+import { addMoney, moneyToNumber, percentOf, splitGst, splitTaxAmount, subMoney, sumMoney } from "@/lib/money";
+import { fyCode, invoiceSeriesPrefix } from "@/modules/finance/numbering";
 import type { GstFilingStatus, InvoicePaymentStatus, InvoiceType, IsoDate, Money } from "@/types";
 import { SITES } from "./catalog";
-import { at, dayOffset, financialYear, meta, pad, rupees, type SeedCtx } from "./helpers";
+import { at, dayOffset, meta, pad, rupees, type SeedCtx } from "./helpers";
 import { GST_STATE_CODE, ORG_PAN } from "./org";
 import { actualRupees, budgetRupees, CATEGORIES, contractRupees, monthsElapsed, splitRupees, type CategoryId } from "./plan";
 import type { ProjectInfo } from "./projects";
@@ -13,11 +15,9 @@ const GST_SHORT: Record<string, string> = { gst_cg: "CG", gst_mh: "MH", gst_tn: 
 /** Projects whose older invoices are still unpaid, to produce overdue receivables. */
 const UNPAID_OLDER = ["p2_cspgcl_paint", "p6_ntpc_steel"];
 
-/** Demo customer GSTIN for a plant state: state code + organisation PAN + entity, Z and a check letter. */
+/** Demo customer GSTIN for a plant state: state code + organisation PAN + entity, Z and the correct check character. */
 function customerGstin(stateId: string, orgId: string): string {
-  const body = `${GST_STATE_CODE[stateId]}${ORG_PAN[orgId]}1Z`;
-  const check = String.fromCharCode(65 + (body.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 26));
-  return body + check;
+  return makeGstin(GST_STATE_CODE[stateId], ORG_PAN[orgId]);
 }
 
 /** First 11th of the month after `date` (GSTR-1 style statutory filing due date). */
@@ -58,9 +58,9 @@ export function seedAccounts(ctx: SeedCtx, projects: ProjectInfo[]) {
       return d > cap ? cap : d;
     };
     (["ec_labour", "ec_equipment", "ec_overheads"] as CategoryId[]).forEach((cat) => {
-      const already = db.costEntries
-        .filter((c) => c.projectId === proj.id && c.expenseCategoryId === cat && c.kind === "ACTUAL")
-        .reduce((a, c) => a + Number(c.amount), 0);
+      const already = moneyToNumber(
+        sumMoney(db.costEntries.filter((c) => c.projectId === proj.id && c.expenseCategoryId === cat && c.kind === "ACTUAL").map((c) => c.amount)),
+      );
       const remaining = Math.round(actualRupees(proj, cat) - already);
       if (remaining <= 0) return;
       splitRupees(remaining, months, rng.next, 0.3).forEach((amt, k) =>
@@ -109,21 +109,17 @@ export function seedAccounts(ctx: SeedCtx, projects: ProjectInfo[]) {
 
   drafts.forEach((d) => {
     const proj = d.project;
-    const fy = financialYear(d.invoiceDate);
-    const ck = `${proj.gstId}:${fy}`;
+    // One series per GSTIN per financial year, at most 16 characters: SPH/MH/2627/0001.
+    const ck = `${proj.gstId}:${fyCode(d.invoiceDate)}`;
     const seq = (counters.get(ck) ?? 0) + 1;
     counters.set(ck, seq);
-    const invoiceNo = `SPH/${GST_SHORT[proj.gstId]}/${fy}/${pad(seq, 4)}`;
+    const invoiceNo = `${invoiceSeriesPrefix(GST_SHORT[proj.gstId], d.invoiceDate)}${pad(seq, 4)}`;
     const id = `inv_${proj.key}_${d.index + 1}`;
 
     const taxable = rupees(d.taxable);
-    const gst = percentOf(taxable, 18);
     const placeOfSupply = siteState.get(proj.siteId)!;
     const intra = GST_STATE[proj.gstId] === placeOfSupply;
-    const half = percentOf(gst, 50);
-    const cgst = intra ? half : "0.00";
-    const sgst = intra ? subMoney(gst, half) : "0.00";
-    const igst = intra ? "0.00" : gst;
+    const { tax: gst, cgst, sgst, igst } = splitGst(taxable, 18, intra);
     const total = addMoney(taxable, gst);
 
     const spec = db.projects.find((p) => p.id === proj.id)!;
@@ -185,11 +181,11 @@ export function seedAccounts(ctx: SeedCtx, projects: ProjectInfo[]) {
     });
     if (received !== "0.00") {
       const tds = percentOf(taxable, 2);
-      const tdsHalf = percentOf(tds, 50);
+      const tdsSplit = splitTaxAmount(tds, intra);
       db.gstTransactions.push({
         ...meta(`gst_tds_${proj.key}_${d.index + 1}`), gstRegistrationId: proj.gstId, direction: "TDS_RECEIVED", sourceType: "INVOICE", sourceId: id, partyName: org.name,
         partyGstin: customerGstin(placeOfSupply, proj.organisationId), invoiceNo, invoiceDate: d.invoiceDate, period: d.invoiceDate.slice(0, 7), taxableValue: taxable,
-        cgst: intra ? tdsHalf : "0.00", sgst: intra ? subMoney(tds, tdsHalf) : "0.00", igst: intra ? "0.00" : tds, itcEligible: false, rate: "2.0000",
+        ...tdsSplit, itcEligible: false, rate: "2.0000",
       });
     }
   });

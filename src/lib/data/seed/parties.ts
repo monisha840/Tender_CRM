@@ -1,10 +1,11 @@
 import { addDays, daysBetween } from "@/lib/dates";
-import { addMoney, percentOf, subMoney, sumMoney } from "@/lib/money";
+import { gstinStateCode, withValidCheckChar } from "@/lib/gst-validation";
+import { addMoney, moneyToNumber, percentOf, splitGst, sumMoney, subMoney } from "@/lib/money";
 import type { BillStatus, Money } from "@/types";
 import { addApproval } from "./approvals";
 import { at, dayOffset, meta, pad, rupees, StateOf, type RegionKeyName, type SeedCtx } from "./helpers";
 import { docTypeId } from "./masters";
-import { userId } from "./org";
+import { GST_STATE_CODE, userId } from "./org";
 import { monthsElapsed } from "./plan";
 import type { ProjectInfo } from "./projects";
 import { SUBS, WORK_ORDERS, woCategory } from "./workorders";
@@ -21,7 +22,7 @@ export interface VendorSeed {
   trade: string;
 }
 
-export const VENDORS: VendorSeed[] = [
+const VENDOR_ROWS: VendorSeed[] = [
   { id: "1", name: "Coastal Paints & Coatings Pvt. Ltd.", region: "south", city: "Chennai", pan: "AAFCC6610J", gstin: "33AAFCC6610J1ZM", contact: "Vijayakumar R", phone: "98410 33011", trade: "Industrial paints and coatings" },
   { id: "2", name: "Raipur Industrial Coatings", region: "cg", city: "Raipur", pan: "AABFR9087G", gstin: "22AABFR9087G1Z2", contact: "Harish Khatri", phone: "98270 44120", trade: "Paints, grit and abrasives" },
   { id: "3", name: "Jindal Steel Traders", region: "cg", city: "Korba", pan: "AADFJ4410M", gstin: "22AADFJ4410M1ZC", contact: "Naveen Jindal", phone: "98930 12288", trade: "Structural steel and plates" },
@@ -31,14 +32,19 @@ export const VENDORS: VendorSeed[] = [
   { id: "7", name: "Chennai Scaffold Systems", region: "south", city: "Chennai", pan: "AAGFC2290D", gstin: "33AAGFC2290D1ZB", contact: "Palani S", phone: "98410 33012", trade: "Scaffolding tubes and fittings" },
 ];
 
+/** Seed GSTINs are demo values; the last character is recomputed so every one passes the checksum. */
+export const VENDORS: VendorSeed[] = VENDOR_ROWS.map((v) => ({ ...v, gstin: withValidCheckChar(v.gstin) }));
+
 const REGION_CODE: Record<RegionKeyName, string> = { cg: "CG", mh: "MH", south: "SO", delhi: "DL" };
+
+const validGstin = withValidCheckChar;
 
 export function seedParties(ctx: SeedCtx, projects: ProjectInfo[]) {
   const { db, rng } = ctx;
 
   SUBS.forEach((s) => {
     db.parties.push({
-      ...meta(`party_sub_${s.id}`), name: s.name, gstin: s.gstin, pan: s.pan, address: `${s.city}`, stateId: s.state, contactName: s.contact, phone: s.phone, email: null, isActive: true,
+      ...meta(`party_sub_${s.id}`), name: s.name, gstin: validGstin(s.gstin), pan: s.pan, address: `${s.city}`, stateId: s.state, contactName: s.contact, phone: s.phone, email: null, isActive: true,
     });
     db.subcontractors.push({ ...meta(`sub_${s.id}`), partyId: `party_sub_${s.id}`, tradeCategory: s.trade, isLabourSupplier: !!s.labour, status: "ACTIVE" });
   });
@@ -81,7 +87,10 @@ export function seedParties(ctx: SeedCtx, projects: ProjectInfo[]) {
       const periodTo = addDays(billDate, -3);
       const status: BillStatus = completed ? "PAID" : fromNewest === 0 ? w.lastBill : fromNewest === 1 && w.id === "2" ? "PARTLY_PAID" : "PAID";
       const grossM: Money = rupees(gross);
-      const gst = percentOf(grossM, 18);
+      // Inward supply: CGST + SGST when the subcontractor's GSTIN is in the same state as the GSTIN we record the bill under, else IGST.
+      const ourStateCode = GST_STATE_CODE[db.gstRegistrations.find((g) => g.id === proj.gstId)!.stateId];
+      const intra = gstinStateCode(validGstin(sub.gstin)) === ourStateCode;
+      const { tax: gst, cgst, sgst, igst } = splitGst(grossM, 18, intra);
       const labour = woCategory(w.trade) === "ec_labour";
       const deductions: { type: string; amount: Money; remarks?: string }[] = [{ type: "ded_tds_it", amount: percentOf(grossM, 2) }];
       if (!labour) deductions.unshift({ type: "ded_retention", amount: percentOf(grossM, 5) });
@@ -124,16 +133,14 @@ export function seedParties(ctx: SeedCtx, projects: ProjectInfo[]) {
         ...meta(`ce_sb_${w.id}_${i + 1}`), projectId: proj.id, siteId: proj.siteId, regionId: proj.regionId, expenseCategoryId: woCategory(w.trade), kind: "ACTUAL",
         sourceType: "SUBCONTRACTOR_BILL", sourceId: billId, amount: grossM, date: billDate,
       });
-      const half = percentOf(gst, 50);
-      const inter = sub.state !== proj.stateId;
       db.gstTransactions.push({
-        ...meta(`gst_sb_${w.id}_${i + 1}`), gstRegistrationId: proj.gstId, direction: "INWARD", sourceType: "SUBCONTRACTOR_BILL", sourceId: billId, partyName: sub.name, partyGstin: sub.gstin,
-        invoiceNo: billNo, invoiceDate: billDate, period: billDate.slice(0, 7), taxableValue: grossM, cgst: inter ? "0.00" : half, sgst: inter ? "0.00" : subMoney(gst, half), igst: inter ? gst : "0.00",
+        ...meta(`gst_sb_${w.id}_${i + 1}`), gstRegistrationId: proj.gstId, direction: "INWARD", sourceType: "SUBCONTRACTOR_BILL", sourceId: billId, partyName: sub.name, partyGstin: validGstin(sub.gstin),
+        invoiceNo: billNo, invoiceDate: billDate, period: billDate.slice(0, 7), taxableValue: grossM, cgst, sgst, igst,
         itcEligible: true, rate: "18.0000",
       });
     }
 
-    const billedGross = db.subcontractorBills.filter((b) => b.workOrderId === woId).reduce((acc, b) => acc + Number(b.grossAmount), 0);
+    const billedGross = moneyToNumber(sumMoney(db.subcontractorBills.filter((b) => b.workOrderId === woId).map((b) => b.grossAmount)));
     db.costEntries.push({
       ...meta(`ce_wo_${w.id}`), projectId: proj.id, siteId: proj.siteId, regionId: proj.regionId, expenseCategoryId: woCategory(w.trade), kind: "COMMITTED",
       sourceType: "WORK_ORDER", sourceId: woId, amount: rupees(Math.max(0, Math.round(w.valueRupees - billedGross))), date: start,

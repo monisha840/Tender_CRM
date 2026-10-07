@@ -116,9 +116,6 @@ describe("money: formatINR", () => {
     expect(formatINRAxis(2500)).toBe("₹2.5 K");
     expect(formatINRAxis(-100_000)).toBe("-₹1 L");
   });
-  // B19
-  it.todo("B19: toPaise/formatINR must not throw on malformed input such as 'abc' or '1e5' (should return null/'—' or a validation error)");
-  it.todo("B19: compact format rounds before picking the unit, so ₹99,99,999.99 shows '₹1.00 Cr' not '₹100.00 L'");
   it.todo("B20: money comparisons use paise (cmpMoney), not Number(), and outstanding is clamped at zero");
 });
 
@@ -217,12 +214,10 @@ describe("finance: parseMoney, filing due date, invoice numbers", () => {
   });
   it("suggestInvoiceNo starts an FY series when the GSTIN has no invoices", () => {
     const empty: Database = { ...db, invoices: [] };
-    expect(suggestInvoiceNo(empty, "reg_x", "2026-10-07")).toBe("SPH/26-27/0001");
-    expect(suggestInvoiceNo(empty, "reg_x", "2026-02-10")).toBe("SPH/25-26/0001");
+    const reg = db.gstRegistrations.find((g) => g.id === "gst_mh")!;
+    expect(suggestInvoiceNo(empty, reg.id, "2026-10-07")).toBe("SPH/MH/2627/0001");
+    expect(suggestInvoiceNo(empty, reg.id, "2026-02-10")).toBe("SPH/MH/2526/0001");
   });
-  it.todo("B4: invoice numbers are at most 16 characters (GST rule 46)");
-  it.todo("B4: 'latest' invoice number is chosen numerically, so …/0999 is followed by …/1000");
-  it.todo("B4: the invoice series restarts at 0001 on 1 April");
 });
 
 /** An invoice entry for the first project that has a site, billed from the given GSTIN. */
@@ -247,14 +242,18 @@ function entryFor(regId: string, over: Partial<InvoiceEntry> = {}): InvoiceEntry
 
 describe("finance: buildInvoice GST split", () => {
   const project = () => db.projects.find((p) => !p.deletedAt)!;
-  const placeOfSupply = () => db.sites.find((s) => s.id === project().siteId)?.stateId ?? db.organisations.find((o) => o.id === project().organisationId)!.stateId;
-  const sameStateReg = () => db.gstRegistrations.find((g) => g.stateId === placeOfSupply());
-  const otherStateReg = () => db.gstRegistrations.find((g) => g.stateId !== placeOfSupply())!;
+  // B6: an invoice is raised from the project's own GSTIN, so inter-/intra-state is picked by choosing a project.
+  const supplyState = (p: (typeof db.projects)[number]) => db.sites.find((s) => s.id === p.siteId)?.stateId ?? db.organisations.find((o) => o.id === p.organisationId)!.stateId;
+  const regOf = (p: (typeof db.projects)[number]) => db.gstRegistrations.find((g) => g.id === p.gstRegistrationId)!;
+  const interProject = () => db.projects.find((p) => !p.deletedAt && regOf(p).stateId !== supplyState(p))!;
+  const intraProject = () => db.projects.find((p) => !p.deletedAt && regOf(p).stateId === supplyState(p));
+  const entryOf = (p: (typeof db.projects)[number], over: Partial<InvoiceEntry> = {}) => entryFor(p.gstRegistrationId, { projectId: p.id, organisationId: p.organisationId, ...over });
+  const interEntry = (over: Partial<InvoiceEntry> = {}) => entryOf(interProject(), over);
 
   it("intra-state: CGST + SGST, no IGST, and taxable + tax = total", () => {
-    const reg = sameStateReg();
-    if (!reg) return; // seed has no GSTIN in the first project's state; the inter-state case below still runs
-    const r = buildInvoice(db, entryFor(reg.id));
+    const p = intraProject();
+    if (!p) return; // seed has no intra-state project; the inter-state case below still runs
+    const r = buildInvoice(db, entryOf(p));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     const { invoice } = r;
@@ -265,7 +264,7 @@ describe("finance: buildInvoice GST split", () => {
     expect(sumMoney([invoice.taxableValue, invoice.cgst, invoice.sgst, invoice.igst])).toBe(invoice.total);
   });
   it("inter-state: IGST only", () => {
-    const r = buildInvoice(db, entryFor(otherStateReg().id));
+    const r = buildInvoice(db, interEntry());
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.invoice.igst).toBe("18000.00");
@@ -274,7 +273,7 @@ describe("finance: buildInvoice GST split", () => {
     expect(r.invoice.total).toBe("118000.00");
   });
   it("net receivable = total - deductions, and a deduction row is written", () => {
-    const r = buildInvoice(db, entryFor(otherStateReg().id, { deductions: "2,360.00" }));
+    const r = buildInvoice(db, interEntry({ deductions: "2,360.00" }));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.invoice.totalDeductions).toBe("2360.00");
@@ -283,51 +282,42 @@ describe("finance: buildInvoice GST split", () => {
     expect(r.deductions[0].amount).toBe("2360.00");
   });
   it("due date = invoice date + project payment terms; filing due on the 11th", () => {
-    const r = buildInvoice(db, entryFor(otherStateReg().id));
+    const r = buildInvoice(db, interEntry());
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.invoice.dueDate).toBe(addDays("2026-10-07", project().paymentTermsDays));
+    expect(r.invoice.dueDate).toBe(addDays("2026-10-07", interProject().paymentTermsDays));
     expect(r.invoice.gstFilingDueDate).toBe("2026-11-11");
     expect(r.invoice.paymentStatus).toBe("UNPAID");
     expect(r.invoice.gstFilingStatus).toBe("PENDING");
   });
   it("mirrors the split into the OUTWARD GST transaction", () => {
-    const r = buildInvoice(db, entryFor(otherStateReg().id));
+    const r = buildInvoice(db, interEntry());
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.gstTransaction).toMatchObject({ direction: "OUTWARD", taxableValue: "100000.00", igst: "18000.00", period: "2026-10", rate: "18.0000" });
   });
   it("defaults the GST rate to 18 when blank", () => {
-    const r = buildInvoice(db, entryFor(otherStateReg().id, { gstPercent: "" }));
+    const r = buildInvoice(db, interEntry({ gstPercent: "" }));
     expect(r.ok && r.invoice.igst).toBe("18000.00");
   });
   it("rejects duplicates, zero value, deductions above total, bad dates and bad periods", () => {
-    const reg = otherStateReg().id;
+    const reg = interProject().gstRegistrationId;
     const existing = db.invoices.find((i) => i.gstRegistrationId === reg && !i.deletedAt);
-    if (existing) expect(buildInvoice(db, entryFor(reg, { invoiceNo: existing.invoiceNo.toLowerCase() }))).toMatchObject({ ok: false });
-    expect(buildInvoice(db, entryFor(reg), [`${reg}|test/0001`])).toMatchObject({ ok: false });
-    expect(buildInvoice(db, entryFor(reg, { taxableValue: "0" }))).toMatchObject({ ok: false });
-    expect(buildInvoice(db, entryFor(reg, { deductions: "999999999" }))).toMatchObject({ ok: false });
-    expect(buildInvoice(db, entryFor(reg, { invoiceDate: "07-10-2026" }))).toMatchObject({ ok: false });
-    expect(buildInvoice(db, entryFor(reg, { periodFrom: "2026-09-30", periodTo: "2026-09-01" }))).toMatchObject({ ok: false });
-    expect(buildInvoice(db, entryFor(reg, { gstPercent: "41" }))).toMatchObject({ ok: false });
-    expect(buildInvoice(db, entryFor("nope"))).toMatchObject({ ok: false });
+    if (existing) expect(buildInvoice(db, interEntry({ invoiceNo: existing.invoiceNo.toLowerCase() }))).toMatchObject({ ok: false });
+    expect(buildInvoice(db, interEntry(), [`${reg}|test/0001`])).toMatchObject({ ok: false });
+    expect(buildInvoice(db, interEntry({ taxableValue: "0" }))).toMatchObject({ ok: false });
+    expect(buildInvoice(db, interEntry({ deductions: "999999999" }))).toMatchObject({ ok: false });
+    expect(buildInvoice(db, interEntry({ invoiceDate: "07/10/26" }))).toMatchObject({ ok: false });
+    expect(buildInvoice(db, interEntry({ periodFrom: "2026-09-30", periodTo: "2026-09-01" }))).toMatchObject({ ok: false });
+    expect(buildInvoice(db, interEntry({ gstPercent: "41" }))).toMatchObject({ ok: false });
+    expect(buildInvoice(db, interEntry({ gstRegistrationId: "nope" }))).toMatchObject({ ok: false });
   });
   it("rejects a project that belongs to another customer", () => {
     const other = db.organisations.find((o) => o.id !== project().organisationId)!;
-    expect(buildInvoice(db, entryFor(otherStateReg().id, { organisationId: other.id }))).toMatchObject({ ok: false });
+    expect(buildInvoice(db, interEntry({ organisationId: other.id }))).toMatchObject({ ok: false });
   });
 
-  // Documented current behaviour of known bugs; flip these when the fixing agent lands.
-  it("B1 (current behaviour): customer GSTIN falls back to 'UNREGISTERED' when the organisation has none", () => {
-    const r = buildInvoice(db, entryFor(otherStateReg().id));
-    expect(r.ok && r.invoice.customerGstin).toBe(db.organisations.find((o) => o.id === project().organisationId)!.gstin ?? "UNREGISTERED");
-  });
-  it.todo("B1: a customer GSTIN is mandatory for B2B invoices; never save 'UNREGISTERED' silently");
-  it.todo("B5: invoice date 2026-02-30 is rejected; DD-MM-YYYY is accepted consistently with the other importers");
-  it.todo("B6/G1: the GSTIN defaults to the project's GSTIN and its state code must match its stateId");
-  it.todo("B7: a GST-TDS or retention deduction also creates a retention entry / TDS_RECEIVED GST transaction");
-  it.todo("B18: CGST and SGST are always equal (odd-paisa tax is not split 0.01 / 0.00)");
+  // Fixed bugs B1, B4-B7, B17-B19 are covered in finance-*.test.ts; the rest below stay open.
   it.todo("G2: GST % must be one of the statutory slabs, not any number 0–40");
   it.todo("G3: deductions are capped per type and TDS is checked against the expected 2%");
 });

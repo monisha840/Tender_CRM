@@ -1,5 +1,6 @@
 import { byId } from "@/lib/data/shared";
 import { getToday } from "@/lib/dates";
+import { gstinError, gstinPan, gstinStateCode, isValidPan } from "@/lib/gst-validation";
 import type { Database, Party, Subcontractor, SubcontractorStatus, SubcontractorWorkOrder } from "@/types";
 import { canonicalise, findRow, newId, parseDate, parseMoney, parsePercent, parseYesNo } from "../work-entry-utils";
 
@@ -22,8 +23,30 @@ export const SUBCONTRACTOR_STATUSES: { value: SubcontractorStatus; label: string
   { value: "BLACKLISTED", label: "Blacklisted" },
 ];
 
-const PAN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
-const GSTIN = /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+/**
+ * Looks for an existing subcontractor with the same GSTIN, or the same PAN (a PAN may repeat only when both records carry GSTINs of different states).
+ * `taken` holds keys added earlier in the same import: lower-case names, "gstin:<GSTIN>" and "pan:<PAN>|<state code or empty>".
+ */
+function duplicateRegistration(db: Database, taken: ReadonlySet<string>, pan: string, gstin: string): string | null {
+  const state = gstin ? gstinStateCode(gstin) : "";
+  const existing = db.subcontractors
+    .filter((s) => !s.deletedAt)
+    .map((s) => byId(db.parties, s.partyId))
+    .filter((p): p is Party => !!p && !p.deletedAt);
+  if (gstin) {
+    const hit = existing.find((p) => p.gstin?.toUpperCase() === gstin);
+    if (hit) return `GSTIN ${gstin} already belongs to '${hit.name}'`;
+    if (taken.has(`gstin:${gstin}`)) return `GSTIN ${gstin} appears twice in this file`;
+  }
+  const samePan = (otherPan: string, otherState: string) => otherPan === pan && (!state || !otherState || state === otherState);
+  const hit = existing.find((p) => samePan((p.pan ?? "").toUpperCase(), p.gstin ? gstinStateCode(p.gstin) : ""));
+  if (hit) return `PAN ${pan} already belongs to '${hit.name}'`;
+  for (const k of taken) {
+    const m = /^pan:([^|]+)\|(.*)$/.exec(k);
+    if (m && samePan(m[1], m[2])) return `PAN ${pan} appears twice in this file`;
+  }
+  return null;
+}
 
 export type SubcontractorResult = { party: Party; subcontractor: Subcontractor; error: null } | { party?: undefined; subcontractor?: undefined; error: string };
 
@@ -38,11 +61,18 @@ export function buildSubcontractor(db: Database, input: Record<string, string>, 
   if (!/^[+\d][\d\s-]{6,}$/.test(v.phone)) return { error: `Phone '${v.phone}' is not valid` };
   if (v.email && !/^\S+@\S+\.\S+$/.test(v.email)) return { error: `Email '${v.email}' is not valid` };
   const pan = (v.pan ?? "").toUpperCase();
-  if (!PAN.test(pan)) return { error: "PAN must look like ABCDE1234F" };
+  if (!isValidPan(pan)) return { error: "PAN must look like ABCDE1234F (4th letter is the holder type, e.g. C company, F firm, P person)" };
   const gstin = (v.gstin ?? "").toUpperCase();
-  if (gstin && !GSTIN.test(gstin)) return { error: `GSTIN '${v.gstin}' is not valid` };
+  if (gstin) {
+    const err = gstinError(gstin);
+    if (err) return { error: `GSTIN '${v.gstin}': ${err}` };
+    if (gstinPan(gstin) !== pan) return { error: `GSTIN '${gstin}' contains PAN ${gstinPan(gstin)}, which differs from the PAN ${pan}` };
+  }
   const state = findRow(db.states, v.state ?? "", (s) => s.name) ?? findRow(db.states, v.state ?? "", (s) => s.code);
   if (!state) return { error: v.state ? `State '${v.state}' not found` : "State is required" };
+  if (gstin && gstinStateCode(gstin) !== state.gstStateCode) return { error: `GSTIN state code ${gstinStateCode(gstin)} does not match the state '${state.name}' (${state.gstStateCode})` };
+  const dup = duplicateRegistration(db, taken, pan, gstin);
+  if (dup) return { error: dup };
   if (!v.tradeCategory) return { error: "Trade category is required" };
   const labour = parseYesNo(v.isLabourSupplier ?? "");
   if (labour === undefined) return { error: `Labour supplier '${v.isLabourSupplier}' must be Yes or No` };
@@ -68,6 +98,8 @@ export function buildSubcontractors(db: Database, records: Record<string, string
     if (r.error !== null) errors.push(`Row ${i + 2}: ${r.error}`);
     else {
       taken.add(r.party.name.toLowerCase());
+      if (r.party.gstin) taken.add(`gstin:${r.party.gstin}`);
+      taken.add(`pan:${r.party.pan}|${r.party.gstin ? gstinStateCode(r.party.gstin) : ""}`);
       parties.push(r.party);
       subcontractors.push(r.subcontractor);
     }
