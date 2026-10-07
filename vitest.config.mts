@@ -12,6 +12,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // DB integration tests share one dev database and some compare whole-table counts, so run test files one at a time.
+    fileParallelism: false,
     include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
     exclude: ["node_modules/**", "tests/e2e/**"],
     setupFiles: ["tests/setup/setup.ts"],
