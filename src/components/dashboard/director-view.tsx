@@ -1,6 +1,7 @@
 "use client";
 
 import type { Dashboard, RegionFilter } from "@/lib/data";
+import { PHASE67_ENABLED } from "@/lib/features";
 import { CommandCentre } from "./command-centre";
 import { GstFilingChart, ProjectProgressChart, ReceivablesAgeingChart, RevenueExpensesChart, ServiceLineValueChart, TenderFunnelChart, WonLostChart } from "./charts";
 import { KpiGrid } from "./kpi-grid";
@@ -33,14 +34,16 @@ export function DirectorView({ dashboard, manpower, region }: ViewProps) {
           <ServiceLineValueChart data={dashboard.projectValue} />
         </div>
       </div>
-      <div>
-        <SectionTitle>Money and compliance</SectionTitle>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <RevenueExpensesChart data={dashboard.revenueExpenses} />
-          <ReceivablesAgeingChart data={dashboard.receivables} />
-          <GstFilingChart data={dashboard.gst} />
+      {PHASE67_ENABLED && (
+        <div>
+          <SectionTitle>Money and compliance</SectionTitle>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <RevenueExpensesChart data={dashboard.revenueExpenses} />
+            <ReceivablesAgeingChart data={dashboard.receivables} />
+            <GstFilingChart data={dashboard.gst} />
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }

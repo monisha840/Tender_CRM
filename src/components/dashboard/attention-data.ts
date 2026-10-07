@@ -1,5 +1,6 @@
 import { canView, getPendingApprovalsFor, getSalaryPending, getUpcomingTenderDeadlines, listReceivables, type RegionFilter } from "@/lib/data";
 import { inRegion } from "@/lib/data/shared";
+import { isModuleEnabled } from "@/lib/features";
 import { moneyToNumber } from "@/lib/money";
 import type { Database, Id } from "@/types";
 
@@ -32,11 +33,11 @@ export function getAttention(db: Database, userId: Id, region: RegionFilter, hor
   return {
     deadlines: canView(db, userId, "tenders") ? getUpcomingTenderDeadlines(db, region, horizonDays) : null,
     approvals: canView(db, userId, "approvals") ? getPendingApprovalsFor(db, userId).filter((a) => inRegion(region, a.request.regionId)) : null,
-    overdue: canView(db, userId, "finance")
+    overdue: isModuleEnabled("finance") && canView(db, userId, "finance")
       ? listReceivables(db, region)
           .filter((r) => r.daysOverdue > 0)
           .sort((a, b) => moneyToNumber(b.outstanding) - moneyToNumber(a.outstanding))
       : null,
-    salary: canView(db, userId, "employees") ? getSalaryPending(db, region) : null,
+    salary: isModuleEnabled("employees") && canView(db, userId, "employees") ? getSalaryPending(db, region) : null,
   };
 }

@@ -7,6 +7,7 @@ import { DeadlineBadge } from "@/components/shared/status-badge";
 import { entityHref, type Dashboard, type RegionFilter } from "@/lib/data";
 import { addDays, dayOfWeek, getToday, relativeDeadline, toIstDate } from "@/lib/dates";
 import { formatINR, moneyToNumber } from "@/lib/money";
+import { PHASE67_ENABLED } from "@/lib/features";
 import { cn } from "@/lib/utils";
 import { useCurrentPersona } from "@/store/hooks";
 import { useAsOfDb } from "@/components/layout/use-as-of-db";
@@ -110,7 +111,7 @@ function Briefing({ dashboard, queue }: { dashboard: Dashboard; queue: ReturnTyp
   const bits: ReactNode[] = [];
   if (count("tenders")) bits.push(<Link key="t" href={ATTENTION_HREF.deadlines} className={LINK}>{count("tenders")} bid{count("tenders") === 1 ? "" : "s"} close this week</Link>);
   if (count("approvals")) bits.push(<Link key="a" href={ATTENTION_HREF.approvals} className={LINK}>{count("approvals")} approval{count("approvals") === 1 ? " is" : "s are"} waiting for you</Link>);
-  if (overdue > 0) bits.push(<Link key="r" href={ATTENTION_HREF.receivables} className={LINK}>{cr(overdue)} is overdue from customers</Link>);
+  if (PHASE67_ENABLED && overdue > 0) bits.push(<Link key="r" href={ATTENTION_HREF.receivables} className={LINK}>{cr(overdue)} is overdue from customers</Link>);
 
   return (
     <section aria-label="Today's briefing" className="rounded-lg border bg-surface">
@@ -137,8 +138,8 @@ function Briefing({ dashboard, queue }: { dashboard: Dashboard; queue: ReturnTyp
         <div className="grid grid-cols-2 gap-1">
           <Ring pct={dashboard.wonLost.winRate} label="Win rate" caption={`${dashboard.wonLost.won} won · ${dashboard.wonLost.lost} lost`} href="/tenders?result=decided" />
           <Ring pct={pctOf(health.byHealth.GREEN, health.count)} label="Projects on track" caption={`${health.byHealth.RED} delayed · ${health.byHealth.AMBER} at risk`} href="/projects" />
-          <Ring pct={pctOf(total - overdue, total)} label="Collections healthy" caption={`${recv.overdueCount} overdue invoices`} href="/finance?view=receivables" />
-          <Ring pct={pctOf(gst.filed, gst.filed + gst.pending)} label="GST filed" caption={`${gst.pending} due · ${gst.overdue} overdue`} href="/finance?view=gst" />
+          {PHASE67_ENABLED && <Ring pct={pctOf(total - overdue, total)} label="Collections healthy" caption={`${recv.overdueCount} overdue invoices`} href="/finance?view=receivables" />}
+          {PHASE67_ENABLED && <Ring pct={pctOf(gst.filed, gst.filed + gst.pending)} label="GST filed" caption={`${gst.pending} due · ${gst.overdue} overdue`} href="/finance?view=gst" />}
         </div>
       </div>
     </section>
