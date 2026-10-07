@@ -11,10 +11,17 @@
     "contrast:check": "tsx scripts/check-contrast.ts",
     "seed:check": "tsx scripts/check-seed.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:generate": "dotenv -e .env.local -- prisma generate",
+    "db:migrate": "dotenv -e .env.local -- prisma migrate dev",
+    "db:deploy": "dotenv -e .env.local -- prisma migrate deploy",
+    "db:seed": "dotenv -e .env.local -- prisma db seed",
+    "db:studio": "dotenv -e .env.local -- prisma studio"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cn": "^0.4.0",
@@ -33,6 +40,7 @@
     "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "shadcn": "^4.21.4",

@@ -20,14 +20,14 @@ Guidance for Claude Code when working in this repository.
 ## Tech Stack
 
 - **Next.js (App Router) + TypeScript** (strict mode) — UI and API in one app
-- **PostgreSQL + Prisma** — database and migrations
-- **Auth.js** — authentication; authorisation is our own role/permission tables
+- **Supabase Postgres + Prisma** — database; schema, migrations and **all queries** go through Prisma over the direct Postgres connection (`DATABASE_URL`), server-side only. Every write runs in one `prisma.$transaction` together with its audit entry
+- **Supabase Auth** — authentication only; `@supabase/supabase-js`/`@supabase/ssr` (clients in `src/lib/supabase/`) are used **only for Auth and Storage**, never for data queries. Authorisation is our own role/permission tables (plus RLS)
 - **Tailwind CSS + shadcn/ui** — UI components, themed with the design tokens below
 - **Recharts** (via shadcn/ui charts) — graphs and charts
 - **lucide-react** — icons (thin, consistent stroke)
 - **Inter** (via `next/font`) — primary font
 - **Zod** — validation for every API input and form
-- **S3-compatible storage** — tender documents, site photos
+- **Supabase Storage** — tender documents, site photos
 - **Background jobs** — reminders/notifications (scheduler to be chosen in Phase 0)
 - **Vitest** (unit/integration) + **Playwright** (critical flows, including mobile viewports)
 - **PWA** — site-staff screens installable on phones
@@ -45,8 +45,8 @@ npm run seed:check   # ✔ audit the mock seed against the client's field lists 
 npm run contrast:check # ✔ WCAG AA check of every design-token colour pair (uses npx tsx)
 npm test             # vitest
 npm run test:e2e     # playwright (desktop + mobile projects)
-npx prisma migrate dev --name <change>   # create & apply migration
-npx prisma db seed   # load seed data
+npm run db:migrate -- --name <change>   # create & apply a Prisma migration (loads .env.local)
+npm run db:seed   # load seed data
 ```
 
 ## UI/UX Design Guidelines
@@ -199,6 +199,7 @@ src/
   styles/              # design tokens
 prisma/
   schema.prisma
+  migrations/
   seed.ts
 docs/
 ```
@@ -220,7 +221,7 @@ Seed the four regions and offices, a GSTIN per office state, default roles/permi
 ## How to Work in This Repo
 
 - **Plan before coding** any module or schema change: list model changes, routes, screens (desktop + mobile layout) and tests, and wait for approval.
-- **Schema first.** Update `docs/data-model.md` and `prisma/schema.prisma` together; create a named migration. Never edit an applied migration.
+- **Schema first.** Update `docs/data-model.md` and `prisma/schema.prisma` together; create a named migration (never `db push`). Never edit an applied migration.
 - Work in **vertical slices**: schema → service → API → UI (responsive) → tests for one feature, then commit.
 - Follow the UI/UX Design Guidelines on every screen; don't introduce new colours, fonts or one-off styles — extend the tokens or shared components instead.
 - Run `lint`, `typecheck` and `test` before saying a task is done.
