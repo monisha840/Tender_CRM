@@ -3,6 +3,7 @@ import { addMoney, percentOf, subMoney, sumMoney } from "@/lib/money";
 import type { BillStatus, Money } from "@/types";
 import { addApproval } from "./approvals";
 import { at, dayOffset, meta, pad, rupees, StateOf, type RegionKeyName, type SeedCtx } from "./helpers";
+import { docTypeId } from "./masters";
 import { userId } from "./org";
 import { monthsElapsed } from "./plan";
 import type { ProjectInfo } from "./projects";
@@ -54,17 +55,18 @@ export function seedParties(ctx: SeedCtx, projects: ProjectInfo[]) {
     const woId = `wo_${w.id}`;
     const start = addDays(proj.startDate, 10);
     const value = rupees(w.valueRupees);
-    const progress = Math.min(98, Math.max(2, proj.actualPct * rng.float(0.9, 1.15)));
+    const completed = proj.completed;
+    const progress = completed ? 100 : Math.min(98, Math.max(2, proj.actualPct * rng.float(0.9, 1.15)));
     db.workOrders.push({
       ...meta(woId), subcontractorId: `sub_${w.sub}`, projectId: proj.id, siteId: proj.siteId, regionId: proj.regionId,
       workOrderNo: `SPH/${REGION_CODE[proj.regionKey]}/WO/2026/${pad(Number(w.id) * 7 + 3)}`, trade: w.trade, scope: w.scope, progressPercent: progress.toFixed(4),
-      contractValue: value, startDate: start, endDate: addDays(start, Math.max(120, daysBetween(proj.startDate, proj.endDate) - 20)), retentionPercent: woCategory(w.trade) === "ec_labour" ? "0.0000" : "5.0000", status: "ACTIVE",
+      contractValue: value, startDate: start, endDate: completed ? proj.endDate : addDays(start, Math.max(120, daysBetween(proj.startDate, proj.endDate) - 20)), retentionPercent: woCategory(w.trade) === "ec_labour" ? "0.0000" : "5.0000", status: completed ? "COMPLETED" : "ACTIVE",
     });
 
     // Bills: cumulative billed value tracks the work order's progress.
-    const billedTotal = Math.round(w.valueRupees * Math.min(0.95, (progress / 100) * 1.05));
+    const billedTotal = Math.round(w.valueRupees * (completed ? 1 : Math.min(0.95, (progress / 100) * 1.05)));
     const first = addDays(start, 30);
-    const last = dayOffset(-6);
+    const last = completed && proj.endDate < dayOffset(-6) ? proj.endDate : dayOffset(-6);
     const span = daysBetween(first, last);
     if (span < 0 || billedTotal <= 0) return;
     const n = Math.max(1, Math.min(5, monthsElapsed(proj) - 1));
@@ -77,7 +79,7 @@ export function seedParties(ctx: SeedCtx, projects: ProjectInfo[]) {
       remaining -= gross;
       const billDate = addDays(first, n === 1 ? span : Math.round((i * span) / (n - 1)));
       const periodTo = addDays(billDate, -3);
-      const status: BillStatus = fromNewest === 0 ? w.lastBill : fromNewest === 1 && w.id === "2" ? "PARTLY_PAID" : "PAID";
+      const status: BillStatus = completed ? "PAID" : fromNewest === 0 ? w.lastBill : fromNewest === 1 && w.id === "2" ? "PARTLY_PAID" : "PAID";
       const grossM: Money = rupees(gross);
       const gst = percentOf(grossM, 18);
       const labour = woCategory(w.trade) === "ec_labour";
@@ -135,6 +137,20 @@ export function seedParties(ctx: SeedCtx, projects: ProjectInfo[]) {
     db.costEntries.push({
       ...meta(`ce_wo_${w.id}`), projectId: proj.id, siteId: proj.siteId, regionId: proj.regionId, expenseCategoryId: woCategory(w.trade), kind: "COMMITTED",
       sourceType: "WORK_ORDER", sourceId: woId, amount: rupees(Math.max(0, Math.round(w.valueRupees - billedGross))), date: start,
+    });
+  });
+  // ---- Subcontractor documents (statutory and contractual) ----
+  SUBS.forEach((s) => {
+    const docs: [string, number][] = [["PAN card", 1], ["GST registration certificate", 2], ["Work order copy", 18], ["Insurance policy", 17]];
+    if (s.labour) docs.push(["Contract labour licence", 15]);
+    const short = s.name.replace(/[^A-Za-z ]/g, "").split(" ")[0];
+    docs.forEach(([name, dt], i) => {
+      const id = `doc_sub_${s.id}_${i + 1}`;
+      db.documents.push({
+        ...meta(id), storageKey: `subcontractors/${s.id}/${i + 1}`, fileName: `${short} - ${name}.pdf`, mime: "application/pdf", size: rng.int(80_000, 900_000),
+        documentTypeId: docTypeId(dt), version: 1, uploadedById: userId("legal"),
+      });
+      db.documentLinks.push({ ...meta(`dl_sub_${s.id}_${i + 1}`), documentId: id, entityType: "SUBCONTRACTOR", entityId: `sub_${s.id}` });
     });
   });
 }

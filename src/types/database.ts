@@ -34,6 +34,7 @@ import type {
   Project,
   ProjectBudgetLine,
   ProjectConversion,
+  ProjectProgressSnapshot,
   ProjectMember,
   ProjectStatus,
   PurchaseOrder,
@@ -123,6 +124,7 @@ export interface Database {
   projects: Project[];
   projectConversions: ProjectConversion[];
   projectMembers: ProjectMember[];
+  progressSnapshots: ProjectProgressSnapshot[];
   sites: Site[];
   boqItems: BoqItem[];
   dailyReports: DailyWorkReport[];

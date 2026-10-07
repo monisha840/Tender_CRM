@@ -53,7 +53,7 @@ export function RoleSwitcher() {
           <Button variant="outline" className="h-11 gap-2 px-2 md:h-9" aria-label={`Switch role. Current: ${persona.user.name}, ${persona.role.name}`} />
         }
       >
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-tint text-xs font-semibold text-accent" aria-hidden="true">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-xs font-semibold text-accent-strong" aria-hidden="true">
           {initials(persona.user.name)}
         </span>
         <span className="hidden min-w-0 text-left leading-tight sm:block">

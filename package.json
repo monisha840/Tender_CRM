@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "contrast:check": "npx --yes tsx scripts/check-contrast.ts",
     "seed:check": "npx --yes tsx scripts/check-seed.ts"
   },
   "dependencies": {

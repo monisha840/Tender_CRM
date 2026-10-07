@@ -1,4 +1,4 @@
-import type { BaseEntity, Id, IsoDate, IsoDateTime, Money } from "./common";
+import type { BaseEntity, Id, IsoDate, IsoDateTime, Money, Percent } from "./common";
 
 export type HealthStatus = "GREEN" | "AMBER" | "RED";
 
@@ -53,4 +53,15 @@ export interface ProjectConversion extends BaseEntity {
   /** Required when converting with unmet mandatory award conditions. */
   overrideReason?: string | null;
   approvalRequestId?: Id | null;
+}
+
+/** Month-end planned vs actual progress of a project, for progress charts. */
+export interface ProjectProgressSnapshot extends BaseEntity {
+  projectId: Id;
+  /** "YYYY-MM" */
+  month: string;
+  /** Time-based plan, 0–100. */
+  plannedPct: Percent;
+  /** Executed share of contract value, 0–100. */
+  actualPct: Percent;
 }

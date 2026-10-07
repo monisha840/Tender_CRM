@@ -47,14 +47,15 @@ export const SPEND_FACTOR: Record<string, number> = {
   p8_nalco_paint: 0.97,
   p9_dvc_stone: 1.01,
   p10_kpcl_pkg: 1.02,
-  p11_iocl_paint: 1.07,
 };
 
 /** Rupees of cost incurred to date for a category: budget × progress × spend factor. */
 export const actualRupees = (p: ProjectInfo, category: CategoryId): number =>
   Math.round(budgetRupees(p, category) * (p.actualPct / 100) * (SPEND_FACTOR[p.key] ?? 1));
 
-export const monthsElapsed = (p: ProjectInfo): number => Math.max(1, Math.round(daysBetween(p.startDate, DEMO_TODAY) / 30));
+/** Months of activity so far (a completed project stops at its end date). */
+export const monthsElapsed = (p: ProjectInfo): number =>
+  Math.max(1, Math.round(daysBetween(p.startDate, p.endDate < DEMO_TODAY ? p.endDate : DEMO_TODAY) / 30));
 
 /** Splits `total` into `n` whole-rupee parts with ±`spread` variation; parts always sum exactly to `total`. */
 export function splitRupees(total: number, n: number, jitter: () => number, spread = 0.25): number[] {

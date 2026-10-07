@@ -264,8 +264,13 @@ export function seedTenders(ctx: SeedCtx): ConvertedTender[] {
       db.securityInstruments.push({
         ...meta(`si_pbg_${s.key}`), type: "PBG", tenderId: id, projectId: isConverted ? `prj_${s.key}` : null, mode: "BG", amount: percentOf(quoted, 5),
         instrumentNo: `BG-${rng.int(100000, 999999)}`, bank: rng.pick(BANKS), issueDate: isConverted ? addDays(loaDate, 10) : null,
-        expiryDate: s.key === "p7_mppgcl_civil" ? addDays(today, 25) : addDays(startDate, completionDays + 90), status: isConverted ? "SUBMITTED" : "ARRANGED",
+        expiryDate: s.key === "p2_cspgcl_paint" ? addDays(today, 25) : addDays(startDate, completionDays + 90), status: isConverted ? (proj?.completed ? "RELEASED" : "SUBMITTED") : "ARRANGED",
       });
+      if (isConverted && proj?.completed) {
+        db.securityInstrumentEvents.push({
+          ...meta(`sie_pbg_${s.key}_1`), securityInstrumentId: `si_pbg_${s.key}`, type: "RELEASED", amount: percentOf(quoted, 5), date: addDays(startDate, completionDays + 45), reference: "Released after completion certificate",
+        });
+      }
       if (isConverted && proj) {
         converted.push({
           key: s.key, tenderId: id, title: s.title, organisationId: s.org, regionKey: s.region, regionId: RegionKey[s.region], siteId: s.site ?? null,

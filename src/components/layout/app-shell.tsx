@@ -50,23 +50,28 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Header onOpenMenu={() => setDrawerOpen(true)} />
         <main id="main" className={cn("flex-1 px-4 py-6 md:px-8", siteLayout && "pb-24 md:pb-6")}>
           <div className="mx-auto w-full max-w-7xl">
-            {!hydrated ? (
+            {/* The page is always rendered (so Next can validate instant navigation) but stays hidden
+                until persisted state has loaded, which avoids flashing the wrong persona's view. */}
+            {!hydrated && (
               <div className="space-y-4" aria-busy="true" aria-label="Loading">
                 <Skeleton className="h-8 w-56" />
                 <Skeleton className="h-4 w-80 max-w-full" />
                 <Skeleton className="h-40 w-full" />
               </div>
-            ) : allowed ? (
-              children
-            ) : (
-              <div className="rounded-lg border bg-surface">
-                <EmptyState
-                  icon={ShieldOff}
-                  message={`${persona.role.name} does not have access to ${navModule?.label}.`}
-                  action={{ label: "Go to my home", href: persona.role.homePath }}
-                />
-              </div>
             )}
+            <div hidden={!hydrated}>
+              {allowed ? (
+                children
+              ) : (
+                <div className="rounded-lg border bg-surface">
+                  <EmptyState
+                    icon={ShieldOff}
+                    message={`${persona.role.name} does not have access to ${navModule?.label}.`}
+                    action={{ label: "Go to my home", href: persona.role.homePath }}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </main>
       </div>

@@ -1,37 +1,42 @@
 /*
  * Design tokens — the ONLY place raw colour values live (CLAUDE.md → UI/UX Design Guidelines).
- * Components use the Tailwind names below (bg-surface, text-accent, bg-status-success-tint …), never hex.
+ * Components use the Tailwind names below (bg-surface, text-accent-strong, bg-status-success-tint …), never hex.
  *
- * Note: `accent` is the deep navy brand colour, as in CLAUDE.md. shadcn's "accent" (a hover tint)
- * is therefore expressed as `accent-tint`, and the generated shadcn components are patched to match.
+ * `accent` is the S. Prince logo yellow. Yellow is a FILL colour: never put white text on it, and never use it as
+ * text or as an icon on white (it fails contrast). Put `accent-foreground` on yellow, and use `accent-strong`
+ * for any yellow-family text, link, icon or focus ring. shadcn's own "accent" (a hover tint) is `accent-subtle`.
+ * Run `npm run contrast:check` after changing any colour here.
  */
 :root {
   /* Core palette */
   --background: #f8f8f7;
   --surface: #ffffff;
   --text: #171717;
-  --text-secondary: #737373;
+  --text-secondary: #6b6b6b; /* AA on background, surface and accent-subtle */
   --border: #e5e5e5;
-  --accent: #1e3a5f;
-  --accent-foreground: #ffffff;
-  --accent-tint: #eaeef3; /* light navy tint: active nav, hovered rows/items */
+
+  /* Accent (yellow) */
+  --accent: #f2b800; /* fill: primary buttons, active-nav indicator, primary chart series, selected states */
+  --accent-foreground: #171717; /* text and icons on accent (never white) */
+  --accent-strong: #856000; /* dark amber: links, icons, focus rings, yellow-family text on white */
+  --accent-subtle: #fdf6e3; /* very light yellow: active nav background, row highlights, hover */
 
   /* Status — muted, for status indicators only. Always pair with a label or icon. */
   --status-success: #2f6b4a;
   --status-success-tint: #e8f2ec;
-  --status-warning: #8a5d12;
-  --status-warning-tint: #faf1de;
+  --status-warning: #a3480f; /* muted orange, deliberately distinct from the yellow accent */
+  --status-warning-tint: #fbebdd;
   --status-danger: #a13a3a;
   --status-danger-tint: #f9e9e9;
   --status-neutral: #6b6b6b;
   --status-neutral-tint: #efefee;
 
-  /* Chart series: navy first, then tints/greys of the same palette */
-  --chart-1: #1e3a5f;
-  --chart-2: #5b7a9e;
-  --chart-3: #9db1c7;
-  --chart-4: #a3a3a3;
-  --chart-5: #d4d4d4;
+  /* Chart series: accent yellow first, then amber and greys of the same palette */
+  --chart-1: #f2b800; /* accent: primary series; draw with a 1px accent-strong outline (yellow alone is 1.8:1 on white) */
+  --chart-2: #856000; /* accent-strong */
+  --chart-3: #b58a1b; /* mid amber */
+  --chart-4: #6f6f6f;
+  --chart-5: #8f8f8f;
 
   --radius: 0.5rem;
 
@@ -49,14 +54,14 @@
   --secondary-foreground: var(--text);
   --destructive: var(--status-danger);
   --input: var(--border);
-  --ring: var(--accent);
+  --ring: var(--accent-strong);
 
   --sidebar: var(--surface);
   --sidebar-foreground: var(--text);
   --sidebar-primary: var(--accent);
   --sidebar-primary-foreground: var(--accent-foreground);
-  --sidebar-accent: var(--accent-tint);
-  --sidebar-accent-foreground: var(--accent);
+  --sidebar-accent: var(--accent-subtle);
+  --sidebar-accent-foreground: var(--text);
   --sidebar-border: var(--border);
-  --sidebar-ring: var(--accent);
+  --sidebar-ring: var(--accent-strong);
 }

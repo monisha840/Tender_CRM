@@ -86,11 +86,11 @@ export function seedPurchases(ctx: SeedCtx, projects: ProjectInfo[]) {
     const n = Math.max(2, Math.min(4, monthsElapsed(proj) - 1));
     const parts = splitRupees(target, n, rng.next);
     const first = addDays(proj.startDate, 25);
-    const last = dayOffset(-3);
+    const last = proj.completed && proj.endDate < dayOffset(-3) ? proj.endDate : dayOffset(-3);
     const span = Math.max(1, daysBetween(first, last));
     const vendors = VENDORS_BY_REGION[proj.regionKey];
     const materials = MATERIALS_BY_TEMPLATE[proj.template];
-    const overdueProject = ["p2_cspgcl_paint", "p6_ntpc_steel", "p11_iocl_paint"].includes(proj.key);
+    const overdueProject = ["p2_cspgcl_paint", "p6_ntpc_steel", "p8_nalco_paint"].includes(proj.key);
 
     parts.forEach((taxableN, i) => {
       const invoiceDate = addDays(first, Math.round((i * span) / (n - 1)));
@@ -147,7 +147,8 @@ export function seedPurchases(ctx: SeedCtx, projects: ProjectInfo[]) {
       }
     });
 
-    // One open PO per project (committed cost, goods not fully received).
+    // One open PO per running project (committed cost, goods not fully received).
+    if (proj.completed) return;
     const openAmount = Math.round(budgetRupees(proj, "ec_materials") * 0.06);
     const openReq = addRequest(proj, [materials[0]], openAmount, "ORDERED", dayOffset(-4));
     addPo(proj, openReq, vendors[0], openAmount, dayOffset(-6), rng.chance(0.5) ? "PARTLY_RECEIVED" : "APPROVED");
@@ -157,9 +158,9 @@ export function seedPurchases(ctx: SeedCtx, projects: ProjectInfo[]) {
   const byKey = (k: string) => projects.find((p) => p.key === k)!;
   addRequest(byKey("p6_ntpc_steel"), ["mat_plate"], 1240000, "PENDING_APPROVAL", dayOffset(6));
   addRequest(byKey("p2_cspgcl_paint"), ["mat_primer"], 540000, "PENDING_APPROVAL", dayOffset(5));
-  addRequest(byKey("p11_iocl_paint"), ["mat_ppe"], 160000, "PENDING_APPROVAL", dayOffset(7));
+  addRequest(byKey("p8_nalco_paint"), ["mat_ppe"], 160000, "PENDING_APPROVAL", dayOffset(7));
   addRequest(byKey("p5_tangedco_scaff"), ["mat_scaffold"], 780000, "APPROVED", dayOffset(9));
   addRequest(byKey("p10_kpcl_pkg"), ["mat_cement"], 120000, "DRAFT", dayOffset(12));
-  addRequest(byKey("p7_mppgcl_civil"), ["mat_cement"], 190000, "REJECTED", dayOffset(8));
+  addRequest(byKey("p4_mspgcl_stone"), ["mat_ppe"], 190000, "REJECTED", dayOffset(8));
   addPo(byKey("p3_mspgcl_cbp"), null, "5", 2200000, dayOffset(-1), "PENDING_APPROVAL", userId("stalin"));
 }

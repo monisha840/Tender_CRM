@@ -29,11 +29,11 @@ export function BottomNav({ onMore }: { onMore: () => void }) {
               <Link
                 href={m.href}
                 aria-current={active ? "page" : undefined}
-                className={cn("relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", active ? "font-medium text-accent" : "text-muted-foreground")}
+                className={cn("relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", active ? "font-medium text-foreground" : "text-muted-foreground")}
               >
                 {active && <span className="absolute inset-x-6 top-0 h-0.5 rounded-b-full bg-accent" aria-hidden="true" />}
                 <span className="relative">
-                  <Icon className="size-5" aria-hidden="true" />
+                  <Icon className={cn("size-5", active && "text-accent-strong")} aria-hidden="true" />
                   {m.key === "notifications" && unread > 0 && (
                     <span className="absolute -top-1.5 -right-2 min-w-4 rounded-full bg-accent px-1 text-center text-[10px] leading-4 text-accent-foreground">{unread}</span>
                   )}

@@ -13,6 +13,8 @@ export interface LabourType extends BaseEntity {
 export interface EmployeeProfile extends BaseEntity {
   employeeId: Id;
   designation: string;
+  /** e.g. "Site Operations", "Accounts & Finance", "Projects". */
+  department: string;
   labourTypeId: Id;
   joiningDate: IsoDate;
   exitDate?: IsoDate | null;

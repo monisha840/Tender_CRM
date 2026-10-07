@@ -48,6 +48,8 @@ export const DOC_TYPES = [
   "Tender notice (NIT)",
   "Contract labour licence",
   "ISO / safety certificates",
+  "Insurance policy",
+  "Work order copy",
 ] as const;
 export const docTypeId = (i: number) => `dtype_${i + 1}`;
 

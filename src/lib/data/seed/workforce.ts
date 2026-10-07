@@ -27,6 +27,11 @@ const DESIGNATION: Record<string, string> = {
   legal_admin: "Legal & Admin Officer", project_manager: "Project Manager", site_engineer: "Site Engineer", supervisor: "Supervisor",
 };
 
+const DEPARTMENT: Record<string, string> = {
+  director: "Management", tender_exec: "Tenders & Contracts", regional_head: "Regional Operations", accounts: "Accounts & Finance",
+  legal_admin: "Legal & Admin", project_manager: "Projects", site_engineer: "Site Operations", supervisor: "Site Operations",
+};
+
 /** Persona users acting as site engineer / supervisor in a region (used as `markedBy`, `submittedBy`). */
 export const SITE_USER: Record<RegionKeyName, { engineer: string; supervisor: string }> = {
   cg: { engineer: userId("se_cg"), supervisor: userId("sup_cg") },
@@ -52,24 +57,24 @@ export function seedWorkforce(ctx: SeedCtx, projects: ProjectInfo[]) {
   USER_SPECS.forEach((u) => {
     const wage = STAFF_WAGE[u.role] ?? 0;
     db.employeeProfiles.push({
-      ...meta(`ep_${u.key}`), employeeId: employeeIdOfUser(u.key), designation: u.title ?? DESIGNATION[u.role], labourTypeId: "lt_monthly",
+      ...meta(`ep_${u.key}`), employeeId: employeeIdOfUser(u.key), designation: u.title ?? DESIGNATION[u.role], department: DEPARTMENT[u.role], labourTypeId: "lt_monthly",
       joiningDate: "2019-04-01", exitDate: null, wageAmount: rupees(wage), pfApplicable: wage > 0, esiApplicable: wage > 0 && wage <= ESI_CEILING,
       advanceBalance: rupees(0), uan: wage ? uan() : null, contractorId: null,
     });
   });
 
-  const addEmployee = (id: string, name: string, region: RegionKeyName, designation: string, mode: "MONTHLY" | "DAILY", wage: number, joined: string) => {
+  const addEmployee = (id: string, name: string, region: RegionKeyName, designation: string, department: string, mode: "MONTHLY" | "DAILY", wage: number, joined: string) => {
     const monthlyEquivalent = mode === "DAILY" ? wage * 26 : wage;
     const hasAdvance = mode === "DAILY" && rng.chance(0.22);
     db.employees.push({ ...meta(id), code: nextCode(), name, phone: `9${rng.int(100000000, 999999999)}`, homeRegionId: RegionKey[region], userId: null });
     db.employeeProfiles.push({
-      ...meta(`ep_${id}`), employeeId: id, designation, labourTypeId: mode === "DAILY" ? "lt_daily" : "lt_monthly", joiningDate: joined, exitDate: null,
+      ...meta(`ep_${id}`), employeeId: id, designation, department, labourTypeId: mode === "DAILY" ? "lt_daily" : "lt_monthly", joiningDate: joined, exitDate: null,
       wageAmount: rupees(wage), pfApplicable: true, esiApplicable: monthlyEquivalent <= ESI_CEILING,
       advanceBalance: rupees(hasAdvance ? rng.pick([2000, 3000, 5000, 8000, 10000]) : 0), uan: uan(), contractorId: null,
     });
   };
 
-  OFFICE_STAFF.forEach((o) => addEmployee(o.id, o.name, o.region, o.designation, "MONTHLY", o.wage, "2021-06-01"));
+  OFFICE_STAFF.forEach((o) => addEmployee(o.id, o.name, o.region, o.designation, o.department, "MONTHLY", o.wage, "2021-06-01"));
 
   const infoOf = (key: string) => projects.find((p) => p.key === key)!;
   const assign = (employeeId: string, role: string, projectKey: string, from: string, to: string | null = null, reason: string | null = null) => {
@@ -80,20 +85,20 @@ export function seedWorkforce(ctx: SeedCtx, projects: ProjectInfo[]) {
     });
   };
 
-  PROJECT_SPECS.forEach((spec) => {
+  PROJECT_SPECS.filter((spec) => !spec.completed).forEach((spec) => {
     const proj = infoOf(spec.key);
     const region = proj.regionKey;
     const engineerEmp = spec.engineer ?? `emp_se_${spec.key}`;
     const supervisorEmp = spec.supervisor ?? `emp_sup_${spec.key}`;
-    if (!spec.engineer) addEmployee(engineerEmp, nextName(region), region, "Site Engineer", "MONTHLY", rng.pick([42000, 46000, 50000, 54000]), "2022-06-15");
-    if (!spec.supervisor) addEmployee(supervisorEmp, nextName(region), region, "Supervisor", "MONTHLY", rng.pick([26000, 28000, 30000, 32000]), "2022-09-01");
+    if (!spec.engineer) addEmployee(engineerEmp, nextName(region), region, "Site Engineer", "Site Operations", "MONTHLY", rng.pick([42000, 46000, 50000, 54000]), "2022-06-15");
+    if (!spec.supervisor) addEmployee(supervisorEmp, nextName(region), region, "Supervisor", "Site Operations", "MONTHLY", rng.pick([26000, 28000, 30000, 32000]), "2022-09-01");
     assign(engineerEmp, "Site Engineer", spec.key, proj.startDate);
     assign(supervisorEmp, "Supervisor", spec.key, proj.startDate);
 
     for (let n = 1; n <= spec.workers.count; n++) {
       const id = `emp_w_${spec.key}_${n}`;
       const role = spec.workers.roles[(n - 1) % spec.workers.roles.length];
-      addEmployee(id, nextName(region), region, role, "DAILY", spec.workers.wage + rng.pick([0, 20, 40, 60]), "2023-02-01");
+      addEmployee(id, nextName(region), region, role, "Site Operations", "DAILY", spec.workers.wage + rng.pick([0, 20, 40, 60]), "2023-02-01");
       assign(id, role, spec.key, proj.startDate);
     }
   });
@@ -112,15 +117,15 @@ export function seedWorkforce(ctx: SeedCtx, projects: ProjectInfo[]) {
   transfer("emp_w_p6_ntpc_steel_1", "p2_cspgcl_paint", "p6_ntpc_steel", 40);
   transfer("emp_w_p10_kpcl_pkg_1", "p5_tangedco_scaff", "p10_kpcl_pkg", 30);
 
-  // ---- Attendance: last 7 days, current assignments only ----
+  // ---- Attendance: last 90 days (three months), current assignments only ----
   const siteRegion = new Map(SITES.map((s) => [s.id, s.region]));
   const current = db.siteAssignments.filter((a) => !a.toDate || a.toDate >= DEMO_TODAY);
-  lastNDays(7).forEach((date) => {
+  lastNDays(90).forEach((date) => {
     const sunday = dayOffsetIsSunday(date);
     current.forEach((a) => {
       if (date < a.fromDate) return;
-      // The supervisor at DVC Mejia has not marked today yet.
-      if (date === DEMO_TODAY && a.projectId === "prj_p9_dvc_stone") return;
+      // The supervisor at TANGEDCO Mettur has not marked today yet.
+      if (date === DEMO_TODAY && a.projectId === "prj_p5_tangedco_scaff") return;
       const region = siteRegion.get(a.siteId)!;
       let status: AttendanceStatus;
       let fraction = 1;

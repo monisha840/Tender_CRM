@@ -52,9 +52,10 @@ export function seedAccounts(ctx: SeedCtx, projects: ProjectInfo[]) {
 
     // ---- Labour / equipment / overheads actuals (monthly), topping up whatever bills already cover ----
     const months = monthsElapsed(proj);
+    const cap = proj.endDate < today ? proj.endDate : addDays(today, -1);
     const monthDate = (k: number) => {
       const d = addDays(proj.startDate, 30 * (k + 1));
-      return d > today ? addDays(today, -1) : d;
+      return d > cap ? cap : d;
     };
     (["ec_labour", "ec_equipment", "ec_overheads"] as CategoryId[]).forEach((cat) => {
       const already = db.costEntries
@@ -74,9 +75,11 @@ export function seedAccounts(ctx: SeedCtx, projects: ProjectInfo[]) {
     const monthly = proj.billing === "MONTHLY";
     const earliest = addDays(proj.startDate, 20);
     const dates: { date: IsoDate; from: IsoDate; to: IsoDate }[] = [];
-    for (let k = 0; k < (monthly ? 8 : 5); k++) {
+    // Newest invoice: this month's for running projects, the month after the end for finished ones.
+    const newestRef = proj.completed ? addDays(proj.endDate, 30) : today;
+    for (let k = 0; k < (monthly ? 14 : 8); k++) {
       if (monthly) {
-        const [ty, tm] = today.split("-").map(Number);
+        const [ty, tm] = newestRef.split("-").map(Number);
         const idx = ty * 12 + (tm - 1) - k; // k = 0 → this month's invoice for last month
         const y = Math.floor(idx / 12);
         const m = (idx % 12) + 1;
@@ -85,14 +88,14 @@ export function seedAccounts(ctx: SeedCtx, projects: ProjectInfo[]) {
         const lastDay = new Date(Date.UTC(prev.y, prev.m, 0)).getUTCDate();
         const from = `${prev.y}-${String(prev.m).padStart(2, "0")}-01`;
         const to = `${prev.y}-${String(prev.m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-        if (date >= earliest && date <= today) dates.unshift({ date, from, to });
+        if (date >= earliest && date <= newestRef && from >= proj.startDate.slice(0, 7) + "-01") dates.unshift({ date, from, to });
       } else {
-        const date = addDays(dayOffset(-4), -60 * k);
+        const date = addDays(proj.completed ? addDays(proj.endDate, 10) : dayOffset(-4), -60 * k);
         if (date >= earliest) dates.unshift({ date, from: addDays(date, -62), to: addDays(date, -3) });
       }
     }
     if (!dates.length) return;
-    const billedTotal = Math.round(contractRupees(proj) * (proj.actualPct / 100) * 0.97);
+    const billedTotal = Math.round(contractRupees(proj) * (proj.actualPct / 100) * (proj.completed ? 1 : 0.97));
     const parts = splitRupees(billedTotal, dates.length, rng.next, monthly ? 0.08 : 0.3);
     dates.forEach((d, i) =>
       drafts.push({ project: proj, index: i, fromNewest: dates.length - 1 - i, count: dates.length, invoiceDate: d.date, periodFrom: d.from, periodTo: d.to, taxable: parts[i] }),
@@ -138,14 +141,15 @@ export function seedAccounts(ctx: SeedCtx, projects: ProjectInfo[]) {
     // Receipts: paid when the (slightly random) payment date has passed; a few projects pay late on purpose.
     const paidOn = addDays(d.invoiceDate, proj.paymentTermsDays + rng.int(-10, 8));
     let received: Money = paidOn < today && d.fromNewest >= 1 ? net : "0.00";
-    if (d.fromNewest === 0) received = "0.00";
+    if (d.fromNewest === 0 && !proj.completed) received = "0.00";
+    if (proj.completed) received = net;
     if (UNPAID_OLDER.includes(proj.key) && d.fromNewest >= 1 && d.fromNewest <= 2) received = "0.00";
-    if (proj.key === "p11_iocl_paint" && d.fromNewest === 2) received = percentOf(net, 50);
+    if (proj.key === "p8_nalco_paint" && d.fromNewest === 2) received = percentOf(net, 50);
     const paymentStatus: InvoicePaymentStatus = received === "0.00" ? "UNPAID" : received === net ? "PAID" : "PARTLY_PAID";
 
     // GST filing: due on the 11th of the following month; filed once that date has passed (one deliberate miss).
     const filingDueDate = filingDue(d.invoiceDate);
-    const missed = proj.key === "p7_mppgcl_civil" && d.fromNewest === 1;
+    const missed = proj.key === "p6_ntpc_steel" && d.fromNewest === 1;
     const filed = filingDueDate < today && !missed;
     const gstFilingStatus: GstFilingStatus = filed ? "FILED" : "PENDING";
     const fm = filingDueDate.slice(5, 7);

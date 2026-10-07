@@ -56,7 +56,7 @@ export default function StyleguidePage() {
         <h2 id="sg-kpi" className="text-base font-semibold">KPI tiles</h2>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KpiTile label="Active tenders" value={String(kpis.activeTenders)} hint={`${formatINR(kpis.pipelineValue, { compact: true })} pipeline`} icon={Gavel} href="/tenders" />
-          <KpiTile label="Receivables" value={formatINR(kpis.receivables, { compact: true })} hint={`${formatINR(kpis.receivablesOverdue, { compact: true })} overdue`} icon={Wallet} delta={{ text: "overdue", direction: "up", good: false }} href="/finance" />
+          <KpiTile label="Receivables" value={formatINR(kpis.receivables, { compact: true })} hint={`${formatINR(kpis.receivablesOverdue, { compact: true })} overdue`} icon={Wallet} href="/finance" />
           <KpiTile label="Workers on site today" value={String(kpis.workersToday)} icon={HardHat} trend={kpis.manpowerTrend} href="/daily-work" />
           <KpiTile label="Win rate" value={kpis.winRate === null ? "—" : `${kpis.winRate}%`} hint="decided tenders" />
         </div>
@@ -96,7 +96,7 @@ export default function StyleguidePage() {
               <XAxis type="number" tickFormatter={formatINRAxis} tickLine={false} axisLine={false} tick={{ fill: "var(--text-secondary)", fontSize: 11 }} tickCount={4} />
               <YAxis type="category" dataKey="stage" width={104} tickLine={false} axisLine={false} tick={{ fill: "var(--text-secondary)", fontSize: 11 }} />
               <ChartTooltip content={<ChartTooltipContent formatter={(v) => formatINR(Number(v), { compact: true })} />} />
-              <Bar dataKey="value" fill="var(--chart-1)" radius={3} />
+              <Bar dataKey="value" fill="var(--chart-1)" stroke="var(--accent-strong)" strokeWidth={1} radius={3} />
             </BarChart>
           </ChartContainer>
         </ChartCard>

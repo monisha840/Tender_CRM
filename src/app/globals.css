@@ -15,7 +15,8 @@
   --color-border: var(--border);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
-  --color-accent-tint: var(--accent-tint);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-subtle: var(--accent-subtle);
 
   --color-status-success: var(--status-success);
   --color-status-success-tint: var(--status-success-tint);
@@ -71,9 +72,9 @@
   body {
     @apply bg-background text-foreground;
   }
-  /* Always-visible keyboard focus in the accent colour */
+  /* Always-visible keyboard focus in accent-strong (yellow itself is too faint on white) */
   :focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--accent-strong);
     outline-offset: 2px;
   }
 }

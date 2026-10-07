@@ -168,12 +168,12 @@ export function DataTable<T>({
                     <tr
                       key={getRowId(row)}
                       onClick={href ? () => router.push(href) : undefined}
-                      className={cn("h-10 align-middle", href && "cursor-pointer hover:bg-accent-tint/50")}
+                      className={cn("h-10 align-middle", href && "cursor-pointer hover:bg-accent-subtle")}
                     >
                       {columns.map((c, i) => (
                         <td key={c.key} className={cn("px-3 py-1.5", c.numeric && "tabular text-right", c.className)}>
                           {i === 0 && href ? (
-                            <Link href={href} className="font-medium hover:text-accent hover:underline">
+                            <Link href={href} className="font-medium hover:text-accent-strong hover:underline">
                               {c.cell(row)}
                             </Link>
                           ) : (
@@ -213,7 +213,7 @@ export function DataTable<T>({
               return (
                 <li key={getRowId(row)}>
                   {href ? (
-                    <Link href={href} className="flex min-h-11 items-center gap-2 rounded-lg border bg-surface p-3 active:bg-accent-tint/50">
+                    <Link href={href} className="flex min-h-11 items-center gap-2 rounded-lg border bg-surface p-3 active:bg-accent-subtle">
                       <div className="min-w-0 flex-1">{content}</div>
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                     </Link>

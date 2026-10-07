@@ -24,7 +24,7 @@ interface ChartCardProps {
 /**
  * Consistent frame for every chart: title, units, optional action, legend below, empty state.
  * Put a Recharts <ResponsiveContainer> (or shadcn <ChartContainer>) inside as children.
- * Use `var(--chart-1)` (navy) first, then `--chart-2…5`; status colours only when the data is status.
+ * Use `var(--chart-1)` (yellow, drawn with a 1px `--accent-strong` outline) first, then `--chart-2…5`; status colours only when the data is status.
  */
 export function ChartCard({
   title,

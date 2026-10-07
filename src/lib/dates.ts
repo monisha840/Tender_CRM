@@ -109,6 +109,22 @@ export function lastNDays(count: number, end: IsoDate = getToday()): IsoDate[] {
   return Array.from({ length: count }, (_, i) => addDays(end, i - (count - 1)));
 }
 
+/** The last `count` months ("YYYY-MM") ending with the month of `end`, oldest first. */
+export function lastNMonths(count: number, end: IsoDate = getToday()): string[] {
+  const [y, m] = end.split("-").map(Number);
+  return Array.from({ length: count }, (_, i) => {
+    const idx = y * 12 + (m - 1) - (count - 1 - i);
+    return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, "0")}`;
+  });
+}
+
+/** 15th of the month after `period` ("YYYY-MM"): the PF/ESI payment due date. */
+export function nextMonth15th(period: string): IsoDate {
+  const [y, m] = period.split("-").map(Number);
+  const idx = y * 12 + m; // zero-based index of the month after `period`
+  return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, "0")}-15`;
+}
+
 /** "Oct 2026" style label for a "YYYY-MM" period. */
 export function formatMonth(period: string): string {
   const [y, m] = period.split("-").map(Number);

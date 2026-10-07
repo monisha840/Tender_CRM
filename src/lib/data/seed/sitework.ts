@@ -27,23 +27,23 @@ const PLANS: Record<Template, string[]> = {
 
 /** Projects whose report is intentionally missing, for the "missing daily report" alerts. */
 function isMissing(projectKey: string, date: string): boolean {
-  if (projectKey === "p9_dvc_stone") return date === DEMO_TODAY;
+  if (projectKey === "p5_tangedco_scaff") return date === DEMO_TODAY;
   if (projectKey === "p3_mspgcl_cbp") return date === dayOffset(-1);
-  if (projectKey === "p7_mppgcl_civil") return date >= dayOffset(-1);
+  if (projectKey === "p8_nalco_paint") return date >= dayOffset(-1);
   return false;
 }
 
 export function seedSiteWork(ctx: SeedCtx, projects: ProjectInfo[]) {
   const { db, rng } = ctx;
 
-  PROJECT_SPECS.forEach((spec) => {
+  PROJECT_SPECS.filter((spec) => !spec.completed).forEach((spec) => {
     const proj = projects.find((p) => p.key === spec.key)!;
     const items = db.boqItems.filter((b) => b.projectId === proj.id && b.unit !== "LS");
     // Subcontract labour on site, on top of our own named workers.
     const base = spec.template === "stone" ? 18 : spec.template === "paint" ? 8 : spec.template === "scaff" ? 6 : 5;
     const pmUser = userId(proj.pmKey);
 
-    lastNDays(14).forEach((date, di) => {
+    lastNDays(30).forEach((date, di) => {
       if (dayOfWeek(date) === 0 || isMissing(spec.key, date)) return;
       const rows = db.attendance.filter((a) => a.projectId === proj.id && a.date === date);
       const present = rows.length ? rows.reduce((sum, a) => sum + a.dayFraction, 0) : Math.round((spec.workers.count + 2) * rng.float(0.8, 0.95));
@@ -75,10 +75,10 @@ export function seedSiteWork(ctx: SeedCtx, projects: ProjectInfo[]) {
     ["p6_ntpc_steel", "Boom lift not available, erection of gallery bay 5 delayed", "HIGH", "OPEN", -9],
     ["p2_cspgcl_paint", "Hot work permit delays for blasting at Unit 3", "HIGH", "OPEN", -6],
     ["p3_mspgcl_cbp", "Ash line shutdown window not yet granted by the plant", "MEDIUM", "IN_PROGRESS", -12],
-    ["p11_iocl_paint", "Gas-test clearance pending for tank entry", "HIGH", "OPEN", -4],
+    ["p10_kpcl_pkg", "Plant access pass delays for new workers at ash handling area", "HIGH", "OPEN", -4],
     ["p5_tangedco_scaff", "Cuplock scaffold material short due to delayed supplier", "MEDIUM", "OPEN", -8],
     ["p1_ntpc_stone", "Conveyor stoppage windows reduce picking hours", "LOW", "RESOLVED", -20],
-    ["p9_dvc_stone", "Wage payment delay to subcontract labour", "MEDIUM", "IN_PROGRESS", -7],
+    ["p4_mspgcl_stone", "Wage payment delay to subcontract labour", "MEDIUM", "IN_PROGRESS", -7],
     ["p8_nalco_paint", "Rain halted painting at cooling tower", "LOW", "RESOLVED", -17],
   ];
   issues.forEach(([pk, title, severity, status, offset], i) => {

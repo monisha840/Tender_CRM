@@ -1,4 +1,4 @@
-import { addDays, daysBetween, DEMO_TODAY } from "@/lib/dates";
+import { addDays, daysBetween, DEMO_TODAY, monthOf } from "@/lib/dates";
 import { fromPaise, toPaise } from "@/lib/money";
 import type { Id, IsoDate, Money } from "@/types";
 import { PROJECT_SPECS, SITES, type Template } from "./catalog";
@@ -83,6 +83,8 @@ export interface ProjectInfo {
   /** Time-elapsed share of the planned duration (0–100). */
   expectedPct: number;
   tenderId: Id;
+  /** Finished contract: 100% executed, fully billed and paid, no active workforce. */
+  completed: boolean;
 }
 
 export function seedProjects(ctx: SeedCtx, converted: ConvertedTender[]): ProjectInfo[] {
@@ -105,8 +107,9 @@ export function seedProjects(ctx: SeedCtx, converted: ConvertedTender[]): Projec
     const startDate = conv.startDate;
     const endDate = addDays(startDate, spec.durationDays);
     const total = Math.max(1, daysBetween(startDate, endDate));
+    const completed = !!spec.completed;
     const expectedPct = Math.min(100, Math.max(0, (daysBetween(startDate, DEMO_TODAY) / total) * 100));
-    const actualPct = Math.max(0, expectedPct - spec.lag);
+    const actualPct = completed ? 100 : Math.max(0, expectedPct - spec.lag);
 
     db.projects.push({
       ...meta(id, at(conv.convertedDate)),
@@ -126,7 +129,7 @@ export function seedProjects(ctx: SeedCtx, converted: ConvertedTender[]): Projec
       contractValue,
       startDate,
       plannedEndDate: endDate,
-      statusId: "pst_progress",
+      statusId: completed ? "pst_completed" : "pst_progress",
       projectManagerId: employeeIdOfUser(spec.pm),
       healthOverride: null,
     });
@@ -159,7 +162,7 @@ export function seedProjects(ctx: SeedCtx, converted: ConvertedTender[]): Projec
 
     const norm = rows.reduce((acc, r, i) => acc + r.share * PACE[i % PACE.length], 0);
     rows.forEach((r, i) => {
-      const frac = Math.min(1, Math.max(0, ((actualPct / 100) * PACE[i % PACE.length]) / norm));
+      const frac = completed ? 1 : Math.min(1, Math.max(0, ((actualPct / 100) * PACE[i % PACE.length]) / norm));
       const executed = r.ls ? frac : Math.round(r.qty * frac);
       db.boqItems.push({
         ...meta(`boq_${spec.key}_${i + 1}`), projectId: id, itemNo: `${i + 1}`, description: r.name, unit: r.unit, quantity: r.qty.toFixed(3),
@@ -167,10 +170,30 @@ export function seedProjects(ctx: SeedCtx, converted: ConvertedTender[]): Projec
       });
     });
 
+    // ---- Monthly progress history (planned vs actual), for charts ----
+    const elapsedToday = Math.max(1, Math.min(daysBetween(startDate, DEMO_TODAY), total));
+    const lastDate = endDate < DEMO_TODAY ? endDate : DEMO_TODAY;
+    const checkpoints: string[] = [];
+    for (let d = addDays(startDate, 30); d < lastDate; d = addDays(d, 30)) checkpoints.push(d);
+    checkpoints.push(lastDate);
+    // One snapshot per calendar month: the last checkpoint in that month wins.
+    const byMonth = new Map<string, { planned: number; actual: number }>();
+    checkpoints.forEach((d) => {
+      const elapsed = Math.min(daysBetween(startDate, d), total);
+      const planned = Math.min(100, (elapsed / total) * 100);
+      const actual = completed && d === lastDate ? 100 : Math.max(0, planned - spec.lag * (elapsed / elapsedToday));
+      byMonth.set(monthOf(d), { planned, actual });
+    });
+    byMonth.forEach((v, month) =>
+      db.progressSnapshots.push({
+        ...meta(`ps_${spec.key}_${month}`), projectId: id, month, plannedPct: v.planned.toFixed(4), actualPct: v.actual.toFixed(4),
+      }),
+    );
+
     infos.push({
       key: spec.key, id, regionKey: site.region, regionId: RegionKey[site.region], gstId: conv.gstId, organisationId: conv.organisationId, siteId: spec.site,
       stateId: site.state, contractValue, startDate, endDate, pmKey: spec.pm, template: spec.template, billing: spec.billing, paymentTermsDays: spec.paymentTermsDays,
-      actualPct, expectedPct, tenderId: conv.tenderId,
+      actualPct, expectedPct, tenderId: conv.tenderId, completed,
     });
   });
 

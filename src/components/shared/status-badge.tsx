@@ -9,8 +9,8 @@ const TONE_STYLE: Record<StatusTone, { className: string; icon: LucideIcon }> = 
   warning: { className: "bg-status-warning-tint text-status-warning", icon: Clock },
   danger: { className: "bg-status-danger-tint text-status-danger", icon: XCircle },
   neutral: { className: "bg-status-neutral-tint text-status-neutral", icon: Circle },
-  /** Neutral navy tint for "in motion" states that are neither good nor bad (e.g. Submitted). */
-  accent: { className: "bg-accent-tint text-accent", icon: CircleDot },
+  /** Light yellow tint for "in motion" states that are neither good nor bad (e.g. Submitted). */
+  accent: { className: "bg-accent-subtle text-accent-strong", icon: CircleDot },
 };
 
 interface StatusMeta {

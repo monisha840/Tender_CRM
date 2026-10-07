@@ -17,3 +17,4 @@ export * from "./gst";
 export * from "./approvals";
 export * from "./notifications";
 export * from "./dashboard";
+export * from "./dashboard13";

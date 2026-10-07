@@ -5,7 +5,7 @@ import { addApproval } from "./approvals";
 import { at, dayOffset, meta, rupees, RegionKey, type RegionKeyName, type SeedCtx } from "./helpers";
 import { userId } from "./org";
 
-const MONTHS = ["2026-07", "2026-08", "2026-09"] as const;
+const MONTHS = ["2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"] as const;
 const REGIONS: RegionKeyName[] = ["cg", "mh", "south", "delhi"];
 const REGION_LABEL: Record<RegionKeyName, string> = { cg: "Chhattisgarh", mh: "Maharashtra", south: "South", delhi: "Delhi" };
 /** Statutory rules; these move to settings later (CLAUDE.md → configurable, not hard-coded). */

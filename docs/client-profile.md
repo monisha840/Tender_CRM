@@ -36,3 +36,21 @@ Notifications is reached from the header bell, not the sidebar.
 - PF 12% employee and 12% employer on wages up to the ₹15,000 ceiling; ESI 0.75% / 3.25% when gross is at most ₹21,000; professional tax by state.
 - GST filing due on the 11th of the month after the invoice month.
 - Purchases, vendors and site stock are kept in the data but have no sidebar item; site requests sit under Daily Work.
+
+## Mock-data coverage (audited by `npm run seed:check`)
+| Module | What the seed holds |
+|---|---|
+| Tenders | 40 tenders: ID, organisation, name, work description, value, EMD, fee, submission and opening dates, eligibility, 10-11 item document checklist with statuses, stage. Six deadlines fall in the next 7 days |
+| Projects | 10 projects (8 running, 2 completed): work order no., value, dates, plant site, manager, status, progress, billed to date, received; monthly planned-vs-actual progress snapshots |
+| Subcontractors | 12 subcontractors, 16 assignments with trade, value, dates, progress, bills (date, amount, status), paid, balance and last payment date; documents per subcontractor; three work on more than one project; the Rs 50 L Raichur project has Civil, Stone Picking and Painting |
+| Employees | 156 employees with code, name, phone, site, designation, department, joining date, salary, advance; 90 days of site attendance; 6 months of payroll with PF, ESI, deductions, net salary and payment status |
+| GST & Finance | 51 invoices over 12+ months under four GSTINs, CGST+SGST or IGST by place of supply, filing status and reference, payment status and due dates; monthly revenue and expense series |
+| Daily work | About 30 days of reports per running project; site issues |
+| Approvals / alerts | 13 pending approvals across five types; 57 notifications of 10+ types |
+
+The 12 months of billing history comes from two completed contracts (MPPGCL Sarni civil repairs, DVC Mejia stone picking) kept alongside the running ones.
+Attendance covers site staff only; office staff are on payroll but have no site attendance rows.
+The seed is rebuilt on every load and never stored; only a user's edits are persisted (a small overlay in localStorage).
+
+## Dashboard (the client's 13 items, in order)
+`getDashboard()` in `src/lib/data/dashboard13.ts`, one selector each: Active Tenders, Upcoming Tender Deadlines, Won / Lost Tenders, Active Projects, Project Value, Subcontractor Work, Subcontractor Pending Payments, Employee Count, Salary Pending, PF Status, GST Due / Filed Status, Customer Receivables, Overall Revenue / Expenses. Pending approvals and missing reports are extra selectors (`getAttentionItems`).

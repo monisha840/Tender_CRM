@@ -77,7 +77,7 @@ export function seedNotifications(ctx: SeedCtx, projects: ProjectInfo[]) {
   // Missing daily reports (last two working days) → the project manager
   [DEMO_TODAY, addDays(DEMO_TODAY, -1)].forEach((date: IsoDate) => {
     if (dayOfWeek(date) === 0) return;
-    projects.forEach((proj) => {
+    projects.filter((p) => !p.completed).forEach((proj) => {
       if (db.dailyReports.some((r) => r.projectId === proj.id && r.reportDate === date)) return;
       const site = db.sites.find((x) => x.id === proj.siteId)!;
       push(proj.pmKey, "REPORT_MISSING", "Daily work report not submitted", `${site.name}, ${date}`, "SITE", site.id, daysBetween(date, DEMO_TODAY));
@@ -107,6 +107,14 @@ export function seedNotifications(ctx: SeedCtx, projects: ProjectInfo[]) {
       const project = db.projects.find((x) => x.id === p.id)!;
       [p.pmKey, rh, "stalin"].forEach((u) => push(u, "PROJECT_DELAYED", "Project is behind schedule", project.name, "PROJECT", p.id, 2));
     });
+
+  // Payroll: latest month still being approved or paid; PF and ESI are due on the 15th of the next month
+  const openRuns = db.payrollRuns.filter((r) => r.status === "PENDING_APPROVAL" || r.status === "APPROVED");
+  if (openRuns.length) {
+    const period = openRuns[0].periodMonth;
+    push("accounts", "SALARY_PENDING", `Salary for ${period} not yet paid in ${openRuns.length} region${openRuns.length === 1 ? "" : "s"}`, "Payroll runs are awaiting approval or disbursal", "PAYROLL_RUN", openRuns[0].id, 1);
+    push("accounts", "PF_DUE", `PF and ESI for ${period} are due on the 15th`, "Remit EPF and ESI contributions after the payroll run is approved", "PAYROLL_RUN", openRuns[0].id, 1);
+  }
 
   db.notifications.push(...out);
 }

@@ -39,11 +39,11 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
                   className={cn(
                     "relative flex min-h-11 items-center gap-3 rounded-md px-3 text-sm md:min-h-9",
                     collapsed && "justify-center px-0",
-                    active ? "bg-accent-tint font-medium text-accent" : "text-foreground hover:bg-muted",
+                    active ? "bg-accent-subtle font-medium text-foreground" : "text-foreground hover:bg-muted",
                   )}
                 >
-                  {active && <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-accent" aria-hidden="true" />}
-                  <Icon className="size-4 shrink-0" aria-hidden="true" />
+                  {active && <span className="absolute inset-y-1.5 left-0 w-1 rounded-full bg-accent" aria-hidden="true" />}
+                  <Icon className={cn("size-4 shrink-0", active && "text-accent-strong")} aria-hidden="true" />
                   <span className={cn(collapsed && "sr-only")}>{m.label}</span>
                 </Link>
               );

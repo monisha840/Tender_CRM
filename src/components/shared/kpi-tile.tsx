@@ -28,7 +28,7 @@ function Sparkline({ values }: { values: number[] }) {
   const points = values.map((v, i) => `${(i / (values.length - 1)) * w},${h - 2 - ((v - min) / span) * (h - 4)}`).join(" ");
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="h-6 w-20 shrink-0" role="img" aria-label="Trend over recent days">
-      <polyline points={points} fill="none" stroke="var(--chart-1)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points={points} fill="none" stroke="var(--accent-strong)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -60,7 +60,7 @@ export function KpiTile({ label, value, hint, icon: Icon, delta, trend, href, cl
   );
   const base = "block rounded-lg border bg-surface p-4";
   return href ? (
-    <Link href={href} className={cn(base, "transition-colors hover:bg-accent-tint/50", className)}>
+    <Link href={href} className={cn(base, "transition-colors hover:bg-accent-subtle", className)}>
       {body}
     </Link>
   ) : (
