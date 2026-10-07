@@ -50,3 +50,12 @@ next-env.d.ts
 
 # keep the template
 !.env.example
+
+# local-only
+*.log
+.env*
+!.env.example
+/.claude/
+*.dump
+*.sql.gz
+/tests/e2e/.auth/
