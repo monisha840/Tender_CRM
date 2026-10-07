@@ -8,8 +8,8 @@ import { createClient } from "@supabase/supabase-js";
 import { assertSafeToReset } from "./db-reset";
 
 export const E2E_USERS = [
-  { email: "admin@test.sprince.local", name: "E2E System Admin", roleKey: "system_admin" },
-  { email: "director@test.sprince.local", name: "E2E Director", roleKey: "director" },
+  { email: "admin@sprince.example", name: "System Administrator", roleKey: "system_admin" },
+  { email: "a.joseph.stalin@sprince.example", name: "Dr. A. Joseph Stalin", roleKey: "director" },
 ] as const;
 
 export async function ensureE2eUsers(): Promise<void> {
@@ -50,7 +50,7 @@ export async function ensureE2eUsers(): Promise<void> {
         (await prisma.user.findFirst({ where: { email: u.email } }));
       const data = { name: u.name, email: u.email, authUserId: authId, isActive: true, mustChangePassword: false, deletedAt: null };
       const saved = existingUser
-        ? await prisma.user.update({ where: { id: existingUser.id }, data })
+        ? await prisma.user.update({ where: { id: existingUser.id }, data: { ...data, name: existingUser.name } })
         : await prisma.user.create({ data });
       await prisma.userRole.upsert({
         where: { userId_roleId: { userId: saved.id, roleId: role.id } },

@@ -1,3 +1,4 @@
+import "server-only";
 // Server-only: never import from client components.
 import { PrismaClient } from "@prisma/client";
 

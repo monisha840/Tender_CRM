@@ -9,8 +9,8 @@ export const AUTH = {
 // TODO-verify: written against the PLANNED login UI (/login, labels "Email" and "Password",
 // submit button "Sign in", redirect away from /login on success). Adjust once S2 lands the real page.
 for (const [role, email] of [
-  ["admin", "admin@test.sprince.local"],
-  ["director", "director@test.sprince.local"],
+  ["admin", "admin@sprince.example"],
+  ["director", "a.joseph.stalin@sprince.example"],
 ] as const) {
   setup(`authenticate as ${role}`, async ({ page }) => {
     const res = await page.goto("/login");

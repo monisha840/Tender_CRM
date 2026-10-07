@@ -1,3 +1,4 @@
+import "server-only";
 // Server-only: never import from client components.
 import type { Prisma } from "@prisma/client";
 import { AuthError, type SessionUser } from "@/lib/server/auth-types";

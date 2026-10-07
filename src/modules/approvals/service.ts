@@ -1,3 +1,4 @@
+import "server-only";
 // Server-only: never import from client components.
 import type { ApprovalRequest } from "@prisma/client";
 import { z } from "zod";
@@ -179,7 +180,8 @@ export async function decide(user: SessionUser, rawInput: DecideInput) {
       data: { status, completedAt: now, updatedById: user.id, version: { increment: 1 } },
     });
     if (moved.count !== 1) throw new ServiceError("CONFLICT", "This request was just decided by someone else");
-    await tx.approvalStep.update({ where: { id: step.id }, data: { status, updatedById: user.id, version: { increment: 1 } } });
+    const stepMoved = await tx.approvalStep.updateMany({ where: { id: step.id, status: "PENDING" }, data: { status, updatedById: user.id, version: { increment: 1 } } });
+    if (stepMoved.count !== 1) throw new ServiceError("CONFLICT", "This step was just decided by someone else");
     await tx.approvalAction.create({
       data: { stepId: step.id, actorId: user.id, action: input.decision, comment: reason, at: now },
     });

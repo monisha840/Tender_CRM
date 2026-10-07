@@ -1,3 +1,4 @@
+import "server-only";
 // Server-only: never import from client components.
 import * as React from "react";
 import type { PermissionAction } from "@prisma/client";

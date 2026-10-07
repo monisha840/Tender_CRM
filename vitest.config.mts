@@ -8,7 +8,11 @@ loadEnv({ path: ".env.local", quiet: true });
 export default defineConfig({
   resolve: {
     // Mirrors tsconfig "paths": { "@/*": ["./src/*"] }
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // `server-only` throws outside the react-server condition; stub it for unit/integration tests.
+      "server-only": fileURLToPath(new URL("./tests/setup/server-only-stub.ts", import.meta.url)),
+    },
   },
   test: {
     environment: "node",

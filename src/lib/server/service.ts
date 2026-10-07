@@ -1,3 +1,4 @@
+import "server-only";
 // Server-only: never import from client components.
 import type { Prisma, PermissionAction } from "@prisma/client";
 import { z } from "zod";
@@ -46,6 +47,7 @@ let defaultResolver: UserResolver = async () => {
   return requireUserForAction();
 };
 export function setUserResolver(fn: UserResolver) {
+  if (process.env.NODE_ENV === "production") throw new Error("setUserResolver is not allowed in production");
   defaultResolver = fn;
 }
 
@@ -92,6 +94,7 @@ function toActionError(e: unknown): ActionError {
 export function runAction<I, O>(opts: ActionOptions<I>, handler: (ctx: ActionContext<I>) => Promise<O>) {
   return async (rawInput: unknown): Promise<ActionResult<O>> => {
     try {
+      if (opts.getUser && process.env.NODE_ENV === "production") throw new Error("ActionOptions.getUser is not allowed in production");
       const user = await (opts.getUser ?? defaultResolver)();
       const input = opts.schema.parse(rawInput);
       const action = typeof opts.action === "function" ? opts.action(input) : opts.action;
