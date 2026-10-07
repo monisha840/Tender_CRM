@@ -1,75 +1,120 @@
 import { buildSeedDatabase } from "@/lib/data/seed";
+import { listSubcontractorAssignments, listEmployeePay, getGstFilingSummary, getReceivablesSummary, getProjectBilling, listProjects } from "@/lib/data";
 import { formatINR, sumMoney, toPaise } from "@/lib/money";
 
 const db = buildSeedDatabase();
+let failures = 0;
+const check = (ok: boolean, label: string) => {
+  console.log(`${ok ? "ok  " : "FAIL"} ${label}`);
+  if (!ok) failures++;
+};
+
 const counts = Object.fromEntries(Object.entries(db).map(([k, v]) => [k, (v as unknown[]).length]));
 console.log(JSON.stringify(counts));
-console.log("json size KB", Math.round(JSON.stringify(db).length / 1024));
+const sizeKb = Math.round(JSON.stringify(db).length / 1024);
+console.log("json size KB", sizeKb);
+check(sizeKb < 3500, "serialised database fits comfortably in localStorage (< 3.5 MB)");
 
-// duplicate ids per table
+// Unique ids and determinism
+let dups = 0;
 for (const [k, rows] of Object.entries(db)) {
   const ids = new Set<string>();
   for (const r of rows as { id: string }[]) {
-    if (ids.has(r.id)) console.log("DUP", k, r.id);
+    if (ids.has(r.id)) {
+      console.log("DUP", k, r.id);
+      dups++;
+    }
     ids.add(r.id);
   }
 }
-// determinism
-const again = buildSeedDatabase();
-console.log("deterministic", JSON.stringify(db) === JSON.stringify(again));
+check(dups === 0, "no duplicate ids");
+check(JSON.stringify(db) === JSON.stringify(buildSeedDatabase()), "seed is deterministic");
 
-// flagship
-const t = db.tenders.find((x) => x.id === "tnd_korba_road")!;
-const bid = db.bids.find((x) => x.tenderId === t.id)!;
-const emd = db.securityInstruments.find((x) => x.tenderId === t.id && x.type === "EMD")!;
-console.log("flagship", formatINR(t.estimatedValue), formatINR(emd.amount), formatINR(bid.quotedAmount), bid.isL1, bid.technicalResult, db.tenderStages.find((s) => s.id === t.currentStageId)!.name);
+// Client scope
+check(db.tenderStages.map((s) => s.name).join(",") === "New,Under Evaluation,Bid Preparing,Submitted,Won,Lost", "tender stages are New, Under Evaluation, Bid Preparing, Submitted, Won, Lost");
+check(db.serviceLines.length === 6, "six service lines");
+check(["NTPC", "CSPGCL", "MSPGCL", "DVC", "MPPGCL", "KPCL", "TANGEDCO", "IOCL", "NALCO"].every((s) => db.organisations.some((o) => o.shortName === s)), "all nine organisations");
+check(["Dr. A. Joseph Stalin", "Antony Bala Prince", "Augusti Marys Priyadarshini"].every((n) => db.users.some((u) => u.name === n)), "directors present");
+check(db.offices.some((o) => o.kind === "REGISTERED" && o.name.includes("Mumbai")) && db.offices.some((o) => o.kind === "BRANCH" && o.name.includes("Chennai")), "registered office Mumbai, branch Chennai");
+check(["NTPC Korba", "CSPGCL Korba West", "MSPGCL Chandrapur", "MSPGCL Koradi"].every((n) => db.sites.some((s) => s.name === n)), "named plant sites present");
+console.log("employees", db.employees.length);
+check(db.employees.length >= 140 && db.employees.length <= 170, "about 150 employees");
+const tenderValues = db.tenders.map((t) => Number(toPaise(t.estimatedValue)) / 100);
+check(Math.min(...tenderValues) >= 3_000_000 && Math.max(...tenderValues) <= 150_000_000, "tender estimates between Rs 30 L and Rs 15 Cr");
+check(db.tenders.every((t) => t.workDescription && t.eligibility && t.openingDate && t.organisationId), "tenders carry organisation, work description, eligibility and opening date");
 
-// stage dist
+// Stage distribution and win rate
 const byStage: Record<string, number> = {};
-db.tenders.forEach((x) => { const n = db.tenderStages.find((s) => s.id === x.currentStageId)!.name; byStage[n] = (byStage[n] ?? 0) + 1; });
+db.tenders.forEach((x) => {
+  const n = db.tenderStages.find((s) => s.id === x.currentStageId)!.name;
+  byStage[n] = (byStage[n] ?? 0) + 1;
+});
 console.log(byStage);
-const won = db.tenders.filter((x) => db.tenderStages.find((s) => s.id === x.currentStageId)!.kind === "WON").length;
-const lost = db.tenders.filter((x) => db.tenderStages.find((s) => s.id === x.currentStageId)!.kind === "LOST").length;
-console.log("win rate", won, lost, Math.round((won / (won + lost)) * 100) + "%");
+const won = byStage["Won"] ?? 0;
+const lost = byStage["Lost"] ?? 0;
+console.log("win rate", Math.round((won / (won + lost)) * 100) + "%");
 
-// projects
-for (const p of db.projects) {
-  const boq = db.boqItems.filter((b) => b.projectId === p.id);
-  const boqTotal = sumMoney(boq.map((b) => b.amount));
-  const executed = boq.reduce((a, b) => a + Number(b.executedQty) * Number(b.rate), 0);
-  const contract = Number(toPaise(p.contractValue)) / 100;
-  const pct = (executed / contract) * 100;
-  const start = new Date(p.startDate!).getTime(), end = new Date(p.plannedEndDate!).getTime();
-  const exp = ((new Date("2026-10-07").getTime() - start) / (end - start)) * 100;
-  console.log(p.code, formatINR(p.contractValue), "boq==contract", boqTotal === p.contractValue, "actual%", pct.toFixed(1), "expected%", exp.toFixed(1), "gap", (exp - pct).toFixed(1));
+// The Rs 50 L package with three subcontractors
+const p10 = db.projects.find((p) => p.id === "prj_p10_kpcl_pkg")!;
+check(p10.contractValue === "5000000.00", "Raichur package contract value is exactly Rs 50,00,000");
+const p10Orders = listSubcontractorAssignments(db, { projectId: p10.id });
+check(p10Orders.length === 3 && ["Civil", "Stone Picking", "Painting"].every((t) => p10Orders.some((o) => o.trade === t)), "Rs 50 L project has Civil, Stone Picking and Painting subcontractors");
+p10Orders.forEach((o) => console.log("  ", o.trade, o.subcontractorName, formatINR(o.contractValue), `${o.progressPct.toFixed(0)}%`, "billed", formatINR(o.billed, { compact: "auto" }), "paid", formatINR(o.paid, { compact: "auto" }), "balance", formatINR(o.balance, { compact: "auto" }), o.lastPaymentDate));
+
+// Projects: BOQ ties to contract, health spread
+for (const row of listProjects(db)) {
+  const p = row.project;
+  const boqTotal = sumMoney(db.boqItems.filter((b) => b.projectId === p.id).map((b) => b.amount));
+  const billing = getProjectBilling(db, p.id);
+  console.log(p.code, p.contractType, p.billingCycle, formatINR(p.contractValue, { compact: true }), "boq==contract", boqTotal === p.contractValue, row.health, `${row.progressPct.toFixed(0)}%/${row.plannedPct.toFixed(0)}%`, "invoiced", formatINR(billing.invoicedTotal, { compact: true }), "outstanding", formatINR(billing.outstanding, { compact: true }));
+  check(boqTotal === p.contractValue, `${p.code}: BOQ sums to contract value`);
 }
+const units = new Set(db.boqItems.map((b) => b.unit));
+console.log("BOQ units", [...units].join(", "));
 
-// money
-const emdLocked = sumMoney(db.securityInstruments.filter((s) => s.type === "EMD" && ["ARRANGED", "SUBMITTED"].includes(s.status)).map((s) => s.amount));
-const recv = db.raBills.reduce((a, b) => a + Number(b.netPayable) - Number(b.receivedAmount), 0);
-const overdue = db.raBills.filter((b) => b.dueDate < "2026-10-07" && Number(b.receivedAmount) < Number(b.netPayable));
-console.log("EMD locked", formatINR(emdLocked, { compact: true }), "receivables", formatINR(recv.toFixed(2), { compact: true }), "overdue bills", overdue.length);
-const pay = db.vendorInvoices.reduce((a, b) => a + Number(b.total) - Number(b.paidAmount), 0) + db.subcontractorBills.reduce((a, b) => a + Number(b.netPayable) - Number(b.paidAmount), 0);
-console.log("payables", formatINR(pay.toFixed(2), { compact: true }));
-const pending = db.approvalSteps.filter((s) => s.status === "PENDING");
-console.log("pending approvals", pending.length, db.approvalRequests.filter((r) => r.status === "PENDING").map((r) => r.entityType).join(","));
-console.log("notifications", db.notifications.length, "unread", db.notifications.filter((n) => !n.readAt).length);
+// Invoices and GST
+const igst = db.invoices.filter((i) => Number(i.igst) > 0).length;
+const intra = db.invoices.filter((i) => Number(i.cgst) > 0).length;
+console.log("invoices", db.invoices.length, "intra-state", intra, "inter-state (IGST)", igst);
+check(igst > 0 && intra > 0, "invoices include both CGST+SGST and IGST");
+check(db.invoices.every((i) => toPaise(i.total) === toPaise(i.taxableValue) + toPaise(i.cgst) + toPaise(i.sgst) + toPaise(i.igst)), "invoice total = taxable + taxes");
+check(db.invoices.every((i) => toPaise(i.netReceivable) === toPaise(i.total) - toPaise(i.totalDeductions)), "invoice net = total - deductions");
+const gstf = getGstFilingSummary(db);
+console.log("GST filing", { filed: gstf.filed, pending: gstf.pending, overdue: gstf.overdue });
+check(gstf.pending > 0 && gstf.overdue > 0, "some GST filing pending, one overdue");
+const recv = getReceivablesSummary(db);
+console.log("receivables", formatINR(recv.total, { compact: true }), "overdue", formatINR(recv.overdue, { compact: true }), recv.overdueCount);
+check(recv.overdueCount > 0, "some overdue customer payments");
 
-// today's flagship report
-const rep = db.dailyReports.find((r) => r.siteId === "site_korba_road_1" && r.reportDate === "2026-10-07")!;
-console.log("flagship report", rep.workersCount, rep.issues, db.dailyWorkItems.filter((i) => i.reportId === rep.id));
+// Employees: salary, advance, deductions, PF, ESI, net, payment status
+const pay = listEmployeePay(db, "2026-09").filter((r) => r.payslip);
+const sample = pay.find((r) => Number(r.profile.advanceBalance) > 0 && r.payslip!.esiEmployee !== "0.00")!;
+console.log("pay sample", sample.employee.name, sample.designation, "salary", sample.profile.wageAmount, "advance bal", sample.profile.advanceBalance, "deductions", sample.payslip!.totalDeductions, "PF", sample.payslip!.epfEmployee, "ESI", sample.payslip!.esiEmployee, "net", sample.payslip!.net, sample.payslip!.paymentStatus);
+check(pay.every((r) => toPaise(r.payslip!.net) === toPaise(r.payslip!.gross) - toPaise(r.payslip!.totalDeductions)), "net salary = gross - total deductions");
+check(new Set(pay.map((r) => r.payslip!.paymentStatus)).size >= 2, "payment status varies (paid / pending)");
 
-// reference integrity (spot)
+// Approvals / notifications
+console.log("pending approvals", db.approvalSteps.filter((s) => s.status === "PENDING").length, "notifications", db.notifications.length);
+
+// Reference integrity (spot)
 const ids = (arr: { id: string }[]) => new Set(arr.map((x) => x.id));
-const check = (name: string, refs: string[], valid: Set<string>) => refs.forEach((r) => { if (r && !valid.has(r)) console.log("BROKEN", name, r); });
-check("project.client", db.projects.map((p) => p.clientId), ids(db.clients));
-check("project.gst", db.projects.map((p) => p.gstRegistrationId), ids(db.gstRegistrations));
-check("site.incharge", db.sites.map((s) => s.inchargeId ?? ""), ids(db.employees));
-check("att.emp", db.attendance.map((a) => a.employeeId), ids(db.employees));
-check("po.vendor", db.purchaseOrders.map((p) => p.vendorId), ids(db.vendors));
-check("sbill.wo", db.subcontractorBills.map((b) => b.workOrderId), ids(db.workOrders));
-check("pay.ra", db.payments.map((p) => p.raBillId ?? ""), ids(db.raBills));
-check("apr.ent", db.approvalSteps.map((s) => s.assignedUserId ?? ""), ids(db.users));
-check("pbg.project", db.securityInstruments.map((s) => s.projectId ?? ""), ids(db.projects));
-check("ntf.user", db.notifications.map((n) => n.userId), ids(db.users));
-check("pm", db.projects.map((p) => p.projectManagerId ?? ""), ids(db.employees));
+const refs = (name: string, values: (string | null | undefined)[], valid: Set<string>) =>
+  check(values.every((r) => !r || valid.has(r)), `refs: ${name}`);
+refs("project.organisation", db.projects.map((p) => p.organisationId), ids(db.organisations));
+refs("project.site", db.projects.map((p) => p.siteId), ids(db.sites));
+refs("project.serviceLine", db.projects.map((p) => p.serviceLineId), ids(db.serviceLines));
+refs("tender.serviceLine", db.tenders.map((t) => t.serviceLineId), ids(db.serviceLines));
+refs("tender.site", db.tenders.map((t) => t.siteId), ids(db.sites));
+refs("site.organisation", db.sites.map((s) => s.organisationId), ids(db.organisations));
+refs("attendance.employee", db.attendance.map((a) => a.employeeId), ids(db.employees));
+refs("attendance.site", db.attendance.map((a) => a.siteId), ids(db.sites));
+refs("invoice.project", db.invoices.map((i) => i.projectId), ids(db.projects));
+refs("payment.invoice", db.payments.map((p) => p.invoiceId), ids(db.invoices));
+refs("workOrder.subcontractor", db.workOrders.map((w) => w.subcontractorId), ids(db.subcontractors));
+refs("approval.assignee", db.approvalSteps.map((s) => s.assignedUserId), ids(db.users));
+refs("pbg.project", db.securityInstruments.map((s) => s.projectId), ids(db.projects));
+refs("notification.user", db.notifications.map((n) => n.userId), ids(db.users));
+refs("project.manager", db.projects.map((p) => p.projectManagerId), ids(db.employees));
+
+console.log(failures ? `\n${failures} check(s) FAILED` : "\nall checks passed");
+process.exit(failures ? 1 : 0);

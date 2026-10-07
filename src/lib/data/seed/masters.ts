@@ -1,59 +1,32 @@
 import type { TenderStageKind } from "@/types";
 import { meta, type SeedCtx } from "./helpers";
 
-export type StageKey =
-  | "IDENTIFIED"
-  | "REGISTERED"
-  | "GO_NO_GO_PENDING"
-  | "NO_GO"
-  | "PREPARATION"
-  | "EMD_ARRANGED"
-  | "SUBMITTED"
-  | "TECHNICAL_EVALUATION"
-  | "FINANCIAL_EVALUATION"
-  | "WON"
-  | "LOST"
-  | "CANCELLED"
-  | "AWARDED"
-  | "AGREEMENT_SIGNED"
-  | "CONVERTED_TO_PROJECT";
+export type StageKey = "NEW" | "UNDER_EVALUATION" | "BID_PREPARING" | "SUBMITTED" | "WON" | "LOST";
 
-/** Default tender stages (docs/system-flow.md §3.3). Configurable data, with `systemKey` for code hooks. */
+/**
+ * Default tender stages (client scope). Configurable data with a `systemKey` for code hooks.
+ * "Under Evaluation" is where the GO / NO-GO decision is taken.
+ */
 export const STAGE_DEFS: { key: StageKey; name: string; kind: TenderStageKind }[] = [
-  { key: "IDENTIFIED", name: "Identified", kind: "OPEN" },
-  { key: "REGISTERED", name: "Registered", kind: "OPEN" },
-  { key: "GO_NO_GO_PENDING", name: "GO / NO-GO pending", kind: "OPEN" },
-  { key: "NO_GO", name: "No-Go", kind: "NO_GO" },
-  { key: "PREPARATION", name: "Preparation", kind: "OPEN" },
-  { key: "EMD_ARRANGED", name: "EMD arranged", kind: "OPEN" },
+  { key: "NEW", name: "New", kind: "OPEN" },
+  { key: "UNDER_EVALUATION", name: "Under Evaluation", kind: "OPEN" },
+  { key: "BID_PREPARING", name: "Bid Preparing", kind: "OPEN" },
   { key: "SUBMITTED", name: "Submitted", kind: "OPEN" },
-  { key: "TECHNICAL_EVALUATION", name: "Technical evaluation", kind: "OPEN" },
-  { key: "FINANCIAL_EVALUATION", name: "Financial evaluation", kind: "OPEN" },
   { key: "WON", name: "Won", kind: "WON" },
   { key: "LOST", name: "Lost", kind: "LOST" },
-  { key: "CANCELLED", name: "Cancelled", kind: "TERMINAL" },
-  { key: "AWARDED", name: "Awarded", kind: "WON" },
-  { key: "AGREEMENT_SIGNED", name: "Agreement signed", kind: "WON" },
-  { key: "CONVERTED_TO_PROJECT", name: "Converted to project", kind: "WON" },
 ];
 export const stageId = (key: StageKey) => `stg_${key.toLowerCase()}`;
 
-export const TENDER_TYPES = [
-  "Roads",
-  "Buildings",
-  "Water supply & sewerage",
-  "Drainage",
-  "Electrical & substations",
-  "Bridges & culverts",
-  "Landscaping & public amenities",
-] as const;
+export const TENDER_TYPES = ["Multi-year service contract", "Fixed-scope job", "Annual rate contract"] as const;
 export const tenderTypeId = (i: number) => `ttype_${i + 1}`;
 
 export const PORTALS = [
-  { name: "CG eProcurement", url: "https://eproc.cgstate.gov.in" },
-  { name: "Delhi eProcurement", url: "https://govtprocurement.delhi.gov.in" },
-  { name: "Mahatenders", url: "https://mahatenders.gov.in" },
+  { name: "NTPC e-Tender", url: "https://ntpctender.ntpc.co.in" },
   { name: "Central Public Procurement Portal", url: "https://eprocure.gov.in" },
+  { name: "Mahatenders", url: "https://mahatenders.gov.in" },
+  { name: "CG eProcurement", url: "https://eproc.cgstate.gov.in" },
+  { name: "TN Tenders", url: "https://tntenders.gov.in" },
+  { name: "Karnataka Public Procurement Portal", url: "https://kppp.karnataka.gov.in" },
 ] as const;
 export const portalId = (i: number) => `portal_${i + 1}`;
 
@@ -73,6 +46,8 @@ export const DOC_TYPES = [
   "Agreement",
   "Bid acknowledgement",
   "Tender notice (NIT)",
+  "Contract labour licence",
+  "ISO / safety certificates",
 ] as const;
 export const docTypeId = (i: number) => `dtype_${i + 1}`;
 
@@ -85,7 +60,7 @@ export const EXPENSE_CATEGORIES = [
 ] as const;
 
 export const DEDUCTION_TYPES = [
-  { id: "ded_retention", code: "RETENTION", name: "Retention / security deposit", method: "PERCENT", rate: "5.0000", applies: "BOTH", releasable: true },
+  { id: "ded_retention", code: "RETENTION", name: "Security deposit (retention)", method: "PERCENT", rate: "5.0000", applies: "BOTH", releasable: true },
   { id: "ded_tds_it", code: "TDS_IT", name: "Income-tax TDS", method: "PERCENT", rate: "2.0000", applies: "BOTH", releasable: false },
   { id: "ded_tds_gst", code: "TDS_GST", name: "GST TDS", method: "PERCENT", rate: "2.0000", applies: "RA_BILL", releasable: false },
   { id: "ded_cess", code: "LABOUR_CESS", name: "Labour cess", method: "PERCENT", rate: "1.0000", applies: "RA_BILL", releasable: false },
@@ -95,17 +70,56 @@ export const DEDUCTION_TYPES = [
 ] as const;
 
 export const MATERIALS = [
+  { id: "mat_primer", name: "Epoxy zinc-rich primer", unit: "litre", hsn: "3208" },
+  { id: "mat_pu", name: "Polyurethane topcoat", unit: "litre", hsn: "3208" },
+  { id: "mat_grit", name: "Abrasive grit for blasting", unit: "MT", hsn: "2505" },
+  { id: "mat_sections", name: "Structural steel sections", unit: "MT", hsn: "7216" },
+  { id: "mat_plate", name: "MS plates", unit: "MT", hsn: "7208" },
+  { id: "mat_cbpipe", name: "Cast basalt lined pipe", unit: "running metre", hsn: "6815" },
   { id: "mat_cement", name: "Cement OPC 53 grade", unit: "bag", hsn: "2523" },
-  { id: "mat_steel", name: "TMT steel Fe500D", unit: "kg", hsn: "7214" },
-  { id: "mat_bitumen", name: "Bitumen VG-30", unit: "MT", hsn: "2713" },
-  { id: "mat_agg20", name: "Aggregate 20 mm", unit: "cum", hsn: "2517" },
-  { id: "mat_sand", name: "River sand", unit: "cum", hsn: "2505" },
-  { id: "mat_gsb", name: "GSB / WMM material", unit: "cum", hsn: "2517" },
-  { id: "mat_pipe", name: "DI pipe 300 mm", unit: "m", hsn: "7303" },
-  { id: "mat_brick", name: "Fly-ash bricks", unit: "nos", hsn: "6901" },
-  { id: "mat_rmc", name: "Ready-mix concrete M25", unit: "cum", hsn: "3824" },
-  { id: "mat_diesel", name: "HSD diesel", unit: "litre", hsn: "2710" },
+  { id: "mat_scaffold", name: "Scaffolding tubes and fittings", unit: "MT", hsn: "7306" },
+  { id: "mat_ppe", name: "PPE and safety kit", unit: "set", hsn: "6307" },
+  { id: "mat_electrode", name: "Welding electrodes", unit: "kg", hsn: "8311" },
 ] as const;
+
+/**
+ * Configurable service lines. `scope` and `eligibility` feed generated tender text
+ * (unit is the default BOQ unit for the line).
+ */
+export const SERVICE_LINES = [
+  {
+    id: "sl_stone", key: "stone", name: "Stone Picking (manpower)", unit: "man-day",
+    scope: "Deployment of trained manpower for stone and foreign-material picking from running coal conveyors, with supervision, PPE and statutory compliance",
+    eligibility: "Similar manpower-supply work of at least 40% of the estimated value in a thermal power plant in the last 5 years; valid contract labour licence; EPF/ESI registration; average annual turnover of at least 30% of the estimate.",
+  },
+  {
+    id: "sl_paint", key: "paint", name: "Industrial Painting & Coating", unit: "sq m",
+    scope: "Surface preparation by blasting, application of epoxy primer, intermediate and polyurethane finish coats, with scaffolding and inspection",
+    eligibility: "Completed industrial painting work of at least 40% of the estimated value in a power plant or process industry in the last 5 years; ISO 9001; trained applicators; average annual turnover of at least 30% of the estimate.",
+  },
+  {
+    id: "sl_cbp", key: "cbp", name: "Cast Basalt Pipeline", unit: "running metre",
+    scope: "Supply, laying and jointing of cast basalt lined pipeline for ash and slurry handling, including bends, supports and commissioning",
+    eligibility: "Executed cast basalt or similar lined pipeline works of at least 50% of the estimated value; own or tied-up lining supply; valid solvency; average annual turnover of at least 30% of the estimate.",
+  },
+  {
+    id: "sl_steel", key: "steel", name: "Steel Structure EPC", unit: "MT",
+    scope: "Design, supply, fabrication, surface treatment and erection of structural steel, including civil foundations and painting",
+    eligibility: "Executed structural steel fabrication and erection of at least 50% of the estimated value in the last 5 years; fabrication facility; ISO 9001 and 45001; average annual turnover of at least 30% of the estimate.",
+  },
+  {
+    id: "sl_civil", key: "civil", name: "Civil Works", unit: "sq m",
+    scope: "Civil, structural repair and finishing works including concrete, masonry, drains and allied works inside the plant",
+    eligibility: "Similar civil works of at least 40% of the estimated value in the last 5 years; valid contractor licence; average annual turnover of at least 30% of the estimate.",
+  },
+  {
+    id: "sl_scaff", key: "scaff", name: "Scaffolding", unit: "sq m",
+    scope: "Supply, erection, dismantling and maintenance of scaffolding with rigging and safety nets for boiler, ESP and structure access",
+    eligibility: "Scaffolding or rigging work of at least 40% of the estimated value in a power plant in the last 5 years; trained scaffolders and riggers; valid contract labour licence; average annual turnover of at least 30% of the estimate.",
+  },
+] as const;
+export type ServiceLineKey = (typeof SERVICE_LINES)[number]["key"];
+export const serviceLineId = (key: ServiceLineKey) => SERVICE_LINES.find((l) => l.key === key)!.id;
 
 export function seedMasters({ db }: SeedCtx) {
   STAGE_DEFS.forEach((s, i) =>
@@ -137,6 +151,7 @@ export function seedMasters({ db }: SeedCtx) {
     db.projectStatuses.push({ ...meta(id), name, sequence: i + 1, systemKey, isActive: true }),
   );
 
+  SERVICE_LINES.forEach((l) => db.serviceLines.push({ ...meta(l.id), name: l.name, defaultUnit: l.unit, isActive: true }));
   EXPENSE_CATEGORIES.forEach((c) => db.expenseCategories.push({ ...meta(c.id), name: c.name, isActive: true }));
   DEDUCTION_TYPES.forEach((d) =>
     db.deductionTypes.push({

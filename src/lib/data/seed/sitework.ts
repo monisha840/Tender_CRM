@@ -1,115 +1,91 @@
 import { dayOfWeek, DEMO_TODAY, lastNDays } from "@/lib/dates";
-import { SITE_USER } from "./workforce";
-import { SITE_DEFS, type ProjectInfo } from "./projects";
-import { userId } from "./org";
-import { at, dayOffset, meta, type SeedCtx } from "./helpers";
 import type { IssueSeverity, IssueStatus } from "@/types";
+import { PROJECT_SPECS, type Template } from "./catalog";
+import { at, dayOffset, meta, type SeedCtx } from "./helpers";
+import { userId } from "./org";
+import type { ProjectInfo } from "./projects";
+import { SITE_USER } from "./workforce";
 
-const ISSUES = [
-  "Heavy rain caused delay",
-  "Shortage of material delayed work",
-  "Machine breakdown: equipment under repair",
-  "Utility shifting pending",
-  "Labour shortage due to local festival",
-  "Waterlogging in work area",
-];
-const PLANS: Record<string, string[]> = {
-  road: ["Continue excavation", "Start GSB laying on completed stretch", "Compaction and levelling"],
-  building: ["Continue RCC shuttering", "Brick masonry on first floor", "Plastering of completed walls"],
-  pipeline: ["Continue trench excavation", "Pipe laying and jointing", "Valve chamber casting"],
-  drain: ["Continue box drain casting", "Fix cover slabs", "Desilting of next reach"],
-  bridge: ["Foundation concrete", "Shuttering for abutment", "Approach embankment filling"],
-  maintenance: ["Patching of identified potholes", "Kerb stone laying", "Road marking"],
+const ISSUES: Record<Template, string[]> = {
+  stone: ["Conveyor stoppage window shorter than planned", "Shortage of PPE gloves", "Low coal flow, fewer pickers deployed"],
+  paint: ["Heavy rain stopped blasting and painting", "Hot work permit delayed", "Scaffold clearance pending"],
+  cbp: ["Shutdown window for the ash line not available", "Pipe delivery delayed", "Trench waterlogged"],
+  steel: ["Crane not available for erection", "Fabricated members delayed from workshop", "Wind speed above limit for erection"],
+  civil: ["Plant area access restricted during operations", "Cement delivery delayed", "Rain delayed concreting"],
+  scaff: ["Scaffold material shortage", "Permit to work delayed", "Boiler access not released"],
+  package: ["Plant access restricted for ash handling area", "Paint stock shortage", "Labour shortage due to local festival"],
+};
+const PLANS: Record<Template, string[]> = {
+  stone: ["Continue picking on conveyor 3A/3B", "Shift rotation with night crew", "Clean-up of transfer points"],
+  paint: ["Continue grit blasting on lower zone", "Apply primer on blasted surface", "Apply intermediate coat"],
+  cbp: ["Lay and joint next pipe run", "Fix pipe supports", "Hydro-test completed section"],
+  steel: ["Erect gallery bay 4", "Fabricate and match-mark members", "Bolt tightening and alignment"],
+  civil: ["Repair concrete at foundation block", "Cast drain section", "Plastering and finishing"],
+  scaff: ["Erect scaffolding at ESP casing", "Dismantle completed bay", "Inspect scaffold tags"],
+  package: ["Civil repair of floor section", "Stone picking, all conveyors", "Primer coat on structures"],
 };
 
-/** Sites whose report is intentionally missing, for the "missing daily report" alerts. */
-function isMissing(siteId: string, date: string): boolean {
-  if (siteId === "site_korba_pipe_2") return date >= dayOffset(-1);
-  if (siteId === "site_mh_culvert_1") return date === dayOffset(-1);
-  if (siteId === "site_csp_roads_1") return date === DEMO_TODAY;
+/** Projects whose report is intentionally missing, for the "missing daily report" alerts. */
+function isMissing(projectKey: string, date: string): boolean {
+  if (projectKey === "p9_dvc_stone") return date === DEMO_TODAY;
+  if (projectKey === "p3_mspgcl_cbp") return date === dayOffset(-1);
+  if (projectKey === "p7_mppgcl_civil") return date >= dayOffset(-1);
   return false;
 }
 
 export function seedSiteWork(ctx: SeedCtx, projects: ProjectInfo[]) {
   const { db, rng } = ctx;
 
-  SITE_DEFS.forEach((site) => {
-    const proj = projects.find((p) => p.key === site.projectKey)!;
+  PROJECT_SPECS.forEach((spec) => {
+    const proj = projects.find((p) => p.key === spec.key)!;
     const items = db.boqItems.filter((b) => b.projectId === proj.id && b.unit !== "LS");
-    const base = site.id === "site_korba_road_1" ? 24 : site.workers + rng.int(4, 14);
+    // Subcontract labour on site, on top of our own named workers.
+    const base = spec.template === "stone" ? 18 : spec.template === "paint" ? 8 : spec.template === "scaff" ? 6 : 5;
     const pmUser = userId(proj.pmKey);
 
     lastNDays(14).forEach((date, di) => {
-      if (dayOfWeek(date) === 0 || isMissing(site.id, date)) return;
-      const present = db.attendance
-        .filter((a) => a.siteId === site.id && a.date === date)
-        .reduce((sum, a) => sum + a.dayFraction, 0);
-      const flagshipToday = site.id === "site_korba_road_1" && date === DEMO_TODAY;
-      const workers = flagshipToday ? 32 : Math.round(present) + Math.max(0, base + rng.int(-3, 3));
-      const reportId = `dwr_${site.id}_${date}`;
+      if (dayOfWeek(date) === 0 || isMissing(spec.key, date)) return;
+      const rows = db.attendance.filter((a) => a.projectId === proj.id && a.date === date);
+      const present = rows.length ? rows.reduce((sum, a) => sum + a.dayFraction, 0) : Math.round((spec.workers.count + 2) * rng.float(0.8, 0.95));
+      const workers = Math.round(present) + Math.max(0, base + rng.int(-2, 3));
+      const reportId = `dwr_${spec.key}_${date}`;
       const reviewed = date <= dayOffset(-2);
-      const issue = flagshipToday ? "Heavy rain caused delay" : rng.chance(0.3) ? rng.pick(ISSUES) : null;
+      const issue = rng.chance(0.3) ? rng.pick(ISSUES[spec.template]) : null;
 
       db.dailyReports.push({
-        ...meta(reportId, at(date, "18:00")),
-        siteId: site.id,
-        projectId: proj.id,
-        regionId: proj.regionId,
-        reportDate: date,
-        status: reviewed ? "REVIEWED" : "SUBMITTED",
-        workersCount: workers,
-        issues: issue,
-        planForTomorrow: flagshipToday ? "Continue excavation" : rng.pick(PLANS[proj.template]),
-        photoCount: rng.int(2, 6),
-        submittedById: SITE_USER[proj.regionKey].engineer,
+        ...meta(reportId, at(date, "18:00")), siteId: proj.siteId, projectId: proj.id, regionId: proj.regionId, reportDate: date,
+        status: reviewed ? "REVIEWED" : "SUBMITTED", workersCount: workers, issues: issue, planForTomorrow: rng.pick(PLANS[spec.template]),
+        photoCount: rng.int(2, 6), submittedById: SITE_USER[proj.regionKey].engineer,
         submittedAt: at(date, `${rng.int(15, 18)}:${String(rng.int(0, 59)).padStart(2, "0")}`),
-        reviewedById: reviewed ? pmUser : null,
-        reviewComment: reviewed && rng.chance(0.3) ? "Noted. Please share chainage-wise progress tomorrow." : null,
+        reviewedById: reviewed ? pmUser : null, reviewComment: reviewed && rng.chance(0.3) ? "Noted. Please share area-wise progress tomorrow." : null,
       });
 
-      if (flagshipToday) {
-        db.dailyWorkItems.push({ ...meta(`dwi_${reportId}_1`), reportId, boqItemId: "boq_korba_road_1", plannedQty: "500.000", completedQty: "420.000" });
-        return;
-      }
       for (let n = 0; n < 2; n++) {
         const item = items[(di + n) % items.length];
-        const total = Number(item.quantity);
-        const planned = Math.max(1, Math.round((total / 120) * rng.float(0.7, 1.4)));
+        const planned = Math.max(1, Math.round((Number(item.quantity) / (spec.durationDays * 0.75)) * rng.float(0.7, 1.4)));
         db.dailyWorkItems.push({
-          ...meta(`dwi_${reportId}_${n + 1}`),
-          reportId,
-          boqItemId: item.id,
-          plannedQty: planned.toFixed(3),
+          ...meta(`dwi_${reportId}_${n + 1}`), reportId, boqItemId: item.id, plannedQty: planned.toFixed(3),
           completedQty: Math.round(planned * rng.float(0.55, 1.05)).toFixed(3),
         });
       }
     });
   });
 
-  const issues: [string, string, string, IssueSeverity, IssueStatus, number][] = [
-    ["korba_road", "site_korba_road_1", "Overhead 11 kV line obstructs alignment at Km 2.4", "HIGH", "OPEN", -9],
-    ["korba_pipe", "site_korba_pipe_1", "DI pipe supply delayed by 12 days", "HIGH", "OPEN", -6],
-    ["korba_pipe", "site_korba_pipe_2", "Right-of-way dispute with landowner at Kusmunda", "HIGH", "IN_PROGRESS", -14],
-    ["del_drain", "site_del_drain_1", "Traffic diversion approval pending from traffic police", "MEDIUM", "OPEN", -5],
-    ["mh_school", "site_mh_school_1", "Steel rebar delivery behind schedule", "HIGH", "OPEN", -4],
-    ["mh_culvert", "site_mh_culvert_1", "Monsoon waterlogging in foundation pit", "MEDIUM", "IN_PROGRESS", -8],
-    ["korba_hall", "site_korba_hall_1", "Brick batch rejected on strength test", "LOW", "RESOLVED", -20],
-    ["del_road", "site_del_road_1", "Night-work permission for resurfacing", "MEDIUM", "RESOLVED", -17],
+  const issues: [string, string, IssueSeverity, IssueStatus, number][] = [
+    ["p6_ntpc_steel", "Boom lift not available, erection of gallery bay 5 delayed", "HIGH", "OPEN", -9],
+    ["p2_cspgcl_paint", "Hot work permit delays for blasting at Unit 3", "HIGH", "OPEN", -6],
+    ["p3_mspgcl_cbp", "Ash line shutdown window not yet granted by the plant", "MEDIUM", "IN_PROGRESS", -12],
+    ["p11_iocl_paint", "Gas-test clearance pending for tank entry", "HIGH", "OPEN", -4],
+    ["p5_tangedco_scaff", "Cuplock scaffold material short due to delayed supplier", "MEDIUM", "OPEN", -8],
+    ["p1_ntpc_stone", "Conveyor stoppage windows reduce picking hours", "LOW", "RESOLVED", -20],
+    ["p9_dvc_stone", "Wage payment delay to subcontract labour", "MEDIUM", "IN_PROGRESS", -7],
+    ["p8_nalco_paint", "Rain halted painting at cooling tower", "LOW", "RESOLVED", -17],
   ];
-  issues.forEach(([pk, siteId, title, severity, status, offset], i) => {
+  issues.forEach(([pk, title, severity, status, offset], i) => {
     const proj = projects.find((p) => p.key === pk)!;
     db.siteIssues.push({
-      ...meta(`iss_${i + 1}`),
-      siteId,
-      projectId: proj.id,
-      regionId: proj.regionId,
-      reportId: null,
-      title,
-      severity,
-      status,
-      raisedById: SITE_USER[proj.regionKey].engineer,
-      raisedOn: dayOffset(offset),
-      resolvedAt: status === "RESOLVED" ? at(dayOffset(offset + 5)) : null,
+      ...meta(`iss_${i + 1}`), siteId: proj.siteId, projectId: proj.id, regionId: proj.regionId, reportId: null, title, severity, status,
+      raisedById: SITE_USER[proj.regionKey].engineer, raisedOn: dayOffset(offset), resolvedAt: status === "RESOLVED" ? at(dayOffset(offset + 5)) : null,
     });
   });
 }

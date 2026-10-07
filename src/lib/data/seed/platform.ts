@@ -19,7 +19,7 @@ export function seedNotifications(ctx: SeedCtx, projects: ProjectInfo[]) {
       userId: userId(userKey), type, title, body, entityType, entityId, dedupeKey, readAt: ageDays >= 3 ? at(addDays(date, 1), "10:00") : null,
     });
   };
-  const userKeyOf = (uid: Id) => USER_SPECS.find((u) => userId(u.key) === uid)?.key ?? "director";
+  const userKeyOf = (uid: Id) => USER_SPECS.find((u) => userId(u.key) === uid)?.key ?? "stalin";
 
   // Pending approvals → the assignee
   db.approvalSteps
@@ -34,7 +34,7 @@ export function seedNotifications(ctx: SeedCtx, projects: ProjectInfo[]) {
     const stage = db.tenderStages.find((s) => s.id === t.currentStageId)!;
     const owner = userKeyOf(t.ownerId);
     const days = daysBetween(DEMO_TODAY, t.submissionDeadlineAt.slice(0, 10));
-    const preSubmission = ["stg_preparation", "stg_emd_arranged", "stg_go_no_go_pending", "stg_registered"].includes(stage.id);
+    const preSubmission = ["stg_bid_preparing", "stg_under_evaluation", "stg_new"].includes(stage.id);
     if (preSubmission && days >= 0 && days <= 7) {
       push(owner, "TENDER_DEADLINE", `Tender deadline in ${days} day${days === 1 ? "" : "s"}`, t.title, "TENDER", t.id, 0);
     }
@@ -77,28 +77,35 @@ export function seedNotifications(ctx: SeedCtx, projects: ProjectInfo[]) {
   // Missing daily reports (last two working days) → the project manager
   [DEMO_TODAY, addDays(DEMO_TODAY, -1)].forEach((date: IsoDate) => {
     if (dayOfWeek(date) === 0) return;
-    db.sites.forEach((site) => {
-      if (db.dailyReports.some((r) => r.siteId === site.id && r.reportDate === date)) return;
-      const proj = projects.find((p) => p.id === site.projectId)!;
-      push(proj.pmKey, "REPORT_MISSING", "Daily site report not submitted", `${site.name}, ${date}`, "SITE", site.id, daysBetween(date, DEMO_TODAY));
+    projects.forEach((proj) => {
+      if (db.dailyReports.some((r) => r.projectId === proj.id && r.reportDate === date)) return;
+      const site = db.sites.find((x) => x.id === proj.siteId)!;
+      push(proj.pmKey, "REPORT_MISSING", "Daily work report not submitted", `${site.name}, ${date}`, "SITE", site.id, daysBetween(date, DEMO_TODAY));
     });
   });
 
-  // Overdue department payments → accounts, director
-  db.raBills
-    .filter((b) => b.dueDate < DEMO_TODAY && Number(b.receivedAmount) < Number(b.netPayable))
+  // Overdue customer payments → accounts
+  db.invoices
+    .filter((b) => b.dueDate < DEMO_TODAY && Number(b.receivedAmount) < Number(b.netReceivable))
     .forEach((b) => {
-      const proj = projects.find((p) => p.id === b.projectId)!;
-      push("accounts", "PAYMENT_OVERDUE", `RA bill ${b.billNo} overdue by ${daysBetween(b.dueDate, DEMO_TODAY)} days`, `${proj.key}`, "RA_BILL", b.id, 1);
+      push("accounts", "PAYMENT_OVERDUE", `Invoice ${b.invoiceNo} overdue by ${daysBetween(b.dueDate, DEMO_TODAY)} days`, db.organisations.find((o) => o.id === b.organisationId)!.shortName, "INVOICE", b.id, 1);
+    });
+
+  // GST filing: due within 7 days or already missed → accounts
+  db.invoices
+    .filter((b) => b.gstFilingStatus === "PENDING" && daysBetween(DEMO_TODAY, b.gstFilingDueDate) <= 7)
+    .forEach((b) => {
+      const d = daysBetween(DEMO_TODAY, b.gstFilingDueDate);
+      push("accounts", "GST_FILING_DUE", d < 0 ? `GST filing missed by ${-d} days` : `GST filing due in ${d} days`, b.invoiceNo, "INVOICE", b.id, 1);
     });
 
   // Delayed projects (more than 15 points behind plan)
   projects
     .filter((p) => p.expectedPct - p.actualPct > 15)
     .forEach((p) => {
-      const rh = p.regionKey === "korba" ? "rh_korba" : p.regionKey === "delhi" ? "rh_delhi" : "rh_mh";
+      const rh = `rh_${p.regionKey}`;
       const project = db.projects.find((x) => x.id === p.id)!;
-      [p.pmKey, rh, "director"].forEach((u) => push(u, "PROJECT_DELAYED", "Project is behind schedule", project.name, "PROJECT", p.id, 2));
+      [p.pmKey, rh, "stalin"].forEach((u) => push(u, "PROJECT_DELAYED", "Project is behind schedule", project.name, "PROJECT", p.id, 2));
     });
 
   db.notifications.push(...out);
@@ -137,9 +144,9 @@ export function seedAudit(ctx: SeedCtx) {
 
   // Amount corrections always carry a reason (CLAUDE.md → Audit everything important)
   const sensitive: [string, string, string, string, string, string, number][] = [
-    ["tender2", "BID", "bid_del_sewer", "Bid amount revised", "Revised after BOQ rate correction, before submission.", "reg_delhi", -73],
-    ["accounts", "SECURITY_INSTRUMENT", "si_emd_korba_bridge", "EMD instrument number corrected", "DD number mistyped at entry; corrected from bank slip.", "reg_korba", -22],
-    ["accounts", "PAYROLL_RUN", "prun_2026-08_mh", "Payroll run re-opened and re-locked", "Missed overtime for two Pune site workers.", "reg_mh", -35],
+    ["tender1", "BID", "bid_s3_tangedco_paint", "Bid amount revised", "Revised after BOQ rate correction, before submission.", "reg_south", -3],
+    ["accounts", "SECURITY_INSTRUMENT", "si_emd_s4_mspgcl_steel", "EMD instrument number corrected", "DD number mistyped at entry; corrected from bank slip.", "reg_mh", -22],
+    ["accounts", "PAYROLL_RUN", "prun_2026-08_cg", "Payroll run re-opened and re-locked", "Missed overtime for two Korba site workers.", "reg_cg", -35],
   ];
   sensitive.forEach(([actor, entityType, entityId, summary, reason, regionId, offset]) =>
     add({

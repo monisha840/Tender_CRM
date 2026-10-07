@@ -10,14 +10,15 @@ import type {
   TenderStage,
   TenderStageKind,
 } from "@/types";
-import { byId, clientName, inRegion, regionName, userName, type RegionFilter } from "./shared";
+import { byId, organisationName, inRegion, regionName, userName, type RegionFilter } from "./shared";
 
 export interface TenderRow {
   tender: Tender;
-  clientName: string;
+  organisationName: string;
   regionName: string;
   stage: TenderStage;
   ownerName: string;
+  serviceLineName: string;
   bid: Bid | null;
   /** Days from today to the submission deadline (negative when passed). */
   daysToDeadline: number;
@@ -38,10 +39,11 @@ export function listTenders(db: Database, filters: TenderFilters = {}): TenderRo
     .filter((t) => !t.deletedAt && inRegion(filters.region ?? "ALL", t.regionId))
     .map((tender): TenderRow => ({
       tender,
-      clientName: clientName(db, tender.clientId),
+      organisationName: organisationName(db, tender.organisationId),
       regionName: regionName(db, tender.regionId),
       stage: byId(db.tenderStages, tender.currentStageId)!,
       ownerName: userName(db, tender.ownerId),
+      serviceLineName: byId(db.serviceLines, tender.serviceLineId)?.name ?? "—",
       bid: db.bids.find((b) => b.tenderId === tender.id && b.isFinal) ?? null,
       daysToDeadline: daysBetween(today, toIstDate(tender.submissionDeadlineAt)),
     }))
@@ -53,7 +55,7 @@ export function listTenders(db: Database, filters: TenderFilters = {}): TenderRo
         !search ||
         r.tender.title.toLowerCase().includes(search) ||
         r.tender.tenderNo.toLowerCase().includes(search) ||
-        r.clientName.toLowerCase().includes(search),
+        r.organisationName.toLowerCase().includes(search),
     )
     .sort((a, b) => a.tender.submissionDeadlineAt.localeCompare(b.tender.submissionDeadlineAt));
 }
@@ -142,13 +144,13 @@ export function getTenderStats(db: Database, region: RegionFilter = "ALL"): Tend
     winRate: won.length + lost.length ? Math.round((won.length / (won.length + lost.length)) * 100) : null,
     wonValue: value(won),
     lostValue: value(lost),
-    pendingGoNoGo: rows.filter((r) => r.stage.systemKey === "GO_NO_GO_PENDING").length,
+    pendingGoNoGo: rows.filter((r) => r.stage.systemKey === "UNDER_EVALUATION").length,
   };
 }
 
 /** Open tenders with a submission deadline in the next `withinDays` days, soonest first. */
 export function getUpcomingDeadlines(db: Database, region: RegionFilter = "ALL", withinDays = 14): TenderRow[] {
-  const submitted = new Set(["SUBMITTED", "TECHNICAL_EVALUATION", "FINANCIAL_EVALUATION"]);
+  const submitted = new Set(["SUBMITTED"]);
   return listTenders(db, { region, stageKind: "OPEN" })
     .filter((r) => r.daysToDeadline >= 0 && r.daysToDeadline <= withinDays && !submitted.has(r.stage.systemKey ?? ""))
     .sort((a, b) => a.daysToDeadline - b.daysToDeadline);

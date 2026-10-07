@@ -3,7 +3,7 @@ import { fromPaise } from "@/lib/money";
 import type { Database, Id, IsoDate, IsoDateTime, Money } from "@/types";
 
 /** Bump when seed content changes so persisted localStorage data is replaced. */
-export const SEED_VERSION = 1;
+export const SEED_VERSION = 2;
 
 /** Fixed timestamp for "created" columns: keeps the seed byte-for-byte deterministic. */
 export const SEED_CREATED: IsoDateTime = istToUtc("2026-01-01", "09:00");
@@ -46,17 +46,20 @@ export const dayOffset = (offset: number): IsoDate => addDays(DEMO_TODAY, offset
 /** UTC timestamp for a pure date at an IST wall-clock time. */
 export const at = (date: IsoDate, time = "11:00"): IsoDateTime => istToUtc(date, time);
 
-export const RegionKey = { korba: "reg_korba", delhi: "reg_delhi", mh: "reg_mh" } as const;
+export const RegionKey = { cg: "reg_cg", mh: "reg_mh", south: "reg_south", delhi: "reg_delhi" } as const;
 export type RegionKeyName = keyof typeof RegionKey;
-export const StateOf: Record<RegionKeyName, Id> = { korba: "st_cg", delhi: "st_dl", mh: "st_mh" };
+/** Home state of each region's office (GST state of the default registration). */
+export const StateOf: Record<RegionKeyName, Id> = { cg: "st_cg", mh: "st_mh", south: "st_tn", delhi: "st_dl" };
 
 export function emptyDatabase(): Database {
   return {
     states: [],
     regions: [],
+    offices: [],
+    serviceLines: [],
     gstRegistrations: [],
     regionGstRegistrations: [],
-    clients: [],
+    organisations: [],
     users: [],
     roles: [],
     permissions: [],
@@ -111,8 +114,8 @@ export function emptyDatabase(): Database {
     purchaseOrders: [],
     vendorInvoices: [],
     stockTransactions: [],
-    raBills: [],
-    raBillDeductions: [],
+    invoices: [],
+    invoiceDeductions: [],
     payments: [],
     retentionEntries: [],
     gstTransactions: [],

@@ -1,6 +1,6 @@
 import { getToday } from "@/lib/dates";
 import { moneyToNumber, sumMoney } from "@/lib/money";
-import type { Attendance, Database, Employee, EmployeeProfile, Id, IsoDate, PayrollRun, SiteAssignment } from "@/types";
+import type { Attendance, Database, Employee, EmployeeProfile, Id, IsoDate, PayrollRun, Payslip, SiteAssignment } from "@/types";
 import { byId, inRegion, regionName, sum, type RegionFilter } from "./shared";
 
 export interface EmployeeRow {
@@ -92,3 +92,41 @@ export function getEpfSummary(db: Database, period: string, region: RegionFilter
 /** Months that have payroll data, newest first. */
 export const listPayrollPeriods = (db: Database): string[] =>
   [...new Set(db.payrollRuns.map((r) => r.periodMonth))].sort().reverse();
+
+export interface EmployeePayRow {
+  employee: Employee;
+  profile: EmployeeProfile;
+  designation: string;
+  regionName: string;
+  /** Payslip for the period, or null when the employee is not on payroll (e.g. directors). */
+  payslip: Payslip | null;
+}
+
+/**
+ * Salary, advance, deductions, PF, ESI, net salary and payment status per employee for a month ("YYYY-MM").
+ * Advance outstanding is on the profile; the recovered amount, deductions and net are on the payslip.
+ */
+export function listEmployeePay(db: Database, period: string, region: RegionFilter = "ALL", search?: string): EmployeePayRow[] {
+  const q = search?.trim().toLowerCase();
+  const runIds = new Set(db.payrollRuns.filter((r) => r.periodMonth === period).map((r) => r.id));
+  const slips = new Map(db.payslips.filter((p) => runIds.has(p.payrollRunId)).map((p) => [p.employeeId, p]));
+  return db.employeeProfiles
+    .map((profile) => ({ profile, employee: byId(db.employees, profile.employeeId)! }))
+    .filter(({ employee }) => employee && !employee.deletedAt && inRegion(region, employee.homeRegionId))
+    .filter(({ employee }) => !q || employee.name.toLowerCase().includes(q) || employee.code.toLowerCase().includes(q))
+    .map(({ profile, employee }) => ({
+      employee,
+      profile,
+      designation: profile.designation,
+      regionName: regionName(db, employee.homeRegionId),
+      payslip: slips.get(employee.id) ?? null,
+    }))
+    .sort((a, b) => a.employee.code.localeCompare(b.employee.code));
+}
+
+/** Payroll totals for a month: how much is paid, pending or on hold. */
+export function getPayrollStatusSummary(db: Database, period: string, region: RegionFilter = "ALL") {
+  const rows = listEmployeePay(db, period, region).filter((r) => r.payslip);
+  const total = (status: Payslip["paymentStatus"]) => sumMoney(rows.filter((r) => r.payslip!.paymentStatus === status).map((r) => r.payslip!.net));
+  return { employees: rows.length, paid: total("PAID"), pending: total("PENDING"), onHold: total("ON_HOLD"), advanceOutstanding: sumMoney(rows.map((r) => r.profile.advanceBalance)) };
+}

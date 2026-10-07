@@ -2,24 +2,21 @@
 
 import { useMemo } from "react";
 import { Hammer } from "lucide-react";
-import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/layout/page-header";
-import { getModule } from "@/lib/nav";
-import { useCurrentPersona, useDb, useRegionFilter } from "@/store/hooks";
+import { EmptyState } from "@/components/shared/empty-state";
 import {
+  getGstFilingSummary,
   listApprovals,
-  listAuditLogs,
   listEmployees,
-  listGstTransactions,
+  listInvoices,
   listNotifications,
-  listPayrollRuns,
   listProjects,
-  listPurchaseRequests,
-  listReceivables,
   listSites,
-  listSubcontractors,
+  listSubcontractorAssignments,
   listTenders,
 } from "@/lib/data";
+import { getModule } from "@/lib/nav";
+import { useCurrentPersona, useDb, useRegionFilter } from "@/store/hooks";
 
 /** Foundation placeholder for a module whose real screens are built in a later phase. */
 export function ModulePlaceholder({ moduleKey }: { moduleKey: string }) {
@@ -38,30 +35,20 @@ export function ModulePlaceholder({ moduleKey }: { moduleKey: string }) {
         return `${n(listTenders(db, { region }).length, "tender")} in the demo data`;
       case "projects":
         return `${n(listProjects(db, region).length, "project")} in the demo data`;
-      case "sites":
-        return `${n(listSites(db, region).length, "site")} in the demo data`;
-      case "people":
-        return `${n(listEmployees(db, region).length, "employee")} in the demo data`;
       case "subcontractors":
-        return `${n(listSubcontractors(db, region).length, "subcontractor")} in the demo data`;
-      case "attendance":
-        return `${n(listPayrollRuns(db, region).length, "payroll run")} in the demo data`;
-      case "purchases":
-        return `${n(listPurchaseRequests(db, region).length, "purchase request")} in the demo data`;
-      case "accounts":
-        return `${n(listReceivables(db, region).length, "unpaid RA bill")} in the demo data`;
-      case "gst":
-        return `${n(listGstTransactions(db).length, "GST transaction")} in the demo data`;
-      case "epf":
-        return `${n(db.payslips.length, "payslip")} with EPF figures in the demo data`;
-      case "reports":
-        return `${n(listAuditLogs(db, { region }).length, "audit entry")} available to report on`;
+        return `${n(listSubcontractorAssignments(db, { region }).length, "subcontractor assignment")} in the demo data`;
+      case "employees":
+        return `${n(listEmployees(db, region).length, "employee")} in the demo data`;
+      case "finance":
+        return `${n(listInvoices(db, { region }).length, "GST invoice")}, ${getGstFilingSummary(db, region).pending} pending GST filing`;
+      case "daily_work":
+        return `${n(listSites(db, region).length, "plant site")} in the demo data`;
       case "approvals":
         return `${n(listApprovals(db, { region, status: "PENDING" }).length, "pending approval")} in the demo data`;
       case "notifications":
         return `${n(listNotifications(db, persona.user.id).length, "notification")} for ${persona.user.name}`;
       default:
-        return `${n(db.regions.length, "region")}, ${n(db.gstRegistrations.length, "GSTIN")} and ${n(db.roles.length, "role")} configured`;
+        return `${n(db.regions.length, "region")}, ${n(db.gstRegistrations.length, "GSTIN")}, ${n(db.serviceLines.length, "service line")} and ${n(db.roles.length, "role")} configured`;
     }
   }, [db, moduleKey, region, persona.user.id, persona.user.name]);
 

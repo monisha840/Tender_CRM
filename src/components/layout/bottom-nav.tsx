@@ -15,7 +15,8 @@ export function BottomNav({ onMore }: { onMore: () => void }) {
   const persona = useCurrentPersona();
   const { modules } = useVisibleNav();
   const unread = getUnreadCount(db, persona.user.id);
-  const items = modules.slice(0, 4);
+  // The persona's home module comes first, then the rest in nav order.
+  const items = [...modules].sort((a, b) => Number(b.href === persona.role.homePath) - Number(a.href === persona.role.homePath)).slice(0, 4);
 
   return (
     <nav aria-label="Primary" className="fixed inset-x-0 bottom-0 z-40 border-t bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">

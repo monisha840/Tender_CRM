@@ -1,7 +1,8 @@
 import { daysBetween, getToday } from "@/lib/dates";
 import { moneyToNumber, sumMoney } from "@/lib/money";
-import type { Database, HealthStatus, Id, Project, ProjectStatus, Site } from "@/types";
-import { byId, clientName, employeeName, inRegion, regionName, sum, type RegionFilter } from "./shared";
+import type { Database, HealthStatus, Id, Money, Project, ProjectStatus, Site } from "@/types";
+import { getProjectBilling } from "./accounts";
+import { byId, employeeName, inRegion, organisationName, regionName, sum, type RegionFilter } from "./shared";
 
 /**
  * Health rules (configurable later). The gap is how many percentage points the executed value
@@ -12,10 +13,14 @@ export const HEALTH_RULES = { amberGapPct: 5, redGapPct: 15 } as const;
 export interface ProjectRow {
   project: Project;
   status: ProjectStatus;
-  clientName: string;
+  organisationName: string;
   regionName: string;
   managerName: string;
-  sites: Site[];
+  /** The plant site where the work is done. */
+  site: Site | null;
+  serviceLineName: string;
+  /** Invoiced (incl. GST), received and still to receive. */
+  billing: { invoicedTotal: Money; received: Money; outstanding: Money };
   /** Executed value as a share of contract value, 0–100. */
   progressPct: number;
   /** Time elapsed as a share of the planned duration, 0–100. */
@@ -54,10 +59,12 @@ export function listProjects(db: Database, region: RegionFilter = "ALL", health?
       return {
         project,
         status: byId(db.projectStatuses, project.statusId)!,
-        clientName: clientName(db, project.clientId),
+        organisationName: organisationName(db, project.organisationId),
         regionName: regionName(db, project.regionId),
         managerName: employeeName(db, project.projectManagerId),
-        sites: db.sites.filter((s) => s.projectId === project.id),
+        site: byId(db.sites, project.siteId) ?? null,
+        serviceLineName: byId(db.serviceLines, project.serviceLineId)?.name ?? "—",
+        billing: (({ invoicedTotal, received, outstanding }) => ({ invoicedTotal, received, outstanding }))(getProjectBilling(db, project.id)),
         progressPct,
         plannedPct,
         gapPct: plannedPct - progressPct,

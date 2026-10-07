@@ -1,126 +1,127 @@
 import { addDays, dayOfWeek, DEMO_TODAY, lastNDays } from "@/lib/dates";
-import { rupees } from "./helpers";
-import { USER_SPECS, employeeIdOfUser, userId } from "./org";
-import { SITE_DEFS, type ProjectInfo } from "./projects";
-import { meta, RegionKey, type RegionKeyName, type SeedCtx } from "./helpers";
 import type { AttendanceStatus } from "@/types";
+import { OFFICE_STAFF, PROJECT_SPECS, SITES } from "./catalog";
+import { meta, RegionKey, rupees, type RegionKeyName, type SeedCtx } from "./helpers";
+import { employeeIdOfUser, USER_SPECS, userId } from "./org";
+import type { ProjectInfo } from "./projects";
 
 const FIRST: Record<RegionKeyName, string[]> = {
-  korba: ["Ravi", "Mahesh", "Ajay", "Kamlesh", "Hemant", "Tikeshwar", "Bhupendra", "Lokesh", "Umesh", "Yogesh", "Narendra", "Dinesh", "Jitendra", "Rakesh"],
-  delhi: ["Rahul", "Sunil", "Manoj", "Vijay", "Arjun", "Naveen", "Sachin", "Amit", "Pradeep", "Harish"],
+  cg: ["Ravi", "Mahesh", "Ajay", "Kamlesh", "Hemant", "Tikeshwar", "Bhupendra", "Lokesh", "Umesh", "Yogesh", "Narendra", "Dinesh", "Jitendra", "Rakesh"],
   mh: ["Vishal", "Amol", "Pravin", "Nilesh", "Sagar", "Mangesh", "Ashok", "Rohan", "Tushar", "Akash"],
+  south: ["Arumugam", "Selvam", "Vignesh", "Prakash", "Saravanan", "Ganesan", "Venkatesh", "Mani", "Rajesh", "Karthik", "Basavaraj", "Shivu"],
+  delhi: ["Rahul", "Sunil", "Manoj", "Vijay", "Arjun", "Naveen", "Sachin", "Amit", "Pradeep", "Harish"],
 };
 const LAST: Record<RegionKeyName, string[]> = {
-  korba: ["Sahu", "Netam", "Yadav", "Dewangan", "Chandrakar", "Verma", "Patel", "Kanwar", "Markam", "Tandon"],
-  delhi: ["Kumar", "Singh", "Sharma", "Gupta", "Mishra", "Chauhan", "Tomar", "Rawat"],
+  cg: ["Sahu", "Netam", "Yadav", "Dewangan", "Chandrakar", "Verma", "Patel", "Kanwar", "Markam", "Tandon"],
   mh: ["Patil", "Jadhav", "Shinde", "Pawar", "Kale", "Gaikwad", "Bhosale", "Kadam"],
+  south: ["Murugesan", "Palanisamy", "Subramani", "Pillai", "Nadar", "Gounder", "Reddy", "Naik", "Shetty", "Rathinam"],
+  delhi: ["Kumar", "Singh", "Sharma", "Gupta", "Mishra", "Chauhan", "Tomar", "Rawat", "Mondal", "Sahoo", "Pandey"],
 };
 
-/** Monthly salary by role for the persona employees (0 = not on payroll). */
+/** Salary by role for the persona employees (0 = not on payroll, e.g. directors). */
 const STAFF_WAGE: Record<string, number> = {
-  director: 0, tender_exec: 45000, regional_head: 95000, accounts: 42000, legal_admin: 50000,
-  project_manager: 78000, site_engineer: 48000, supervisor: 28000,
+  director: 0, tender_exec: 48000, regional_head: 95000, accounts: 52000, legal_admin: 55000, project_manager: 82000, site_engineer: 50000, supervisor: 30000,
 };
 const DESIGNATION: Record<string, string> = {
   director: "Director", tender_exec: "Tender Executive", regional_head: "Regional Head", accounts: "Accounts Manager",
   legal_admin: "Legal & Admin Officer", project_manager: "Project Manager", site_engineer: "Site Engineer", supervisor: "Supervisor",
 };
 
-/** Persona user acting as supervisor/engineer in a region (used as `markedBy` etc.). */
+/** Persona users acting as site engineer / supervisor in a region (used as `markedBy`, `submittedBy`). */
 export const SITE_USER: Record<RegionKeyName, { engineer: string; supervisor: string }> = {
-  korba: { engineer: userId("se_korba"), supervisor: userId("sup_korba") },
-  delhi: { engineer: userId("se_delhi"), supervisor: userId("sup_delhi") },
+  cg: { engineer: userId("se_cg"), supervisor: userId("sup_cg") },
   mh: { engineer: userId("se_mh"), supervisor: userId("sup_mh") },
+  south: { engineer: userId("se_south"), supervisor: userId("sup_south") },
+  delhi: { engineer: userId("se_delhi"), supervisor: userId("sup_delhi") },
 };
+
+/** ESI applies when monthly gross is at most ₹21,000 (a payroll rule that will move to settings). */
+const ESI_CEILING = 21000;
 
 export function seedWorkforce(ctx: SeedCtx, projects: ProjectInfo[]) {
   const { db, rng } = ctx;
   let empNo = USER_SPECS.length;
-  const nextCode = () => `EMP-${String(++empNo).padStart(3, "0")}`;
-  const nameCounter: Record<RegionKeyName, number> = { korba: 0, delhi: 0, mh: 0 };
+  const nextCode = () => `SPH-${String(++empNo).padStart(3, "0")}`;
+  const nameCounter: Record<RegionKeyName, number> = { cg: 0, mh: 0, south: 0, delhi: 0 };
   const nextName = (r: RegionKeyName) => {
     const i = nameCounter[r]++;
     return `${FIRST[r][i % FIRST[r].length]} ${LAST[r][(i * 3 + 1) % LAST[r].length]}`;
   };
   const uan = () => `1012${rng.int(10000000, 99999999)}`;
 
-  // Persona employees get a workforce profile.
   USER_SPECS.forEach((u) => {
+    const wage = STAFF_WAGE[u.role] ?? 0;
     db.employeeProfiles.push({
-      ...meta(`ep_${u.key}`),
-      employeeId: employeeIdOfUser(u.key),
-      designation: DESIGNATION[u.role],
-      labourTypeId: "lt_monthly",
-      joiningDate: "2021-04-01",
-      exitDate: null,
-      wageAmount: rupees(STAFF_WAGE[u.role] ?? 0),
-      uan: STAFF_WAGE[u.role] ? uan() : null,
-      contractorId: null,
+      ...meta(`ep_${u.key}`), employeeId: employeeIdOfUser(u.key), designation: u.title ?? DESIGNATION[u.role], labourTypeId: "lt_monthly",
+      joiningDate: "2019-04-01", exitDate: null, wageAmount: rupees(wage), pfApplicable: wage > 0, esiApplicable: wage > 0 && wage <= ESI_CEILING,
+      advanceBalance: rupees(0), uan: wage ? uan() : null, contractorId: null,
     });
   });
 
   const addEmployee = (id: string, name: string, region: RegionKeyName, designation: string, mode: "MONTHLY" | "DAILY", wage: number, joined: string) => {
+    const monthlyEquivalent = mode === "DAILY" ? wage * 26 : wage;
+    const hasAdvance = mode === "DAILY" && rng.chance(0.22);
     db.employees.push({ ...meta(id), code: nextCode(), name, phone: `9${rng.int(100000000, 999999999)}`, homeRegionId: RegionKey[region], userId: null });
     db.employeeProfiles.push({
-      ...meta(`ep_${id}`), employeeId: id, designation, labourTypeId: mode === "DAILY" ? "lt_daily" : "lt_monthly",
-      joiningDate: joined, exitDate: null, wageAmount: rupees(wage), uan: uan(), contractorId: null,
+      ...meta(`ep_${id}`), employeeId: id, designation, labourTypeId: mode === "DAILY" ? "lt_daily" : "lt_monthly", joiningDate: joined, exitDate: null,
+      wageAmount: rupees(wage), pfApplicable: true, esiApplicable: monthlyEquivalent <= ESI_CEILING,
+      advanceBalance: rupees(hasAdvance ? rng.pick([2000, 3000, 5000, 8000, 10000]) : 0), uan: uan(), contractorId: null,
     });
   };
 
-  const projectOf = (key: string) => projects.find((p) => p.key === key)!;
+  OFFICE_STAFF.forEach((o) => addEmployee(o.id, o.name, o.region, o.designation, "MONTHLY", o.wage, "2021-06-01"));
 
-  SITE_DEFS.forEach((site) => {
-    const proj = projectOf(site.projectKey);
+  const infoOf = (key: string) => projects.find((p) => p.key === key)!;
+  const assign = (employeeId: string, role: string, projectKey: string, from: string, to: string | null = null, reason: string | null = null) => {
+    const proj = infoOf(projectKey);
+    db.siteAssignments.push({
+      ...meta(`sa_${employeeId}_${projectKey}`), employeeId, siteId: proj.siteId, projectId: proj.id, role, fromDate: from, toDate: to, reason,
+      assignedById: employeeIdOfUser(proj.pmKey),
+    });
+  };
+
+  PROJECT_SPECS.forEach((spec) => {
+    const proj = infoOf(spec.key);
     const region = proj.regionKey;
-    const fromDate = proj.startDate;
-    const isPersonaEng = db.employees.some((e) => e.id === site.engineerEmp);
-    const isPersonaSup = db.employees.some((e) => e.id === site.supervisorEmp);
-    if (!isPersonaEng) addEmployee(site.engineerEmp, nextName(region), region, "Site Engineer", "MONTHLY", rng.pick([42000, 45000, 48000, 52000]), "2022-06-15");
-    if (!isPersonaSup) addEmployee(site.supervisorEmp, nextName(region), region, "Supervisor", "MONTHLY", rng.pick([26000, 28000, 30000]), "2022-09-01");
+    const engineerEmp = spec.engineer ?? `emp_se_${spec.key}`;
+    const supervisorEmp = spec.supervisor ?? `emp_sup_${spec.key}`;
+    if (!spec.engineer) addEmployee(engineerEmp, nextName(region), region, "Site Engineer", "MONTHLY", rng.pick([42000, 46000, 50000, 54000]), "2022-06-15");
+    if (!spec.supervisor) addEmployee(supervisorEmp, nextName(region), region, "Supervisor", "MONTHLY", rng.pick([26000, 28000, 30000, 32000]), "2022-09-01");
+    assign(engineerEmp, "Site Engineer", spec.key, proj.startDate);
+    assign(supervisorEmp, "Supervisor", spec.key, proj.startDate);
 
-    const workerIds: string[] = [];
-    for (let n = 1; n <= site.workers; n++) {
-      const id = `emp_w_${site.id}_${n}`;
-      workerIds.push(id);
-      addEmployee(id, nextName(region), region, rng.pick(["Mason", "Helper", "Bar bender", "Machine operator", "Carpenter"]), "DAILY", site.dailyWage + rng.pick([0, 20, 40, 60]), "2023-02-01");
+    for (let n = 1; n <= spec.workers.count; n++) {
+      const id = `emp_w_${spec.key}_${n}`;
+      const role = spec.workers.roles[(n - 1) % spec.workers.roles.length];
+      addEmployee(id, nextName(region), region, role, "DAILY", spec.workers.wage + rng.pick([0, 20, 40, 60]), "2023-02-01");
+      assign(id, role, spec.key, proj.startDate);
     }
-
-    const assign = (employeeId: string, role: string, siteId = site.id, from = fromDate, to: string | null = null, reason: string | null = null) =>
-      db.siteAssignments.push({
-        ...meta(`sa_${employeeId}_${siteId}`),
-        employeeId, siteId, projectId: proj.id, role, fromDate: from, toDate: to, reason,
-        assignedById: employeeIdOfUser(proj.pmKey),
-      });
-    assign(site.engineerEmp, "Site Engineer");
-    assign(site.supervisorEmp, "Supervisor");
-    workerIds.forEach((w) => assign(w, "Worker"));
   });
 
-  // Two transfers between sites (assignment history is the transfer log).
-  const transfer = (employeeId: string, fromSite: string, toSite: string, daysAgo: number) => {
-    const old = db.siteAssignments.find((a) => a.employeeId === employeeId && a.siteId === toSite)!;
-    const projFrom = db.sites.find((s) => s.id === fromSite)!.projectId;
+  // Two transfers between plants (assignment history is the transfer log).
+  const transfer = (employeeId: string, fromProject: string, toProject: string, daysAgo: number) => {
+    const current = db.siteAssignments.find((a) => a.employeeId === employeeId && a.projectId === infoOf(toProject).id)!;
+    const from = infoOf(fromProject);
     db.siteAssignments.push({
-      ...meta(`sa_${employeeId}_${fromSite}`), employeeId, siteId: fromSite, projectId: projFrom, role: "Worker",
-      fromDate: old.fromDate, toDate: addDays(DEMO_TODAY, -daysAgo - 1), reason: "Transferred to another site", assignedById: old.assignedById,
+      ...meta(`sa_${employeeId}_${fromProject}`), employeeId, siteId: from.siteId, projectId: from.id, role: current.role, fromDate: current.fromDate,
+      toDate: addDays(DEMO_TODAY, -daysAgo - 1), reason: "Transferred to another plant", assignedById: current.assignedById,
     });
-    old.fromDate = addDays(DEMO_TODAY, -daysAgo);
-    old.reason = "Transferred from another site";
+    current.fromDate = addDays(DEMO_TODAY, -daysAgo);
+    current.reason = "Transferred from another plant";
   };
-  transfer("emp_w_site_korba_pipe_2_1", "site_korba_pipe_1", "site_korba_pipe_2", 40);
-  transfer("emp_w_site_mh_culvert_2_1", "site_mh_culvert_1", "site_mh_culvert_2", 30);
+  transfer("emp_w_p6_ntpc_steel_1", "p2_cspgcl_paint", "p6_ntpc_steel", 40);
+  transfer("emp_w_p10_kpcl_pkg_1", "p5_tangedco_scaff", "p10_kpcl_pkg", 30);
 
-  // ---- Attendance: last 14 days, current assignments only ----
-  const days = lastNDays(14);
+  // ---- Attendance: last 7 days, current assignments only ----
+  const siteRegion = new Map(SITES.map((s) => [s.id, s.region]));
   const current = db.siteAssignments.filter((a) => !a.toDate || a.toDate >= DEMO_TODAY);
-  days.forEach((date) => {
-    const sunday = dayOfWeek(date) === 0;
+  lastNDays(7).forEach((date) => {
+    const sunday = dayOffsetIsSunday(date);
     current.forEach((a) => {
       if (date < a.fromDate) return;
-      // Supervisor at the CSPDCL colony site has not marked today yet.
-      if (date === DEMO_TODAY && a.siteId === "site_csp_roads_1") return;
-      const site = db.sites.find((s) => s.id === a.siteId)!;
-      const region = projectOf(SITE_DEFS.find((d) => d.id === site.id)!.projectKey).regionKey;
+      // The supervisor at DVC Mejia has not marked today yet.
+      if (date === DEMO_TODAY && a.projectId === "prj_p9_dvc_stone") return;
+      const region = siteRegion.get(a.siteId)!;
       let status: AttendanceStatus;
       let fraction = 1;
       if (sunday) {
@@ -134,11 +135,12 @@ export function seedWorkforce(ctx: SeedCtx, projects: ProjectInfo[]) {
         else { status = "LEAVE"; fraction = 0; }
       }
       db.attendance.push({
-        ...meta(`att_${a.employeeId}_${date}`),
-        employeeId: a.employeeId, siteId: a.siteId, projectId: a.projectId, regionId: RegionKey[region], date, status, dayFraction: fraction,
-        overtimeMinutes: status === "PRESENT" && a.role === "Worker" && rng.chance(0.2) ? rng.pick([60, 90, 120, 180]) : 0,
+        ...meta(`att_${a.employeeId}_${date}`), employeeId: a.employeeId, siteId: a.siteId, projectId: a.projectId, regionId: RegionKey[region], date, status,
+        dayFraction: fraction, overtimeMinutes: status === "PRESENT" && a.role !== "Site Engineer" && a.role !== "Supervisor" && rng.chance(0.2) ? rng.pick([60, 90, 120, 180]) : 0,
         source: "SUPERVISOR", markedById: SITE_USER[region].supervisor, clientUuid: `att-${a.employeeId}-${date}`,
       });
     });
   });
 }
+
+const dayOffsetIsSunday = (date: string) => dayOfWeek(date) === 0;

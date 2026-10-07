@@ -2,7 +2,7 @@ import { addDays, daysBetween, getToday, relativeDeadline } from "@/lib/dates";
 import { formatINR, moneyToNumber } from "@/lib/money";
 import type { Database, Id } from "@/types";
 import { canView } from "./access";
-import { getPayablesSummary, getReceivablesSummary, listReceivables } from "./accounts";
+import { getGstFilingSummary, getPayablesSummary, getReceivablesSummary, listReceivables } from "./accounts";
 import { getPendingApprovalsFor } from "./approvals";
 import { entityHref } from "./links";
 import { listProjects } from "./projects";
@@ -55,7 +55,7 @@ export function getAttentionItems(db: Database, userId: Id, region: RegionFilter
       severity: d.days <= 3 ? "danger" : "warning",
       module: "tenders",
       title: r.tender.title,
-      detail: `Bid deadline · ${r.stage.name} · ${r.clientName}`,
+      detail: `Bid deadline · ${r.stage.name} · ${r.organisationName}`,
       href: entityHref("TENDER", r.tender.id),
       actionLabel: "Open tender",
       dueLabel: d.label,
@@ -75,12 +75,13 @@ export function getAttentionItems(db: Database, userId: Id, region: RegionFilter
     }
   });
 
-  // Tenders ready to convert: agreement signed with every mandatory award condition met.
+  // Won tenders with a signed agreement and all mandatory conditions met, still without a project.
   listTenders(db, { region }).forEach((r) => {
-    if (r.stage.systemKey !== "AGREEMENT_SIGNED") return;
+    if (r.stage.systemKey !== "WON" || db.projects.some((p) => p.tenderId === r.tender.id)) return;
     const award = db.tenderAwards.find((a) => a.tenderId === r.tender.id);
-    const open = award ? db.awardConditions.filter((c) => c.awardId === award.id && c.isMandatory && c.status === "PENDING") : [];
-    if (award && !open.length) {
+    if (!award?.agreementNo) return;
+    const open = db.awardConditions.filter((c) => c.awardId === award.id && c.isMandatory && c.status === "PENDING");
+    if (!open.length) {
       items.push({ id: `convert:${r.tender.id}`, severity: "info", module: "tenders", title: r.tender.title, detail: "Agreement signed and conditions met, ready to convert to a project", href: entityHref("TENDER", r.tender.id), actionLabel: "Convert to project" });
     }
   });
@@ -116,17 +117,17 @@ export function getAttentionItems(db: Database, userId: Id, region: RegionFilter
 
   // Site reporting
   [today, addDays(today, -1)].forEach((date) =>
-    getMissingReports(db, date, region).forEach((site) =>
-      items.push({ id: `report:${site.id}:${date}`, severity: date === today ? "warning" : "danger", module: "sites", title: "Daily report not submitted", detail: `${site.name} · ${date === today ? "today" : "yesterday"}`, href: entityHref("SITE", site.id), actionLabel: "Open site", dueLabel: date === today ? undefined : "1 day overdue" }),
+    getMissingReports(db, date, region).forEach(({ project, site }) =>
+      items.push({ id: `report:${project.id}:${date}`, severity: date === today ? "warning" : "danger", module: "daily_work", title: "Daily work report not submitted", detail: `${site.name}: ${project.name} · ${date === today ? "today" : "yesterday"}`, href: entityHref("SITE", site.id), actionLabel: "Open site", dueLabel: date === today ? undefined : "1 day overdue" }),
     ),
   );
   const attendance = getAttendanceSummary(db, today, region);
   if (attendance.notMarked > 0) {
-    items.push({ id: "attendance:today", severity: "warning", module: "attendance", title: `Attendance not marked for ${attendance.notMarked} people today`, detail: "Supervisors have not submitted today's attendance for some sites", href: "/attendance", actionLabel: "Mark attendance" });
+    items.push({ id: "attendance:today", severity: "warning", module: "employees", title: `Attendance not marked for ${attendance.notMarked} people today`, detail: "Supervisors have not submitted today's attendance for some sites", href: "/employees", actionLabel: "Mark attendance" });
   }
   listSiteIssues(db, region, true)
     .filter((i) => i.severity === "HIGH")
-    .forEach((i) => items.push({ id: `issue:${i.id}`, severity: "warning", module: "sites", title: i.title, detail: `High severity site issue · raised ${relativeDeadline(i.raisedOn).label.replace("overdue", "ago")}`, href: entityHref("SITE", i.siteId), actionLabel: "View issue" }));
+    .forEach((i) => items.push({ id: `issue:${i.id}`, severity: "warning", module: "daily_work", title: i.title, detail: `High severity site issue · raised ${relativeDeadline(i.raisedOn).label.replace("overdue", "ago")}`, href: entityHref("SITE", i.siteId), actionLabel: "View issue" }));
 
   // Delayed projects and overdue collections
   listProjects(db, region, "RED").forEach((p) =>
@@ -134,7 +135,12 @@ export function getAttentionItems(db: Database, userId: Id, region: RegionFilter
   );
   listReceivables(db, region)
     .filter((r) => r.daysOverdue > 0)
-    .forEach((r) => items.push({ id: `ra:${r.bill.id}`, severity: "danger", module: "accounts", title: `RA bill ${r.bill.billNo} unpaid`, detail: `${formatINR(r.outstanding, { compact: "auto" })} from ${r.clientName} · ${r.projectName}`, href: entityHref("RA_BILL", r.bill.id), actionLabel: "Follow up", dueLabel: `${r.daysOverdue} days overdue` }));
+    .forEach((r) => items.push({ id: `inv:${r.invoice.id}`, severity: "danger", module: "finance", title: `Invoice ${r.invoice.invoiceNo} unpaid`, detail: `${formatINR(r.outstanding, { compact: "auto" })} from ${r.organisationName} · ${r.projectName}`, href: entityHref("INVOICE", r.invoice.id), actionLabel: "Follow up", dueLabel: `${r.daysOverdue} days overdue` }));
+
+  // GST filing: due within a week or already missed
+  getGstFilingSummary(db, region).rows
+    .filter((r) => daysBetween(today, r.invoice.gstFilingDueDate) <= 7)
+    .forEach((r) => items.push({ id: `gst:${r.invoice.id}`, severity: r.filingDaysOverdue > 0 ? "danger" : "warning", module: "finance", title: `GST filing pending for ${r.invoice.invoiceNo}`, detail: `${r.organisationName} · ${formatINR(r.invoice.total, { compact: "auto" })}`, href: entityHref("INVOICE", r.invoice.id), actionLabel: "File GST", dueLabel: relativeDeadline(r.invoice.gstFilingDueDate).label }));
 
   return items
     .filter((i) => canView(db, userId, i.module))

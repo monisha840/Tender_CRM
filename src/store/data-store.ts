@@ -59,7 +59,7 @@ export const useDataStore = create<DataState>()(
       resetDemoData: () => set({ db: buildSeedDatabase() }),
     }),
     {
-      name: "tender-crm:data",
+      name: "sprince-tool:data",
       version: SEED_VERSION,
       storage: safeStorage,
       // Rehydrate after mount (see StoreProvider) so server and first client render both use the seed.

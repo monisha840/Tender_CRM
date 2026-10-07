@@ -31,12 +31,12 @@ export default function StyleguidePage() {
   const tenders = useMemo(() => listTenders(db, { region }), [db, region]);
   const kpis = useMemo(() => getDashboardKpis(db, region), [db, region]);
   const pipeline = useMemo(() => getTenderPipeline(db, region).map((p) => ({ stage: p.stage.name, value: p.value })), [db, region]);
-  const flagship = useMemo(() => getTender(db, "tnd_korba_road"), [db]);
+  const flagship = useMemo(() => getTender(db, "tnd_p10_kpcl_pkg"), [db]);
 
   const columns: DataTableColumn<TenderRow>[] = [
     { key: "title", header: "Tender", mobile: "title", sortValue: (r) => r.tender.title, cell: (r) => <span className="line-clamp-2">{r.tender.title}</span>, className: "max-w-sm" },
     { key: "stage", header: "Stage", mobile: "badge", cell: (r) => <StageBadge name={r.stage.name} kind={r.stage.kind} /> },
-    { key: "client", header: "Department", sortValue: (r) => r.clientName, cell: (r) => r.clientName },
+    { key: "client", header: "Organisation", sortValue: (r) => r.organisationName, cell: (r) => r.organisationName },
     { key: "region", header: "Region", cell: (r) => r.regionName },
     { key: "value", header: "Estimate", numeric: true, sortValue: (r) => Number(r.tender.estimatedValue), cell: (r) => formatINR(r.tender.estimatedValue, { compact: "auto" }) },
     { key: "deadline", header: "Deadline", sortValue: (r) => r.tender.submissionDeadlineAt, cell: (r) => (r.daysToDeadline >= 0 && r.stage.kind === "OPEN" ? <DeadlineBadge value={r.tender.submissionDeadlineAt} /> : formatDate(r.tender.submissionDeadlineAt)) },
@@ -56,8 +56,8 @@ export default function StyleguidePage() {
         <h2 id="sg-kpi" className="text-base font-semibold">KPI tiles</h2>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KpiTile label="Active tenders" value={String(kpis.activeTenders)} hint={`${formatINR(kpis.pipelineValue, { compact: true })} pipeline`} icon={Gavel} href="/tenders" />
-          <KpiTile label="Receivables" value={formatINR(kpis.receivables, { compact: true })} hint={`${formatINR(kpis.receivablesOverdue, { compact: true })} overdue`} icon={Wallet} delta={{ text: "overdue", direction: "up", good: false }} href="/accounts" />
-          <KpiTile label="Workers on site today" value={String(kpis.workersToday)} icon={HardHat} trend={kpis.manpowerTrend} href="/sites" />
+          <KpiTile label="Receivables" value={formatINR(kpis.receivables, { compact: true })} hint={`${formatINR(kpis.receivablesOverdue, { compact: true })} overdue`} icon={Wallet} delta={{ text: "overdue", direction: "up", good: false }} href="/finance" />
+          <KpiTile label="Workers on site today" value={String(kpis.workersToday)} icon={HardHat} trend={kpis.manpowerTrend} href="/daily-work" />
           <KpiTile label="Win rate" value={kpis.winRate === null ? "—" : `${kpis.winRate}%`} hint="decided tenders" />
         </div>
       </section>
@@ -83,7 +83,7 @@ export default function StyleguidePage() {
           rows={tenders}
           getRowId={(r) => r.tender.id}
           getRowHref={(r) => `/tenders?focus=${r.tender.id}`}
-          search={{ placeholder: "Search tenders", getText: (r) => `${r.tender.title} ${r.tender.tenderNo} ${r.clientName}` }}
+          search={{ placeholder: "Search tenders", getText: (r) => `${r.tender.title} ${r.tender.tenderNo} ${r.organisationName}` }}
           pageSize={8}
         />
       </section>
@@ -108,7 +108,7 @@ export default function StyleguidePage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="space-y-3" aria-labelledby="sg-timeline">
-          <h2 id="sg-timeline" className="text-base font-semibold">Timeline: Korba road tender stages</h2>
+          <h2 id="sg-timeline" className="text-base font-semibold">Timeline: Raichur package tender stages</h2>
           <div className="rounded-lg border bg-surface p-4">
             {flagship && (
               <Timeline

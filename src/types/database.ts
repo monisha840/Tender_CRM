@@ -8,7 +8,7 @@ import type {
   Bid,
   BidClarification,
   BoqItem,
-  Client,
+  Organisation,
   CompetitorBid,
   CostEntry,
   DailyWorkItem,
@@ -39,8 +39,10 @@ import type {
   PurchaseOrder,
   PurchaseRequest,
   PurchaseRequestItem,
-  RaBill,
-  RaBillDeduction,
+  Invoice,
+  InvoiceDeduction,
+  Office,
+  ServiceLine,
   Region,
   RegionGstRegistration,
   RetentionEntry,
@@ -81,9 +83,11 @@ export interface Database {
   // Org & access
   states: State[];
   regions: Region[];
+  offices: Office[];
+  serviceLines: ServiceLine[];
   gstRegistrations: GstRegistration[];
   regionGstRegistrations: RegionGstRegistration[];
-  clients: Client[];
+  organisations: Organisation[];
   users: User[];
   roles: Role[];
   permissions: Permission[];
@@ -145,8 +149,8 @@ export interface Database {
   vendorInvoices: VendorInvoice[];
   stockTransactions: StockTransaction[];
   // Accounts & GST
-  raBills: RaBill[];
-  raBillDeductions: RaBillDeduction[];
+  invoices: Invoice[];
+  invoiceDeductions: InvoiceDeduction[];
   payments: Payment[];
   retentionEntries: RetentionEntry[];
   gstTransactions: GstTransaction[];

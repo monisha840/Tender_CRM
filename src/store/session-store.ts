@@ -27,7 +27,7 @@ const safeStorage = createJSONStorage(() => ({
   },
 }));
 
-export const DEFAULT_USER_ID: Id = "usr_director";
+export const DEFAULT_USER_ID: Id = "usr_stalin";
 
 interface SessionState {
   /** The persona chosen in the role switcher. There is no login in the MVP. */
@@ -51,6 +51,6 @@ export const useSessionStore = create<SessionState>()(
       setRegionFilter: (filter) => set({ regionFilter: filter }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
     }),
-    { name: "tender-crm:session", version: 1, storage: safeStorage, skipHydration: true },
+    { name: "sprince-tool:session", version: 2, storage: safeStorage, skipHydration: true },
   ),
 );

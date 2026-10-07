@@ -37,7 +37,11 @@ export interface SubcontractorWorkOrder extends BaseEntity {
   siteId?: Id | null;
   regionId: Id;
   workOrderNo: string;
+  /** Assigned work, as a trade: "Civil", "Stone Picking", "Painting"… */
+  trade: string;
   scope: string;
+  /** Physical progress of the assigned work, 0–100. Billed, paid, balance and payment date are derived from bills. */
+  progressPercent: Percent;
   contractValue: Money;
   startDate: IsoDate;
   endDate?: IsoDate | null;

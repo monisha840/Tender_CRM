@@ -24,6 +24,7 @@ import { useSessionStore } from "@/store/session-store";
 const initials = (name: string) =>
   name
     .split(" ")
+    .filter((p) => !/^dr\.?$/i.test(p))
     .map((p) => p[0])
     .slice(0, 2)
     .join("");

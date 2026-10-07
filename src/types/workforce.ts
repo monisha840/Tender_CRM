@@ -16,8 +16,12 @@ export interface EmployeeProfile extends BaseEntity {
   labourTypeId: Id;
   joiningDate: IsoDate;
   exitDate?: IsoDate | null;
-  /** Monthly gross for MONTHLY staff; daily rate for DAILY workers. */
+  /** Salary: monthly gross for MONTHLY staff; daily rate for DAILY workers. */
   wageAmount: Money;
+  pfApplicable: boolean;
+  esiApplicable: boolean;
+  /** Advance paid to the employee and not yet recovered. */
+  advanceBalance: Money;
   uan?: string | null;
   contractorId?: Id | null;
 }
@@ -49,7 +53,7 @@ export interface Attendance extends BaseEntity {
   overtimeMinutes: number;
   source: AttendanceSource;
   markedById: Id;
-  /** Client-generated id so offline retries are idempotent. */
+  /** Device-generated id so offline retries are idempotent. */
   clientUuid: string;
 }
 
@@ -69,6 +73,8 @@ export interface PayrollRun extends BaseEntity {
   approvalRequestId?: Id | null;
 }
 
+export type SalaryPaymentStatus = "PENDING" | "PAID" | "ON_HOLD";
+
 export interface Payslip extends BaseEntity {
   payrollRunId: Id;
   employeeId: Id;
@@ -79,6 +85,16 @@ export interface Payslip extends BaseEntity {
   epfWages: Money;
   epfEmployee: Money;
   epfEmployer: Money;
+  /** Advance recovered from this month's salary. */
+  advanceRecovered: Money;
+  /** ESI is snapshotted too (employee 0.75%, employer 3.25% of gross when applicable). */
+  esiEmployee: Money;
+  esiEmployer: Money;
+  /** Professional tax and anything else. */
   otherDeductions: Money;
+  /** Advance + PF + ESI + other. */
+  totalDeductions: Money;
   net: Money;
+  paymentStatus: SalaryPaymentStatus;
+  paidOn?: IsoDate | null;
 }

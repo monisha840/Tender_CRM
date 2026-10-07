@@ -9,16 +9,29 @@ export interface ProjectStatus extends BaseEntity {
   isActive: boolean;
 }
 
+export type ContractType = "SERVICE" | "FIXED_SCOPE";
+export type BillingCycle = "MONTHLY" | "MILESTONE" | "ON_COMPLETION";
+
 /**
- * MVP stub: only what the tender -> project conversion fills in and the
- * dashboard lists. Sites, BOQ, team and daily reports arrive in Phase 2.
+ * A work order from a customer organisation: either a multi-year service contract billed monthly
+ * or a fixed-scope job billed on milestones. Billing and payment totals come from its invoices.
  */
 export interface Project extends BaseEntity {
   code: string;
   name: string;
+  serviceLineId: Id;
+  /** The plant site where the work is carried out. */
+  siteId: Id;
+  contractType: ContractType;
+  /** Customer's work order / LoA number. */
+  workOrderNo: string;
+  workOrderDate: IsoDate;
+  billingCycle: BillingCycle;
+  /** Days after invoice date by which the customer should pay. */
+  paymentTermsDays: number;
   /** Unique and nullable: one tender gives at most one project. */
   tenderId?: Id | null;
-  clientId: Id;
+  organisationId: Id;
   regionId: Id;
   gstRegistrationId: Id;
   contractValue: Money;

@@ -1,28 +1,54 @@
 import { addDays, daysBetween, getToday } from "@/lib/dates";
 import { moneyToNumber, subMoney, sumMoney } from "@/lib/money";
-import type { Database, Money, Payment, RaBill } from "@/types";
-import { byId, clientName, inRegion, sum, type RegionFilter } from "./shared";
+import type { Database, GstFilingStatus, Id, Invoice, InvoicePaymentStatus, Money, Payment } from "@/types";
+import { byId, inRegion, organisationName, sum, type RegionFilter } from "./shared";
 
-export interface ReceivableRow {
-  bill: RaBill;
+export interface InvoiceRow {
+  invoice: Invoice;
   projectName: string;
-  clientName: string;
+  organisationName: string;
+  /** Net receivable not yet received. */
   outstanding: Money;
-  /** Days past due; 0 when not yet due. */
+  /** Days past the payment due date; 0 when not yet due or fully paid. */
   daysOverdue: number;
+  /** Days past the GST filing due date while still pending; 0 otherwise. */
+  filingDaysOverdue: number;
 }
 
-export function listReceivables(db: Database, region: RegionFilter = "ALL"): ReceivableRow[] {
+export interface InvoiceFilters {
+  region?: RegionFilter;
+  projectId?: Id;
+  paymentStatus?: InvoicePaymentStatus;
+  gstFilingStatus?: GstFilingStatus;
+  /** "YYYY-MM" of the invoice date. */
+  period?: string;
+}
+
+export function listInvoices(db: Database, filters: InvoiceFilters = {}): InvoiceRow[] {
   const today = getToday();
-  return db.raBills
-    .filter((b) => !b.deletedAt && inRegion(region, b.regionId))
-    .map((bill) => ({
-      bill,
-      projectName: byId(db.projects, bill.projectId)?.name ?? "—",
-      clientName: clientName(db, bill.clientId),
-      outstanding: subMoney(bill.netPayable, bill.receivedAmount),
-      daysOverdue: Math.max(0, daysBetween(bill.dueDate, today)),
-    }))
+  return db.invoices
+    .filter((i) => !i.deletedAt && inRegion(filters.region ?? "ALL", i.regionId))
+    .filter((i) => !filters.projectId || i.projectId === filters.projectId)
+    .filter((i) => !filters.paymentStatus || i.paymentStatus === filters.paymentStatus)
+    .filter((i) => !filters.gstFilingStatus || i.gstFilingStatus === filters.gstFilingStatus)
+    .filter((i) => !filters.period || i.invoiceDate.startsWith(filters.period))
+    .map((invoice): InvoiceRow => {
+      const outstanding = subMoney(invoice.netReceivable, invoice.receivedAmount);
+      return {
+        invoice,
+        projectName: byId(db.projects, invoice.projectId)?.name ?? "—",
+        organisationName: organisationName(db, invoice.organisationId),
+        outstanding,
+        daysOverdue: Number(outstanding) > 0 ? Math.max(0, daysBetween(invoice.dueDate, today)) : 0,
+        filingDaysOverdue: invoice.gstFilingStatus === "PENDING" ? Math.max(0, daysBetween(invoice.gstFilingDueDate, today)) : 0,
+      };
+    })
+    .sort((a, b) => b.invoice.invoiceDate.localeCompare(a.invoice.invoiceDate) || a.invoice.invoiceNo.localeCompare(b.invoice.invoiceNo));
+}
+
+/** Unpaid or part-paid invoices, most overdue first. */
+export function listReceivables(db: Database, region: RegionFilter = "ALL"): InvoiceRow[] {
+  return listInvoices(db, { region })
     .filter((r) => Number(r.outstanding) > 0)
     .sort((a, b) => b.daysOverdue - a.daysOverdue);
 }
@@ -35,6 +61,31 @@ export function getReceivablesSummary(db: Database, region: RegionFilter = "ALL"
     overdue: sumMoney(overdue.map((r) => r.outstanding)),
     overdueCount: overdue.length,
     rows,
+  };
+}
+
+/** Billing and payment totals for one project, from its invoices. */
+export function getProjectBilling(db: Database, projectId: Id) {
+  const invoices = db.invoices.filter((i) => i.projectId === projectId);
+  return {
+    invoiceCount: invoices.length,
+    invoicedTaxable: sumMoney(invoices.map((i) => i.taxableValue)),
+    invoicedTotal: sumMoney(invoices.map((i) => i.total)),
+    received: sumMoney(invoices.map((i) => i.receivedAmount)),
+    outstanding: sumMoney(invoices.map((i) => subMoney(i.netReceivable, i.receivedAmount))),
+    lastInvoiceDate: invoices.map((i) => i.invoiceDate).sort().pop() ?? null,
+  };
+}
+
+/** GST filing position across invoices: filed, pending and overdue counts. */
+export function getGstFilingSummary(db: Database, region: RegionFilter = "ALL") {
+  const rows = listInvoices(db, { region });
+  const pending = rows.filter((r) => r.invoice.gstFilingStatus === "PENDING");
+  return {
+    filed: rows.length - pending.length,
+    pending: pending.length,
+    overdue: pending.filter((r) => r.filingDaysOverdue > 0).length,
+    rows: pending.sort((a, b) => a.invoice.gstFilingDueDate.localeCompare(b.invoice.gstFilingDueDate)),
   };
 }
 
@@ -91,11 +142,11 @@ export function getPayablesSummary(db: Database, region: RegionFilter = "ALL") {
   };
 }
 
-/** Department receipts per month (rupees), for the collections chart. */
+/** Customer receipts per month (rupees), for the collections chart. */
 export function getCollectionsByMonth(db: Database, region: RegionFilter = "ALL") {
   const buckets = new Map<string, number>();
   db.payments
-    .filter((p) => p.direction === "IN" && p.purpose === "RA_RECEIPT" && inRegion(region, p.regionId))
+    .filter((p) => p.direction === "IN" && p.purpose === "INVOICE_RECEIPT" && inRegion(region, p.regionId))
     .forEach((p) => buckets.set(p.paidOn.slice(0, 7), (buckets.get(p.paidOn.slice(0, 7)) ?? 0) + moneyToNumber(p.amount)));
   return [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([month, collected]) => ({ month, collected }));
 }

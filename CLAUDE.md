@@ -1,14 +1,14 @@
-# CLAUDE.md
+# CLAUDE.md — S. Prince Management Tool
 
 Guidance for Claude Code when working in this repository.
 
 ## Project
 
-A CRM/ERP for an Indian **government works contractor** operating in three regions — **Korba (Chhattisgarh), Delhi, Maharashtra**. It connects the full lifecycle:
+**S. Prince Management Tool** is the CRM/ERP for **S. Prince Hightech Pvt. Ltd.**, an industrial services contractor for thermal power plants and the steel industry. Customers are power utilities and PSUs (NTPC, CSPGCL, MSPGCL, DVC, MPPGCL, KPCL, TANGEDCO, IOCL, NALCO). Work is done at named plant sites in four operating regions — **Chhattisgarh, Maharashtra, South, Delhi** — from a registered office in Mumbai and a branch in Chennai. It connects the full lifecycle:
 
 **Tender → Project → Site work → Workforce → Purchases/Subcontractors → Billing → GST/EPF/Accounts → Director Dashboard**
 
-The business flow is defined in **`docs/system-flow.md`**. Read it before starting any module. The data model lives in **`docs/data-model.md`** (create/update it before schema changes).
+**Client scope takes priority.** The client's official requirements (`docs/client-requirements.pdf`, when present) override `docs/system-flow.md` wherever they differ. What has been applied so far from the client brief is recorded in **`docs/client-profile.md`**. The generic business flow is in **`docs/system-flow.md`**. Read it before starting any module. The data model lives in **`docs/data-model.md`** (create/update it before schema changes).
 
 ## Product Priorities (in order)
 
@@ -138,6 +138,11 @@ Suggested dashboard visuals:
 
 | Term | Meaning |
 |---|---|
+| CHP | Coal Handling Plant — where stone picking from running conveyors is done |
+| Service line | What the company sells: Stone Picking (manpower), Industrial Painting & Coating, Cast Basalt Pipeline, Steel Structure EPC, Civil Works, Scaffolding (configurable list) |
+| Service contract | Multi-year contract billed monthly (e.g. stone picking manpower), versus a fixed-scope job billed on milestones |
+| Man-day | Unit for manpower contracts; other units are sq m, running metres and MT |
+| Plant site | A named customer power plant or refinery where work is done, e.g. NTPC Korba |
 | Tender | Government invitation to bid for a works contract |
 | Bid | Our offer: quoted amount + documents |
 | EMD | Earnest Money Deposit — security paid to participate; refunded or adjusted |
@@ -204,7 +209,7 @@ docs/
 - Visual check of every new screen at 360px, 768px and 1280px before calling it done.
 
 ### Seed data
-Seed the three regions, a GSTIN per state, default roles/permissions, default tender stages and document checklist, and the **₹2.40 Cr Korba road tender** (EMD ₹4.80 L, bid ₹2.31 Cr, L1, Won) plus a converted project with one site, a few employees, one subcontractor on two projects — and enough tenders/projects across regions that dashboard charts look realistic.
+Seed the four regions and offices, a GSTIN per office state, default roles/permissions, the six tender stages (New, Under Evaluation, Bid Preparing, Submitted, Won, Lost), the document checklist and the six service lines — plus the client's example: a **₹50 L project (KPCL Raichur) with Civil, Stone Picking and Painting subcontractors** — and enough tenders, plant-site projects (multi-year monthly-billed service contracts and fixed-scope jobs), about 150 employees and GST invoices that the dashboard charts look realistic. Seed data is deterministic (see `npm run seed:check`).
 
 ## How to Work in This Repo
 

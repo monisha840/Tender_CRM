@@ -34,13 +34,32 @@ export interface RegionGstRegistration extends BaseEntity {
   validTo?: IsoDate | null;
 }
 
-/** Government department / client. `parentId` models e.g. PWD -> Division. */
-export interface Client extends BaseEntity {
+/** A customer organisation (power utility, PSU). Referenced by tenders, projects and invoices. */
+export interface Organisation extends BaseEntity {
   name: string;
+  /** Short code used in numbering and labels, e.g. "NTPC". */
+  shortName: string;
   gstin?: string | null;
   address?: string | null;
   stateId: Id;
   parentId?: Id | null;
+}
+
+export type OfficeKind = "REGISTERED" | "BRANCH" | "REGIONAL" | "SITE_OFFICE";
+
+export interface Office extends BaseEntity {
+  regionId: Id;
+  name: string;
+  kind: OfficeKind;
+  address: string;
+}
+
+/** Configurable list of what the company sells (tenders and projects reference it). */
+export interface ServiceLine extends BaseEntity {
+  name: string;
+  /** Default measurement unit for BOQ items: "man-day", "sq m", "running metre", "MT". */
+  defaultUnit: string;
+  isActive: boolean;
 }
 
 /** MVP: identity only. No auth, roles or permissions yet. */

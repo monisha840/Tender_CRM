@@ -41,7 +41,16 @@ export interface DocumentType extends BaseEntity {
 export interface Tender extends BaseEntity {
   tenderNo: string;
   title: string;
-  clientId: Id;
+  /** Scope of work as written in the tender notice. */
+  workDescription: string;
+  /** Eligibility / qualification criteria summary (experience, turnover, licences). */
+  eligibility: string;
+  serviceLineId: Id;
+  /** Plant site where the work is done, when it is one we already operate at. */
+  siteId?: Id | null;
+  /** Date the bids are opened (technical opening). */
+  openingDate: IsoDate;
+  organisationId: Id;
   regionId: Id;
   location: string;
   tenderTypeId: Id;

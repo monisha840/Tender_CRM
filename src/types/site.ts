@@ -2,13 +2,14 @@ import type { BaseEntity, Id, IsoDate, IsoDateTime, Money } from "./common";
 
 export type SiteStatus = "ACTIVE" | "ON_HOLD" | "COMPLETED";
 
+/** A named plant site (e.g. "NTPC Korba"). Several projects can run at one plant. */
 export interface Site extends BaseEntity {
-  projectId: Id;
+  organisationId: Id;
   regionId: Id;
+  stateId: Id;
   code: string;
   name: string;
   address: string;
-  inchargeId?: Id | null;
   /** "HH:mm" IST; a submitted daily report is expected before this time. */
   reportCutoffTime: string;
   status: SiteStatus;

@@ -12,9 +12,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Tender CRM", template: "%s · Tender CRM" },
+  title: { default: "S. Prince Management Tool", template: "%s · S. Prince Management Tool" },
   description:
-    "Tender-to-project CRM for government works contracting: Korba, Delhi, Maharashtra.",
+    "Tenders, projects, subcontractors, employees, GST and daily work for S. Prince Hightech Pvt. Ltd.",
 };
 
 export const viewport: Viewport = {

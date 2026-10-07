@@ -8,12 +8,12 @@ const ENTITY_MODULE: Record<string, string> = {
   TENDER: "/tenders",
   TENDER_GO_NO_GO: "/tenders",
   PROJECT: "/projects",
-  SITE: "/sites",
+  SITE: "/daily-work",
   SUBCONTRACTOR_BILL: "/subcontractors",
-  PURCHASE_REQUEST: "/purchases",
-  PURCHASE_ORDER: "/purchases",
-  PAYROLL_RUN: "/attendance",
-  RA_BILL: "/accounts",
+  PURCHASE_REQUEST: "/daily-work",
+  PURCHASE_ORDER: "/daily-work",
+  PAYROLL_RUN: "/employees",
+  INVOICE: "/finance",
   APPROVAL_REQUEST: "/approvals",
 };
 
@@ -28,5 +28,5 @@ export const ENTITY_LABEL: Record<string, string> = {
   PURCHASE_REQUEST: "Purchase request",
   PURCHASE_ORDER: "Purchase order",
   PAYROLL_RUN: "Payroll run",
-  RA_BILL: "RA bill",
+  INVOICE: "Invoice",
 };
