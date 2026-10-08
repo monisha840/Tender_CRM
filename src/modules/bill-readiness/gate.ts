@@ -1,29 +1,16 @@
 import "server-only";
 import { prisma } from "@/lib/server/prisma";
+import { getGateReconciliationStatus } from "@/modules/gate-reconciliation/service";
 
 type Db = Pick<typeof prisma, "gateAttendanceUpload" | "gateAttendanceException">;
 
-/**
- * Gate attendance is reconciled for a project and month when an upload exists for it and no OPEN exception remains.
- * (The gate-reconciliation package owns the data; this only reads it.)
- */
+/** Gate attendance is reconciled when the gate-reconciliation module says so (single rule, owned there). */
 export async function isGateReconciled(projectId: string, periodMonth: string, db: Db = prisma): Promise<boolean> {
-  const map = await gateReconciledMap([projectId], periodMonth, db);
-  return map.get(projectId) ?? false;
+  return (await getGateReconciliationStatus(projectId, periodMonth, db)).reconciled;
 }
 
-/** Same rule for many projects in two queries (overview page). */
+/** Same rule for many projects (overview page). */
 export async function gateReconciledMap(projectIds: string[], periodMonth: string, db: Db = prisma): Promise<Map<string, boolean>> {
-  const out = new Map<string, boolean>(projectIds.map((id) => [id, false]));
-  if (projectIds.length === 0) return out;
-  const [uploads, open] = await Promise.all([
-    db.gateAttendanceUpload.findMany({ where: { projectId: { in: projectIds }, periodMonth, deletedAt: null }, select: { projectId: true } }),
-    db.gateAttendanceException.findMany({
-      where: { projectId: { in: projectIds }, status: "OPEN", deletedAt: null, upload: { periodMonth, deletedAt: null } },
-      select: { projectId: true },
-    }),
-  ]);
-  const openSet = new Set(open.map((e) => e.projectId));
-  for (const u of uploads) out.set(u.projectId, !openSet.has(u.projectId));
-  return out;
+  const flags = await Promise.all(projectIds.map((id) => isGateReconciled(id, periodMonth, db)));
+  return new Map(projectIds.map((id, i) => [id, flags[i]]));
 }

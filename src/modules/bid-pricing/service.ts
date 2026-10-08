@@ -6,10 +6,10 @@ import { rateOn, getSettingValue } from "@/lib/server/settings-read";
 import { runAction, ServiceError } from "@/lib/server/service";
 import { averageMarginPct, computePricing, dailyFromRate, type PricingResult } from "./calc";
 import { loadBenchmarks, type PnlBenchmarkRow } from "./benchmarks";
-import { isModuleEnabled } from "./feature";
+import { isFeatureEnabled } from "@/modules/settings/queries";
 import { pricingContextSchema, savePricingSchema } from "./schema";
 
-const MODULE = "bid_pricing";
+const MODULE = "bid_pricing" as const;
 
 type RateDb = Parameters<typeof rateOn>[3];
 
@@ -125,12 +125,12 @@ export async function getPricingContext(tenderId: string, opts: { category?: str
 
 export function buildPricingActions() {
   const context = runAction({ schema: pricingContextSchema, module: MODULE, action: "VIEW" }, async ({ input }) => {
-    if (!(await isModuleEnabled(MODULE))) throw new ServiceError("NOT_FOUND", "Bid pricing is switched off in Settings.");
+    if (!(await isFeatureEnabled(MODULE))) throw new ServiceError("NOT_FOUND", "Bid pricing is switched off in Settings.");
     return getPricingContext(input.tenderId, { category: input.category, rateDate: input.rateDate });
   });
 
   const save = runAction({ schema: savePricingSchema, module: MODULE, action: "EDIT" }, async ({ tx, user, input, audit }) => {
-    if (!(await isModuleEnabled(MODULE))) throw new ServiceError("NOT_FOUND", "Bid pricing is switched off in Settings.");
+    if (!(await isFeatureEnabled(MODULE))) throw new ServiceError("NOT_FOUND", "Bid pricing is switched off in Settings.");
     const tender = await tx.tender.findFirst({
       where: { id: input.tenderId, deletedAt: null },
       select: { id: true, tenderNo: true, regionId: true, serviceLineId: true, openingDate: true },

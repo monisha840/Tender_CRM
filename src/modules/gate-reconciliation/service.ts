@@ -3,12 +3,12 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
 import { getSettingValue } from "@/lib/server/settings-read";
 import { runAction, ServiceError, updateWithVersion } from "@/lib/server/service";
-import { isModuleEnabled } from "@/modules/bid-pricing/feature";
+import { isFeatureEnabled } from "@/modules/settings/queries";
 import { reconcile, type OurAttendance, type OurEmployee } from "./match";
 import { parseGateGrid, type ColumnMap, type DateFormat } from "./parse";
 import { RESOLUTIONS, resolveExceptionSchema, saveMappingSchema, uploadGateSchema } from "./schema";
 
-const MODULE = "gate_reconciliation";
+const MODULE = "gate_reconciliation" as const;
 
 type Reader = Pick<typeof prisma, "gateAttendanceUpload" | "gateAttendanceException">;
 
@@ -100,7 +100,7 @@ export function buildGateActions() {
   });
 
   const upload = runAction({ schema: uploadGateSchema, module: MODULE, action: "CREATE", timeoutMs: 60000 }, async ({ tx, user, input, audit }) => {
-    if (!(await isModuleEnabled(MODULE))) throw new ServiceError("NOT_FOUND", "Gate reconciliation is switched off in Settings.");
+    if (!(await isFeatureEnabled(MODULE))) throw new ServiceError("NOT_FOUND", "Gate reconciliation is switched off in Settings.");
     const project = await tx.project.findFirst({ where: { id: input.projectId, deletedAt: null }, select: { id: true, code: true, name: true, organisationId: true, regionId: true } });
     if (!project) throw new ServiceError("NOT_FOUND", "Project not found");
 

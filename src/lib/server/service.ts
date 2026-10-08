@@ -6,6 +6,7 @@ import { prisma } from "@/lib/server/prisma";
 import { AuthError, type SessionUser } from "@/lib/server/auth-types";
 import { assertCan } from "@/lib/server/permissions";
 import { invalidateServerDb } from "@/lib/server/invalidate";
+import type { FeatureModule } from "@/modules/settings/keys";
 import { requireReason, writeAudit, type AuditInput, type Tx } from "@/lib/server/audit";
 
 /**
@@ -77,6 +78,9 @@ export type ActionOptions<I> = {
   timeoutMs?: number;
 };
 
+/** Enhancement modules gated by Settings > Feature toggles (single source: `isFeatureEnabled`). */
+const TOGGLED_MODULES: ReadonlySet<string> = new Set(["money_locked", "contract_pnl", "documents", "bill_readiness", "gate_reconciliation", "bid_pricing"]);
+
 function toActionError(e: unknown): ActionError {
   if (e instanceof AuthError) return { code: e.code, message: e.message };
   if (e instanceof z.ZodError) {
@@ -100,6 +104,11 @@ export function runAction<I, O>(opts: ActionOptions<I>, handler: (ctx: ActionCon
       const input = opts.schema.parse(rawInput);
       const action = typeof opts.action === "function" ? opts.action(input) : opts.action;
       await assertCan(user, opts.module, action);
+      // Settings feature toggle: a switched-off enhancement module also refuses its actions, not just its pages.
+      if (TOGGLED_MODULES.has(opts.module)) {
+        const { isFeatureEnabled } = await import("@/modules/settings/queries");
+        if (!(await isFeatureEnabled(opts.module as FeatureModule))) throw new ServiceError("NOT_FOUND", "This module is switched off in Settings.");
+      }
       const inputReason = (input as { reason?: unknown } | null)?.reason;
       if (opts.reasonRequired) requireReason(typeof inputReason === "string" ? inputReason : null, `${opts.module}:${action}`);
 

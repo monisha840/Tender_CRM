@@ -4,7 +4,7 @@ import { Lock } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { moduleAccess } from "@/modules/bid-pricing/feature";
 
-async function Gate({ moduleKey, children }: { moduleKey: string; children: React.ReactNode }) {
+async function Gate({ moduleKey, children }: { moduleKey: "bid_pricing" | "gate_reconciliation"; children: React.ReactNode }) {
   const access = await moduleAccess(moduleKey);
   if (!access.enabled) notFound();
   if (!access.canView) return <EmptyState icon={Lock} message="Your role does not have access to this screen." action={{ label: "Back to dashboard", href: "/dashboard" }} />;

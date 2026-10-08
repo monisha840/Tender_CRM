@@ -1,7 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import { averageMarginPct, computePricing, dailyFromRate, type PricingInput } from "../calc";
-import { readToggle } from "../feature";
 import { loadPricingRates } from "../service";
 
 const base: PricingInput = {
@@ -134,15 +133,5 @@ describe("statutory rates by date", () => {
     const none = await loadPricingRates(new Date("2019-01-01T00:00:00Z"), {}, fakeDb);
     expect(none.minWage).toBeNull();
     expect(none.pf).toBeNull();
-  });
-});
-
-describe("feature toggle values", () => {
-  it("reads booleans, strings and { enabled }", () => {
-    expect(readToggle(false)).toBe(false);
-    expect(readToggle("true")).toBe(true);
-    expect(readToggle({ enabled: false })).toBe(false);
-    expect(readToggle(null)).toBeNull();
-    expect(readToggle(42)).toBeNull();
   });
 });

@@ -60,7 +60,7 @@ const VCED: PermissionAction[] = ["VIEW", "CREATE", "EDIT", "DELETE"];
 /** Seed-time role keys already used by seed-base: admin edits, director views. Roles are still read from the DB. */
 export const ENHANCEMENT_GRANTS: Record<string, Record<EnhancementModule, PermissionAction[]>> = {
   system_admin: {
-    money_locked: V, // computed from instruments; nothing to edit here
+    money_locked: ["VIEW", "EDIT"], // request refund / mark released
     contract_pnl: V, // computed
     documents: VCED,
     bill_readiness: VCE,

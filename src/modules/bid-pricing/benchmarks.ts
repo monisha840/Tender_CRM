@@ -1,6 +1,7 @@
-// Adapter for "what did similar past projects really cost / earn". Package C provides
-// `getPnlBenchmarks({serviceLineId, regionId})` in '@/modules/contract-pnl/service'; until that merges this module compiles
-// against a local interface with an injectable provider whose default returns nothing.
+import "server-only";
+import { getPortfolioPnl } from "@/modules/contract-pnl/service";
+
+// "What did similar past projects really cost / earn": rows come straight from Contract P&L (package C).
 export interface PnlBenchmarkRow {
   projectId: string;
   projectCode: string;
@@ -13,20 +14,22 @@ export interface PnlBenchmarkRow {
   marginPct: number | null;
 }
 
-export type PnlBenchmarkProvider = (q: { serviceLineId: string; regionId: string }) => Promise<PnlBenchmarkRow[]>;
-
-let provider: PnlBenchmarkProvider = async () => [];
-
-/** Wire the real provider (done once at merge): `setPnlBenchmarkProvider(getPnlBenchmarks)`. */
-export function setPnlBenchmarkProvider(p: PnlBenchmarkProvider): void {
-  provider = p;
-}
-
+/** Billed projects of the same service line and region; completed ones when any exist, otherwise all billed ones. */
 export async function loadBenchmarks(q: { serviceLineId: string; regionId: string }): Promise<PnlBenchmarkRow[]> {
   try {
-    return await provider(q);
+    const { projects } = await getPortfolioPnl();
+    const similar = projects.filter((p) => p.serviceLineId === q.serviceLineId && p.regionId === q.regionId && p.billed !== "0.00");
+    const done = similar.filter((p) => p.completed);
+    return (done.length ? done : similar).map((p) => ({
+      projectId: p.projectId,
+      projectCode: p.code,
+      projectName: p.name,
+      actualCost: p.totalCost,
+      margin: p.margin,
+      marginPct: p.marginPct,
+    }));
   } catch (e) {
-    console.error("[bid-pricing] benchmark provider failed", e);
+    console.error("[bid-pricing] benchmark load failed", e);
     return [];
   }
 }
