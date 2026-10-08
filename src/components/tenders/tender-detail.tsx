@@ -21,6 +21,7 @@ import { errorText, useTenderRoles } from "./action-helpers";
 import { ConvertToProject } from "./convert-to-project";
 import { ReasonDialog } from "./reason-dialog";
 import { TenderActions } from "./tender-actions";
+import { PricingPanel } from "@/components/bid-pricing/pricing-panel";
 import { EditTenderForm } from "./tender-entry";
 import { Field, FieldGrid, Section } from "./parts";
 
@@ -85,6 +86,7 @@ export function TenderDetail({ id }: { id: string }) {
       />
 
       <TenderActions detail={d} />
+      <PricingPanel tenderId={t.id} compact />
 
       {d.stage.kind === "WON" && (
         <div className="mb-4 rounded-lg border bg-surface p-4">
