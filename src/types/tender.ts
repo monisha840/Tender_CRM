@@ -9,6 +9,8 @@ export interface TenderStage extends BaseEntity {
   name: string;
   sequence: number;
   kind: TenderStageKind;
+  /** Display colour token name from Settings (neutral, accent, success, warning, danger); null or unknown = by kind. */
+  color?: string | null;
   systemKey?: string | null;
   isActive: boolean;
 }

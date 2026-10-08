@@ -20,6 +20,7 @@ import { useAsOfDb } from "@/components/layout/use-as-of-db";
 import { useTenderRoles } from "./action-helpers";
 import { DeadlineList } from "./deadline-list";
 import { FilterSelect, type FilterOption } from "./parts";
+import { matchesTenderKind, parseTenderKind } from "./result-filter";
 import { AddTenderForm, TenderImportExport } from "./tender-entry";
 import { tenderTone, toneClass } from "./urgency";
 import { StageChart, WonLostChart } from "./tender-charts";
@@ -82,7 +83,7 @@ const COLUMNS: DataTableColumn<TenderRow>[] = [
     header: "Status",
     mobile: "badge",
     sortValue: (r) => r.stage.sequence,
-    cell: (r) => <StageBadge name={r.stage.name} kind={r.stage.kind} />,
+    cell: (r) => <StageBadge name={r.stage.name} kind={r.stage.kind} color={r.stage.color} />,
   },
 ];
 
@@ -100,7 +101,7 @@ export function TenderList() {
   const { canWrite } = useTenderRoles();
   const statusParam = useUrlParam("status");
   const resultParam = useUrlParam("result");
-  const kind = statusParam === "open" ? "OPEN" : resultParam === "decided" ? "DECIDED" : null;
+  const kind = parseTenderKind(statusParam, resultParam);
   const clearKind = () => {
     setUrlParam("status", null);
     setUrlParam("result", null);
@@ -117,7 +118,7 @@ export function TenderList() {
     () =>
       regionRows
         .filter((r) => stageId === ALL || r.stage.id === stageId)
-        .filter((r) => !kind || (kind === "OPEN" ? r.stage.kind === "OPEN" : r.stage.kind === "WON" || r.stage.kind === "LOST"))
+        .filter((r) => !kind || matchesTenderKind(kind, r, db))
         .filter((r) => orgId === ALL || r.tender.organisationId === orgId)
         .filter((r) => lineId === ALL || r.tender.serviceLineId === lineId)
         .filter((r) => {
@@ -127,7 +128,7 @@ export function TenderList() {
         })
         .filter((r) => !query.trim() || searchText(r).includes(query.trim().toLowerCase()))
         .sort(byRelevance),
-    [regionRows, kind, stageId, orgId, lineId, deadline, query],
+    [db, regionRows, kind, stageId, orgId, lineId, deadline, query],
   );
 
   const orgOptions: FilterOption[] = [
@@ -288,7 +289,7 @@ function TenderCards({ rows }: { rows: TenderRow[] }) {
                     <span className="break-words">{r.tender.title}</span>
                     <span className="block text-xs font-normal text-muted-foreground">{r.tender.tenderNo}</span>
                   </div>
-                  <StageBadge name={r.stage.name} kind={r.stage.kind} />
+                  <StageBadge name={r.stage.name} kind={r.stage.kind} color={r.stage.color} />
                 </div>
                 <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
                   <CardField label="Organisation">{r.organisationShort}</CardField>

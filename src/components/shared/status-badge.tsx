@@ -13,6 +13,8 @@ const TONE_STYLE: Record<StatusTone, { className: string; icon: LucideIcon }> = 
   accent: { className: "bg-accent-subtle text-accent-strong", icon: CircleDot },
 };
 
+const STAGE_TONES: readonly StatusTone[] = ["neutral", "accent", "success", "warning", "danger"];
+
 interface StatusMeta {
   label: string;
   tone: StatusTone;
@@ -118,8 +120,10 @@ export function StatusBadge({ status, tone, label, className }: StatusBadgeProps
 }
 
 /** Tender stage kinds map to a tone; the label stays whatever the (configurable) stage is called. */
-export function StageBadge({ name, kind }: { name: string; kind: "OPEN" | "WON" | "LOST" | "NO_GO" | "TERMINAL" }) {
-  const tone: StatusTone = kind === "WON" ? "success" : kind === "LOST" ? "danger" : kind === "OPEN" ? "accent" : "neutral";
+export function StageBadge({ name, kind, color }: { name: string; kind: "OPEN" | "WON" | "LOST" | "NO_GO" | "TERMINAL"; color?: string | null }) {
+  // The Settings colour token (neutral, accent, success, warning, danger) wins; unknown or missing falls back to the kind.
+  const byKind: StatusTone = kind === "WON" ? "success" : kind === "LOST" ? "danger" : kind === "OPEN" ? "accent" : "neutral";
+  const tone: StatusTone = color && (STAGE_TONES as readonly string[]).includes(color) ? (color as StatusTone) : byKind;
   return <StatusBadge tone={tone} label={name} />;
 }
 

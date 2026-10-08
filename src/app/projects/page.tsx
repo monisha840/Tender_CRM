@@ -7,6 +7,7 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { KpiTile } from "@/components/shared/kpi-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { FilterPills, ProgressBar } from "@/components/work/parts";
+import { matchesProjectFilter, parseProjectFilter, type ProjectFilter } from "@/components/work/project-filter";
 import { listProjects, type ProjectRow } from "@/lib/data";
 import { formatDate } from "@/lib/dates";
 import { PHASE67_ENABLED } from "@/lib/features";
@@ -15,7 +16,7 @@ import { useUrlParam, useUrlState } from "@/lib/use-url-param";
 import { useRegionFilter } from "@/store/hooks";
 import { useAsOfDb } from "@/components/layout/use-as-of-db";
 
-type Filter = "ALL" | "RUNNING" | "COMPLETED" | "RED";
+type Filter = ProjectFilter;
 
 const isCompleted = (r: ProjectRow) => r.status.systemKey === "COMPLETED";
 const isOverdue = (r: ProjectRow) => !isCompleted(r) && r.daysToEnd < 0;
@@ -62,12 +63,12 @@ export default function Page() {
   const { region } = useRegionFilter();
   // The status pill lives in the URL (?status=RED) so it survives navigation and can be linked to.
   const [filterParam, setFilterParam] = useUrlState("status", "ALL");
-  const filter: Filter = (["ALL", "RUNNING", "COMPLETED", "RED"] as const).find((f) => f === filterParam) ?? "ALL";
+  const filter: Filter = parseProjectFilter(filterParam);
   const setFilter = (f: Filter) => setFilterParam(f);
   const all = useMemo(() => listProjects(db, region), [db, region]);
   const byValue = useUrlParam("sort") === "value";
   const rows = useMemo(() => {
-    const filtered = all.filter((r) => (filter === "ALL" ? true : filter === "RED" ? isDelayed(r) : filter === "COMPLETED" ? isCompleted(r) : !isCompleted(r)));
+    const filtered = all.filter((r) => matchesProjectFilter(filter, r));
     return byValue ? [...filtered].sort((a, b) => Number(b.project.contractValue) - Number(a.project.contractValue)) : filtered;
   }, [all, filter, byValue]);
   const outstanding = sumMoney(all.map((r) => r.billing.outstanding));
