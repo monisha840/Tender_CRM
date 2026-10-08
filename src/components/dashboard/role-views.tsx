@@ -10,7 +10,8 @@ import { formatINR, moneyToNumber } from "@/lib/money";
 import { useCurrentPersona } from "@/store/hooks";
 import { useAsOfDb } from "@/components/layout/use-as-of-db";
 import { AttentionArea } from "./attention";
-import { GstFilingChart, ProjectProgressChart, ReceivablesAgeingChart, RevenueExpensesChart, ServiceLineValueChart, TenderFunnelChart, WonLostChart } from "./charts";
+import { GstFilingChart, ProjectHealthChart, ReceivablesAgeingChart, RevenueExpensesChart, ServiceLineValueChart, TenderFunnelChart, WinRateChart } from "./charts";
+import { cancelledTenders, wonStageLabel } from "./derive";
 import type { ViewProps } from "./director-view";
 import { KpiGrid } from "./kpi-grid";
 
@@ -67,7 +68,7 @@ export function ProjectsView({ dashboard, manpower, region }: ViewProps) {
         <DataTable caption="Active projects" columns={columns} rows={rows} getRowId={(r) => r.project.id} getRowHref={(r) => entityHref("PROJECT", r.project.id)} pageSize={8} emptyMessage="No active projects in this region." />
       </section>
       <div className="grid gap-4 lg:grid-cols-2">
-        <ProjectProgressChart data={dashboard.activeProjects} />
+        <ProjectHealthChart data={dashboard.activeProjects} />
         <ServiceLineValueChart data={dashboard.projectValue} />
       </div>
     </>
@@ -76,6 +77,8 @@ export function ProjectsView({ dashboard, manpower, region }: ViewProps) {
 
 /** Tender Executive and Legal / Admin: pipeline and deadlines. */
 export function TenderView({ dashboard, manpower, region }: ViewProps) {
+  const db = useAsOfDb();
+  const cancelled = useMemo(() => cancelledTenders(db, region), [db, region]);
   const rows = dashboard.upcomingDeadlines.rows;
   const columns: DataTableColumn<TenderRow>[] = [
     { key: "t", header: "Tender", cell: (r) => <span>{r.tender.title}<span className="block text-xs text-muted-foreground">{r.tender.tenderNo} · {r.organisationName}</span></span>, mobile: "title", sortValue: (r) => r.tender.title },
@@ -93,8 +96,8 @@ export function TenderView({ dashboard, manpower, region }: ViewProps) {
         <DataTable caption="Upcoming tender deadlines" columns={columns} rows={rows} getRowId={(r) => r.tender.id} getRowHref={(r) => entityHref("TENDER", r.tender.id)} pageSize={8} emptyMessage="No bids due this week." />
       </section>
       <div className="grid gap-4 lg:grid-cols-2">
-        <TenderFunnelChart data={dashboard.activeTenders} />
-        <WonLostChart data={dashboard.wonLost} />
+        <TenderFunnelChart data={dashboard.activeTenders} wonLabel={wonStageLabel(db)} wonCount={dashboard.wonLost.won} wonValue={moneyToNumber(dashboard.wonLost.wonValue)} />
+        <WinRateChart data={dashboard.wonLost} cancelled={cancelled} />
       </div>
     </>
   );
