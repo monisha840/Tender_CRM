@@ -5,6 +5,7 @@ import { writeAudit, type Tx } from "@/lib/server/audit";
 import { runAction, ServiceError, updateWithVersion, type UserResolver } from "@/lib/server/service";
 import { addDays, istToUtc, toIstDate } from "@/lib/dates";
 import { submitForApproval } from "@/modules/approvals/service";
+import { assertDocsReadyForSubmission } from "@/modules/documents/guard";
 import {
   conversionRequestSchema,
   createTenderSchema,
@@ -204,6 +205,8 @@ export function buildTenderActions(getUser?: UserResolver) {
       const go = await tx.goNoGoDecision.findFirst({ where: { tenderId: t.id, decision: "GO", deletedAt: null } });
       if (!go) throw new ServiceError("CONFLICT", "The Director must approve GO before this tender can move to bid preparation. Request GO / NO-GO first");
     }
+    // Document vault: a mandatory certificate expired by the submission date blocks "Submitted".
+    if (step > 0 && to.systemKey === "SUBMITTED") await assertDocsReadyForSubmission(tx, t.id);
     await updateWithVersion(tx.tender, t.id, input.version, { currentStageId: to.id, updatedById: user.id });
     await addHistory(tx, { tenderId: t.id, fromStageId: from.id, toStageId: to.id, userId: user.id, reason: input.reason });
     await audit({
