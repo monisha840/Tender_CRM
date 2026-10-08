@@ -7,6 +7,8 @@ import { AuthError, type SessionUser } from "@/lib/server/auth-types";
 import { assertCan } from "@/lib/server/permissions";
 import { requireReason, writeAudit, type AuditInput, type Tx } from "@/lib/server/audit";
 import { ServiceError } from "@/lib/server/service";
+import { getSettingValue } from "@/lib/server/settings-read";
+import { SETTING_KEYS } from "@/modules/settings/keys";
 
 /**
  * The one generic approval engine. Minimal scope: every request is ONE pending step assigned to the Director role.
@@ -82,6 +84,10 @@ export async function submitForApproval(tx: Tx, user: SessionUser, input: Submit
 
   const level = await tx.approvalFlowLevel.findFirst({ where: { flowId: flow.id, approverRoleId: director.id, deletedAt: null }, orderBy: { sequence: "asc" } });
   const now = new Date();
+  // Settings > Approvals > due days (default 2). Maker-checker stays enforced regardless of its setting (informational).
+  const configured = await getSettingValue<unknown>(SETTING_KEYS.approvalsDueDays, 2, tx);
+  const dueDays = typeof configured === "number" && Number.isInteger(configured) && configured >= 0 && configured <= 30 ? configured : 2;
+  const dueAt = new Date(now.getTime() + dueDays * 86_400_000);
   const request = await tx.approvalRequest.create({
     data: {
       flowId: flow.id,
@@ -99,7 +105,7 @@ export async function submitForApproval(tx: Tx, user: SessionUser, input: Submit
     },
   });
   await tx.approvalStep.create({
-    data: { requestId: request.id, levelId: level?.id ?? null, sequence: 1, assignedRoleId: director.id, status: "PENDING", createdById: user.id },
+    data: { requestId: request.id, levelId: level?.id ?? null, sequence: 1, assignedRoleId: director.id, status: "PENDING", dueAt, createdById: user.id },
   });
 
   const directors = await tx.userRole.findMany({

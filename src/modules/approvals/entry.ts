@@ -20,6 +20,8 @@ export interface ApprovalEntry {
   projectId: string;
   approverId: string;
   requestedById: string;
+  /** Settings > Approvals > due days (default 2); the caller passes the configured value. */
+  dueDays?: number;
 }
 
 export type ApprovalBuild = { ok: true; request: ApprovalRequest; step: ApprovalStep } | { ok: false; error: string };
@@ -66,7 +68,7 @@ export function buildApprovalRequest(db: Database, e: ApprovalEntry): ApprovalBu
       sequence: 1,
       assignedUserId: approver.id,
       status: "PENDING",
-      dueAt: istToUtc(addDays(getToday(), 2), "18:00"),
+      dueAt: istToUtc(addDays(getToday(), e.dueDays ?? 2), "18:00"),
     },
   };
 }

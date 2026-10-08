@@ -36,7 +36,7 @@ export default function StyleguidePage() {
 
   const columns: DataTableColumn<TenderRow>[] = [
     { key: "title", header: "Tender", mobile: "title", sortValue: (r) => r.tender.title, cell: (r) => <span className="line-clamp-2">{r.tender.title}</span>, className: "max-w-sm" },
-    { key: "stage", header: "Stage", mobile: "badge", cell: (r) => <StageBadge name={r.stage.name} kind={r.stage.kind} /> },
+    { key: "stage", header: "Stage", mobile: "badge", cell: (r) => <StageBadge name={r.stage.name} kind={r.stage.kind} color={r.stage.color} /> },
     { key: "client", header: "Organisation", sortValue: (r) => r.organisationName, cell: (r) => r.organisationName },
     { key: "region", header: "Region", cell: (r) => r.regionName },
     { key: "value", header: "Estimate", numeric: true, sortValue: (r) => Number(r.tender.estimatedValue), cell: (r) => formatINR(r.tender.estimatedValue, { compact: "auto" }) },

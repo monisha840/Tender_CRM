@@ -82,7 +82,7 @@ export function TenderView({ dashboard, manpower, region }: ViewProps) {
   const rows = dashboard.upcomingDeadlines.rows;
   const columns: DataTableColumn<TenderRow>[] = [
     { key: "t", header: "Tender", cell: (r) => <span>{r.tender.title}<span className="block text-xs text-muted-foreground">{r.tender.tenderNo} · {r.organisationName}</span></span>, mobile: "title", sortValue: (r) => r.tender.title },
-    { key: "s", header: "Stage", cell: (r) => <StageBadge name={r.stage.name} kind={r.stage.kind} />, mobile: "badge" },
+    { key: "s", header: "Stage", cell: (r) => <StageBadge name={r.stage.name} kind={r.stage.kind} color={r.stage.color} />, mobile: "badge" },
     { key: "d", header: "Bid deadline", cell: (r) => <DeadlineBadge value={r.tender.submissionDeadlineAt} />, sortValue: (r) => r.daysToDeadline },
     { key: "v", header: "Estimated value", cell: (r) => formatINR(r.tender.estimatedValue, { compact: "auto" }), numeric: true, sortValue: (r) => moneyToNumber(r.tender.estimatedValue) },
   ];

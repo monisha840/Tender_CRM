@@ -94,7 +94,7 @@ function DeadlineRow({ row, missingDocs }: { row: TenderRow; missingDocs: number
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
-            <StageBadge name={row.stage.name} kind={row.stage.kind} />
+            <StageBadge name={row.stage.name} kind={row.stage.kind} color={row.stage.color} />
             <span className="tabular text-muted-foreground">EMD <span className="font-medium text-foreground">{formatINR(t.emdAmount, { compact: "auto" })}</span></span>
             {missingDocs > 0 && (
               <span className="inline-flex items-center gap-1 text-status-warning">

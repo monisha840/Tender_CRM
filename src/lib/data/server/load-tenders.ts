@@ -75,7 +75,7 @@ export const mapConversion = (r: P.ProjectConversion): ProjectConversion => ({
 });
 
 export const mapTenderStage = (r: P.TenderStage): TenderStage => ({
-  ...base(r), name: r.name, sequence: r.sequence, kind: r.kind, systemKey: r.systemKey, isActive: r.isActive,
+  ...base(r), name: r.name, sequence: r.sequence, kind: r.kind, color: r.color ?? null, systemKey: r.systemKey, isActive: r.isActive,
 });
 export const mapTenderResult = (r: P.TenderResult): TenderResult => ({ ...base(r), name: r.name, outcome: r.outcome, isActive: r.isActive });
 export const mapTenderType = (r: P.TenderType): TenderType => ({ ...base(r), name: r.name, isActive: r.isActive });

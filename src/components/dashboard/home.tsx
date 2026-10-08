@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import type { MoneyLockedItem } from "@/components/charts/money-locked-tiles";
 import { PageHeader } from "@/components/layout/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDashboard, getManpowerTrend } from "@/lib/data";
@@ -23,7 +24,7 @@ const VIEW_NAME: Record<string, string> = {
 };
 
 /** One home screen, different content per role. The region filter in the header applies to every widget. */
-export function Home() {
+export function Home({ moneyLocked }: { moneyLocked?: MoneyLockedItem[] } = {}) {
   const db = useAsOfDb();
   const persona = useCurrentPersona();
   const { region } = useRegionFilter();
@@ -68,7 +69,7 @@ export function Home() {
         ) : key === "tender_exec" || key === "legal_admin" ? (
           <TenderView dashboard={dashboard} manpower={manpower} region={region} />
         ) : (
-          <DirectorView dashboard={dashboard} manpower={manpower} region={region} />
+          <DirectorView dashboard={dashboard} manpower={manpower} region={region} moneyLocked={moneyLocked} />
         )}
         <p className="text-xs text-muted-foreground">
           Every tile and chart opens the related list. Notifications are in the bell at the top.

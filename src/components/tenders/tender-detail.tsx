@@ -63,7 +63,7 @@ export function TenderDetail({ id }: { id: string }) {
 
       <PageHeader
         title={t.title}
-        status={<StageBadge name={d.stage.name} kind={d.stage.kind} />}
+        status={<StageBadge name={d.stage.name} kind={d.stage.kind} color={d.stage.color} />}
         description={`${t.tenderNo} · ${d.organisationName} · ${d.regionName}`}
         primaryAction={canWrite && !d.projectId ? { label: "Edit tender", icon: Pencil, onClick: () => setEditing(true), testId: "tender-edit" } : undefined}
         secondaryActions={canWrite && !d.projectId ? [{ label: "Delete tender", icon: Trash2, onClick: () => setDeleting(true), testId: "tender-delete" }] : undefined}
