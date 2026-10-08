@@ -42,7 +42,7 @@ describe("builders", () => {
   });
   it("settings include nine feature toggles and default thresholds", () => {
     const s = buildSettings();
-    expect(s.filter((x) => /^features\..*\.enabled$/.test(x.key))).toHaveLength(9);
+    expect(s.filter((x) => /^features./.test(x.key))).toHaveLength(6);
     expect(s.find((x) => x.key === "reminders.documentExpiryDays")?.value).toEqual([60, 30, 7]);
   });
   it("company documents: exactly one expired mandatory, two expiring soon", () => {

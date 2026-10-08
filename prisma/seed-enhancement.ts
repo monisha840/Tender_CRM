@@ -150,10 +150,9 @@ export function buildStatutoryRates(): RateRow[] {
 // 3. Settings
 // ---------------------------------------------------------------------------
 
-/** The nine module toggles (features.<module>.enabled). */
+/** Module toggles (features.<module>), matching SETTING_KEYS in src/modules/settings/keys.ts. */
 export const FEATURE_MODULES = [
   "money_locked", "contract_pnl", "documents", "bill_readiness", "gate_reconciliation", "bid_pricing",
-  "statutory_rates", "tender_stage_colors", "health_thresholds",
 ] as const;
 
 export interface SettingRow {
@@ -172,7 +171,7 @@ export function buildSettings(): SettingRow[] {
     ["billing.paymentTermsDays", 30],
     ["pnl.lowMarginPct", 10],
     ["gate.hoursToleranceHrs", 0.5],
-    ...FEATURE_MODULES.map((m): [string, unknown] => [`features.${m}.enabled`, true]),
+    ...FEATURE_MODULES.map((m): [string, unknown] => [`features.${m}`, true]),
   ];
   return defaults.map(([key, value]) => ({ id: `set_enh_${key.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}`, key, value }));
 }
@@ -298,7 +297,7 @@ export const STAGE_COLORS: Record<string, string> = {
   NEW: "neutral",
   UNDER_EVALUATION: "warning",
   BID_PREPARING: "accent",
-  SUBMITTED: "info",
+  SUBMITTED: "accent",
   WON: "success",
   LOST: "danger",
 };
