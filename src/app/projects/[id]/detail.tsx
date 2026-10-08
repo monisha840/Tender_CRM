@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartCard, LegendItem } from "@/components/charts/chart-card";
+import { ProjectPnlTab } from "@/components/contract-pnl/project-pnl-tab";
 import { SizedContainer } from "@/components/charts/sized-container";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
@@ -18,12 +19,13 @@ import { formatINR, formatINRAxis, moneyToNumber } from "@/lib/money";
 import { useDb } from "@/store/hooks";
 import type { DailyWorkReport } from "@/types";
 
-type Tab = "overview" | "progress" | "subs" | "billing" | "reports";
+type Tab = "overview" | "progress" | "subs" | "billing" | "reports" | "pnl";
 /** Billing (invoices) and daily reports belong to the finance / daily-work modules, hidden behind the PHASE67 flag. */
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "progress", label: "Progress" },
   { key: "subs", label: "Subcontractors" },
+  { key: "pnl", label: "Profit & Loss" },
   ...(PHASE67_ENABLED
     ? [
         { key: "billing" as const, label: "Billing & Payment" },
@@ -118,6 +120,8 @@ export function Detail({ id }: { id: string }) {
         secondaryActions={[{ label: "All projects", href: "/projects" }]}
       />
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
+
+      {tab === "pnl" && <ProjectPnlTab projectId={project.id} />}
 
       {tab === "overview" && (
         <div className="space-y-6">
