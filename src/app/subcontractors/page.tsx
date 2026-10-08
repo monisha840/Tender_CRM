@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
-import { AlertTriangle, FileClock, HardHat, Wallet } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertTriangle, FileClock, HardHat, Plus, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { KpiTile } from "@/components/shared/kpi-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { useTenderRoles } from "@/components/tenders/action-helpers";
+import { AddSubcontractorForm } from "@/components/work/subcontractor-entry";
 import { listSubcontractorAssignments, listSubcontractors, type SubcontractorRow } from "@/lib/data";
 import { addDays, daysBetween, getToday } from "@/lib/dates";
 import { formatINR, moneyToNumber, sumMoney } from "@/lib/money";
@@ -51,6 +53,8 @@ const columns: DataTableColumn<Row>[] = [
 
 export default function Page() {
   const db = useAsOfDb();
+  const { canWrite } = useTenderRoles();
+  const [adding, setAdding] = useState(false);
   const { region } = useRegionFilter();
   const base = useMemo(() => listSubcontractors(db, region), [db, region]);
   const all = useMemo<Row[]>(() => {
@@ -86,7 +90,9 @@ export default function Page() {
       <PageHeader
         title="Subcontractors"
         description="Trade partners, their work orders, bills and payments."
+        primaryAction={canWrite ? { label: "Add subcontractor", icon: Plus, onClick: () => setAdding(true), testId: "subcontractor-create" } : undefined}
       />
+      {adding && <AddSubcontractorForm open onOpenChange={setAdding} />}
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <KpiTile testId="kpi-sub-payable" label="Payable" value={formatINR(sumMoney(rows.map((r) => r.outstanding)), { compact: true })} icon={Wallet} hint="Approved bills not yet paid" />
         <KpiTile testId="kpi-sub-work-pending" label="Work pending" value={formatINR(workPending, { compact: true })} icon={HardHat} hint="Unexecuted value on active work orders" />

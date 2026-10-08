@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartCard, LegendItem } from "@/components/charts/chart-card";
 import { ProjectPnlTab } from "@/components/contract-pnl/project-pnl-tab";
@@ -11,6 +12,8 @@ import { DataTable, type DataTableColumn } from "@/components/shared/data-table"
 import { EmptyState } from "@/components/shared/empty-state";
 import { KpiTile } from "@/components/shared/kpi-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { useTenderRoles } from "@/components/tenders/action-helpers";
+import { EditProjectForm } from "@/components/work/project-entry";
 import { FieldGrid, ProgressBar, Section, Tabs } from "@/components/work/parts";
 import { getDailyReports, getProject, getProjectBilling, listInvoices, listSubcontractorAssignments, type AssignmentRow, type InvoiceRow } from "@/lib/data";
 import { formatDate, formatMonth } from "@/lib/dates";
@@ -82,6 +85,8 @@ function label(s: string) {
 export function Detail({ id }: { id: string }) {
   const db = useDb();
   const [tab, setTab] = useState<Tab>("overview");
+  const [editing, setEditing] = useState(false);
+  const { canWrite } = useTenderRoles();
   const row = useMemo(() => getProject(db, id), [db, id]);
 
   if (!row) {
@@ -117,8 +122,10 @@ export function Detail({ id }: { id: string }) {
         title={project.name}
         status={statusBadge}
         description={`${project.code} · ${row.site?.name ?? row.organisationName} · ${row.regionName}`}
+        primaryAction={canWrite ? { label: "Edit project", icon: Pencil, onClick: () => setEditing(true), testId: "project-edit" } : undefined}
         secondaryActions={[{ label: "All projects", href: "/projects" }]}
       />
+      {editing && <EditProjectForm project={project} onOpenChange={setEditing} />}
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
 
       {tab === "pnl" && <ProjectPnlTab projectId={project.id} />}

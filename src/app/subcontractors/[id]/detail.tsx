@@ -1,13 +1,15 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { FileText } from "lucide-react";
+import { FileText, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { KpiTile } from "@/components/shared/kpi-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { useTenderRoles } from "@/components/tenders/action-helpers";
+import { EditSubcontractorForm } from "@/components/work/subcontractor-entry";
 import { FieldGrid, ProgressBar, Section } from "@/components/work/parts";
 import { listSubcontractorAssignments, listSubcontractors, type AssignmentRow } from "@/lib/data";
 import { formatDate } from "@/lib/dates";
@@ -20,6 +22,8 @@ const money = (v: string) => formatINR(v);
 export function Detail({ id }: { id: string }) {
   const db = useDb();
   const row = useMemo(() => listSubcontractors(db).find((r) => r.subcontractor.id === id), [db, id]);
+  const [editing, setEditing] = useState(false);
+  const { canWrite } = useTenderRoles();
   if (!row) {
     return (
       <div className="rounded-lg border bg-surface">
@@ -80,8 +84,10 @@ export function Detail({ id }: { id: string }) {
         title={party.name}
         status={<StatusBadge status={subcontractor.status} />}
         description={`${subcontractor.tradeCategory} · ${row.projects.length} project${row.projects.length === 1 ? "" : "s"}`}
+        primaryAction={canWrite ? { label: "Edit subcontractor", icon: Pencil, onClick: () => setEditing(true), testId: "subcontractor-edit" } : undefined}
         secondaryActions={[{ label: "All subcontractors", href: "/subcontractors" }]}
       />
+      {editing && <EditSubcontractorForm party={party} subcontractor={subcontractor} onOpenChange={setEditing} />}
       <div className="space-y-8">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <KpiTile label="Contract value" value={formatINR(row.contractValue, { compact: true })} />

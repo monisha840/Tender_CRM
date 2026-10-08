@@ -84,3 +84,11 @@ Source: enhancement-prompt.md + package E (gate attendance reconciliation, bid p
 - Step 1 schema: ONE additive migration written at `prisma/migrations/20261008100000_enhancement_release/migration.sql` (not applied). Adds `TenderStage.color` (nullable) and tables StatutoryRate, CompanyDocument, BillReadinessTemplateItem, BillReadinessCheck, GateAttendanceMapping/Upload/Record/Exception, TenderPricing. No drops, no data changes. Money-locked and contract P&L (C) need no new tables (read SecurityInstrument/RetentionEntry/Invoice/CostEntry/Payslip).
 - WAITING for owner approval before `npm run db:deploy`. Agents A-E launch after that.
 - Note: uncommitted WIP exists in the working tree (projects/subcontractors entry forms); worktrees branch from `main` HEAD and do not see it.
+
+## Completion run, Step 1: enhancement run review (2026-10-08)
+- Enhancement work is merged into `main` (HEAD `1ad6e2d`, 16 commits ahead of origin/main, NOT pushed). Packages A-E all have routes, server actions, unit tests and e2e specs.
+- Migration `20261008100000_enhancement_release` is NOT applied to the shared DB (`prisma migrate status`). Do not apply it there; it goes to the new production DB in Wave 0 step 3, after the owner sees the SQL.
+- Not deployed: newest Vercel production deployment (11h old) predates the merge.
+- Checks on main + uncommitted projects/subcontractors forms: typecheck pass, lint 0 errors/7 warnings, vitest 370 passed (29 files).
+- Package status: A, C (ledger, P&L), D bill readiness, E bid pricing = complete, unverified live. B Settings, D document vault, E gate reconciliation = partial. See audit-v3 section 4.
+- Extra worktrees exist at C:/Users/monis/work/tender-crm-completion (branches completion/main, completion/w0-ops-docs, both at 1ad6e2d, no new commits) and under .claude/worktrees (merged agent branches).

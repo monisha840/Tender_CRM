@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
-import { AlertTriangle, Banknote, FolderKanban, IndianRupee } from "lucide-react";
+import { useMemo, useState } from "react";
+import { AlertTriangle, Banknote, FolderKanban, IndianRupee, Plus } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTable, type DataTableColumn } from "@/components/shared/data-table";
 import { KpiTile } from "@/components/shared/kpi-tile";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { useTenderRoles } from "@/components/tenders/action-helpers";
+import { AddProjectForm } from "@/components/work/project-entry";
 import { FilterPills, ProgressBar } from "@/components/work/parts";
 import { matchesProjectFilter, parseProjectFilter, type ProjectFilter } from "@/components/work/project-filter";
 import { listProjects, type ProjectRow } from "@/lib/data";
@@ -61,6 +63,8 @@ const columns: DataTableColumn<ProjectRow>[] = [
 export default function Page() {
   const db = useAsOfDb();
   const { region } = useRegionFilter();
+  const { canWrite } = useTenderRoles();
+  const [adding, setAdding] = useState(false);
   // The status pill lives in the URL (?status=RED) so it survives navigation and can be linked to.
   const [filterParam, setFilterParam] = useUrlState("status", "ALL");
   const filter: Filter = parseProjectFilter(filterParam);
@@ -79,7 +83,9 @@ export default function Page() {
       <PageHeader
         title="Projects"
         description="Work orders from customers, by plant site."
+        primaryAction={canWrite ? { label: "Add project", icon: Plus, onClick: () => setAdding(true), testId: "project-create" } : undefined}
       />
+      {adding && <AddProjectForm open onOpenChange={setAdding} />}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiTile testId="kpi-projects-total" label="Projects" value={String(all.length)} icon={FolderKanban} hint={`${all.filter((r) => !isCompleted(r)).length} running`} />
         <KpiTile label="Contract value" value={formatINR(sumMoney(all.map((r) => r.project.contractValue)), { compact: true })} icon={IndianRupee} />
