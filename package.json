@@ -21,6 +21,7 @@
     "db:measure": "dotenv -e .env.local -- tsx scripts/measure-load.ts",
     "db:verify": "dotenv -e .env.local -- tsx scripts/db-verify.ts",
     "db:seed:base": "dotenv -e .env.local -- tsx prisma/seed-base.ts",
+    "db:seed:enhancement": "dotenv -e .env.local -- tsx prisma/seed-enhancement.ts",
     "db:validate": "dotenv -e .env.local -- prisma validate",
     "postinstall": "prisma generate",
     "test:e2e": "playwright test",
