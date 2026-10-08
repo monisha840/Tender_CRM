@@ -78,3 +78,9 @@ The live site https://sprince-crm.vercel.app (Vercel project `tender-crm`, team 
 - `scripts/prod-guard.ts` (`assertNotProductionDb`) makes all of those refuse when `DATABASE_URL` contains a protected project ref (`PROTECTED_PROJECT_REFS`, plus optional `PRODUCTION_DB_MARKERS`). It is called from `assertSafeToReset` (db-reset, e2e-users, db-verify, Playwright global setup) and from the mains of `prisma/seed.ts`, `prisma/seed-base.ts` and `scripts/measure-load.ts`. Verified: each refuses with the current `.env.local`.
 - There is no override flag. To get a separate dev/test database later: create a second Supabase project, point `.env.local` at it, and remove the old ref from the guard only if that is intended.
 - Migrations still go through `npm run db:deploy` (additive, not guarded).
+
+## Enhancement release (2026-10-08)
+Source: enhancement-prompt.md + package E (gate attendance reconciliation, bid pricing).
+- Step 1 schema: ONE additive migration written at `prisma/migrations/20261008100000_enhancement_release/migration.sql` (not applied). Adds `TenderStage.color` (nullable) and tables StatutoryRate, CompanyDocument, BillReadinessTemplateItem, BillReadinessCheck, GateAttendanceMapping/Upload/Record/Exception, TenderPricing. No drops, no data changes. Money-locked and contract P&L (C) need no new tables (read SecurityInstrument/RetentionEntry/Invoice/CostEntry/Payslip).
+- WAITING for owner approval before `npm run db:deploy`. Agents A-E launch after that.
+- Note: uncommitted WIP exists in the working tree (projects/subcontractors entry forms); worktrees branch from `main` HEAD and do not see it.

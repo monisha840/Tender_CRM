@@ -777,6 +777,8 @@ model TenderStage {
   name        String
   sequence    Int
   kind        TenderStageKind
+  /// Display colour token name (Settings > Tender stages); null = default.
+  color       String?
   systemKey   String?         @unique
   isActive    Boolean         @default(true)
   createdAt   DateTime        @default(now())
@@ -1688,7 +1690,6 @@ model BoqItem {
   project   Project         @relation(fields: [projectId], references: [id])
   workItems DailyWorkItem[]
   woItems   WorkOrderItem[]
-
 }
 
 model ProjectBudgetLine {
@@ -2280,7 +2281,6 @@ model PayrollRun {
   region          Region           @relation(fields: [regionId], references: [id])
   approvalRequest ApprovalRequest? @relation(fields: [approvalRequestId], references: [id])
   payslips        Payslip[]
-
 }
 
 /// EPF/ESI figures are snapshotted on the payslip. Salary data: sensitive.
@@ -2311,7 +2311,6 @@ model Payslip {
 
   payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id])
   employee   Employee   @relation(fields: [employeeId], references: [id])
-
 }
 
 // ---- Purchases & stock --------------------------------------------------------
@@ -2426,7 +2425,6 @@ model VendorInvoice {
   region          Region          @relation(fields: [regionId], references: [id])
   gstRegistration GstRegistration @relation(fields: [gstRegistrationId], references: [id])
   payments        Payment[]
-
 }
 
 model StockTransaction {
@@ -2450,4 +2448,214 @@ model StockTransaction {
   material Material @relation(fields: [materialId], references: [id])
 
   @@index([siteId, materialId])
+}
+
+// ============================================================================
+// 12. ENHANCEMENT RELEASE (additive): statutory rates, document vault, bill
+//     readiness, gate attendance reconciliation, bid pricing.
+//     New tables only reference existing rows by plain id (no back-relations).
+// ============================================================================
+
+/// Statutory rate with history: calculations use the row whose effectiveFrom is the latest on or before the record date.
+model StatutoryRate {
+  id            String    @id @default(cuid())
+  /// e.g. PF_EMPLOYER, PF_WAGE_CEILING, ESI_EMPLOYER, ESI_WAGE_CEILING, PROF_TAX, GST_DEFAULT, MIN_WAGE, BONUS
+  code          String
+  label         String
+  /// PERCENT | AMOUNT_PER_DAY | AMOUNT_PER_MONTH | AMOUNT
+  unit          String
+  value         Decimal   @db.Decimal(14, 4)
+  effectiveFrom DateTime  @db.Date
+  sourceNote    String?
+  /// Optional narrowing, e.g. minimum wage by region or skill category.
+  regionId      String?
+  category      String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  createdById   String?
+  updatedById   String?
+  deletedAt     DateTime?
+  version       Int       @default(1)
+
+  @@index([code, effectiveFrom])
+}
+
+/// Company certificate in the document vault (GST, PAN, ISO, Udyam, PF/ESI, labour licence, solvency, DSC...).
+model CompanyDocument {
+  id             String    @id @default(cuid())
+  documentTypeId String
+  title          String
+  referenceNo    String?
+  issueDate      DateTime? @db.Date
+  /// null = does not expire.
+  expiryDate     DateTime? @db.Date
+  /// Optional stored file (Document.id); upload may be a placeholder for now.
+  fileDocumentId String?
+  notes          String?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  createdById    String?
+  updatedById    String?
+  deletedAt      DateTime?
+  version        Int       @default(1)
+
+  @@index([documentTypeId])
+  @@index([expiryDate])
+}
+
+/// Monthly bill-readiness checklist template (Settings). Items required before the client releases payment.
+model BillReadinessTemplateItem {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  label       String
+  isMandatory Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+  updatedById String?
+  deletedAt   DateTime?
+  version     Int       @default(1)
+
+  checks BillReadinessCheck[]
+}
+
+/// One ticked/unticked item for a project and month.
+model BillReadinessCheck {
+  id             String    @id @default(cuid())
+  projectId      String
+  /// "YYYY-MM"
+  periodMonth    String
+  templateItemId String
+  isDone         Boolean   @default(false)
+  doneOn         DateTime? @db.Date
+  reference      String?
+  note           String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  createdById    String?
+  updatedById    String?
+  deletedAt      DateTime?
+  version        Int       @default(1)
+
+  templateItem BillReadinessTemplateItem @relation(fields: [templateItemId], references: [id])
+
+  @@unique([projectId, periodMonth, templateItemId])
+  @@index([projectId, periodMonth])
+}
+
+/// Saved column mapping of a client's gate attendance export (one per client organisation).
+model GateAttendanceMapping {
+  id             String    @id @default(cuid())
+  organisationId String    @unique
+  name           String
+  /// { workerRef, workerName, date, inTime, outTime, hours, shift } -> source column header
+  columnMap      Json
+  dateFormat     String    @default("DD-MM-YYYY")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  createdById    String?
+  updatedById    String?
+  deletedAt      DateTime?
+  version        Int       @default(1)
+}
+
+/// One uploaded gate file for a project and month.
+model GateAttendanceUpload {
+  id             String    @id @default(cuid())
+  projectId      String
+  /// "YYYY-MM"
+  periodMonth    String
+  mappingId      String?
+  fileName       String
+  rowCount       Int       @default(0)
+  matchedCount   Int       @default(0)
+  exceptionCount Int       @default(0)
+  uploadedById   String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  createdById    String?
+  updatedById    String?
+  deletedAt      DateTime?
+  version        Int       @default(1)
+
+  records    GateAttendanceRecord[]
+  exceptions GateAttendanceException[]
+
+  @@index([projectId, periodMonth])
+}
+
+/// A parsed row of the client's file (per worker per day).
+model GateAttendanceRecord {
+  id         String   @id @default(cuid())
+  uploadId   String
+  workerRef  String
+  workerName String?
+  date       DateTime @db.Date
+  inTime     String?
+  outTime    String?
+  hours      Decimal? @db.Decimal(5, 2)
+  shift      String?
+  createdAt  DateTime @default(now())
+
+  upload GateAttendanceUpload @relation(fields: [uploadId], references: [id])
+
+  @@index([uploadId, date])
+}
+
+/// Reconciliation exception with reason and resolution.
+model GateAttendanceException {
+  id           String    @id @default(cuid())
+  uploadId     String
+  projectId    String
+  date         DateTime  @db.Date
+  workerRef    String
+  workerName   String?
+  employeeId   String?
+  /// MISSING_IN_OURS | MISSING_IN_THEIRS | HOURS_MISMATCH | SHIFT_MISMATCH
+  kind         String
+  ourHours     Decimal?  @db.Decimal(5, 2)
+  theirHours   Decimal?  @db.Decimal(5, 2)
+  reason       String?
+  /// OPEN | RESOLVED
+  status       String    @default("OPEN")
+  resolution   String?
+  resolvedById String?
+  resolvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  createdById  String?
+  updatedById  String?
+  deletedAt    DateTime?
+  version      Int       @default(1)
+
+  upload GateAttendanceUpload @relation(fields: [uploadId], references: [id])
+
+  @@index([projectId, status])
+  @@index([uploadId])
+}
+
+/// Saved bid-pricing calculation on a tender (latest wins; every save is audited).
+model TenderPricing {
+  id                String    @id @default(cuid())
+  tenderId          String    @unique
+  /// Calculator inputs: manpower, days, wage category, PF/ESI/bonus/overhead/margin %, quoted price...
+  inputs            Json
+  statutoryWageCost Decimal   @db.Decimal(14, 2)
+  totalCost         Decimal   @db.Decimal(14, 2)
+  minSafeBid        Decimal   @db.Decimal(14, 2)
+  quotedPrice       Decimal?  @db.Decimal(14, 2)
+  marginAtQuote     Decimal?  @db.Decimal(14, 2)
+  marginPctAtQuote  Decimal?  @db.Decimal(7, 4)
+  warnings          Json?
+  calculatedById    String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  createdById       String?
+  updatedById       String?
+  deletedAt         DateTime?
+  version           Int       @default(1)
 }
