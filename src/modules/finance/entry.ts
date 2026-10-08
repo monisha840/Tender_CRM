@@ -5,6 +5,7 @@ import { gstinError, gstinPan, gstinStateCode, makeGstin } from "@/lib/gst-valid
 import { parseDate } from "../work-entry-utils";
 import { formatInvoiceNo, invoiceNoError, invoiceSeriesPrefix, latestSequence } from "./numbering";
 import type { Database, GstFilingStatus, GstRegistration, GstTransaction, Invoice, InvoiceDeduction, InvoiceType, Money, Project, RetentionEntry } from "@/types";
+import { getAppSettings } from "@/modules/settings/runtime";
 
 export interface InvoiceEntry {
   /** Blank means "the project's GSTIN". */
@@ -126,7 +127,7 @@ export function buildInvoice(db: Database, e: InvoiceEntry, pendingNos: string[]
   if (periodTo < periodFrom) return fail("Period end is before period start");
   const taxable = parseMoney(e.taxableValue);
   if (!taxable || !isPositive(taxable)) return fail("Taxable value must be a positive amount");
-  const pct = e.gstPercent.trim() === "" ? "18" : e.gstPercent.trim();
+  const pct = e.gstPercent.trim() === "" ? String(getAppSettings().billing.defaultGstPct) : e.gstPercent.trim();
   const rate = STRICT_PERCENT.test(pct) ? Number(pct) : NaN;
   if (!Number.isFinite(rate) || rate > 40) return fail("GST % must be between 0 and 40");
   const ded = e.deductions.trim() === "" ? "0.00" : parseMoney(e.deductions);

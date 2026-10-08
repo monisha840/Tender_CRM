@@ -4,6 +4,7 @@ import type { Database, HealthStatus, Id, Money, Project, ProjectStatus, Site } 
 import { getProjectBilling } from "./accounts";
 import { isLive } from "./definitions";
 import { byId, employeeName, inRegion, organisationName, regionName, sum, type RegionFilter } from "./shared";
+import { getAppSettings } from "@/modules/settings/runtime";
 
 /**
  * Health rules (configurable later). The gap is how many percentage points the executed value
@@ -46,8 +47,9 @@ export function getProjectProgress(db: Database, projectId: Id): { progressPct: 
 export function computeHealth(project: Project, progressPct: number, plannedPct: number): HealthStatus {
   if (project.healthOverride) return project.healthOverride;
   const gap = plannedPct - progressPct;
-  if (gap > HEALTH_RULES.redGapPct) return "RED";
-  if (gap > HEALTH_RULES.amberGapPct) return "AMBER";
+  const { amberDelayPct, redDelayPct } = getAppSettings().health; // Settings > Project health (defaults 5 / 15)
+  if (gap > redDelayPct) return "RED";
+  if (gap > amberDelayPct) return "AMBER";
   return "GREEN";
 }
 
