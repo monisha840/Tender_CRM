@@ -21,6 +21,7 @@ import { errorText, useTenderRoles } from "./action-helpers";
 import { ConvertToProject } from "./convert-to-project";
 import { ReasonDialog } from "./reason-dialog";
 import { TenderActions } from "./tender-actions";
+import { TenderDocumentsPanel } from "@/components/documents/tender-documents-panel";
 import { EditTenderForm } from "./tender-entry";
 import { Field, FieldGrid, Section } from "./parts";
 
@@ -157,6 +158,7 @@ export function TenderDetail({ id }: { id: string }) {
           </Section>
 
           <DocumentChecklist detail={d} missingCount={missing.length} />
+          {awaitingBid && <TenderDocumentsPanel tenderId={t.id} refreshKey={d.stage.id} />}
           <BidSection detail={d} />
         </div>
 
