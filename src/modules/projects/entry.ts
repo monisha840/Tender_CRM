@@ -2,6 +2,7 @@ import { addDays, getToday, nowIso } from "@/lib/dates";
 import { byId } from "@/lib/data/shared";
 import type { BillingCycle, ContractType, Database, Project } from "@/types";
 import { canonicalise, findRow, newId, parseDate, parseMoney } from "../work-entry-utils";
+import { getAppSettings } from "@/modules/settings/runtime";
 
 /** Canonical keys. The form uses these as field names; CSV headers are matched to them ignoring case and punctuation. */
 export const PROJECT_KEYS = [
@@ -88,7 +89,7 @@ export function buildProject(db: Database, input: Record<string, string>, taken:
   if (plannedEndDate === undefined) return { error: `Planned end date '${v.plannedEndDate}' is not a valid date (use DD-MM-YYYY)` };
   if (startDate && plannedEndDate && plannedEndDate < startDate) return { error: "Planned end date is before the start date" };
 
-  const terms = v.paymentTermsDays ? Number(v.paymentTermsDays) : 30;
+  const terms = v.paymentTermsDays ? Number(v.paymentTermsDays) : getAppSettings().billing.paymentTermsDays;
   if (!Number.isInteger(terms) || terms < 0 || terms > 365) return { error: "Payment terms must be a whole number of days (0-365)" };
 
   let gstRegistrationId: string;

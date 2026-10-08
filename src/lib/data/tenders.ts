@@ -13,6 +13,7 @@ import type {
   TenderStageKind,
 } from "@/types";
 import { byId, organisationName, inRegion, regionName, userName, type RegionFilter } from "./shared";
+import { getAppSettings } from "@/modules/settings/runtime";
 
 export interface TenderRow {
   tender: Tender;
@@ -207,12 +208,12 @@ export const missingMandatoryDocs = (docs: TenderDetail["documents"]) =>
   docs.filter((d) => d.isMandatory && d.status !== "READY" && d.status !== "NA");
 
 /** Reminder bands from the default 7 / 3 / 1 day schedule (CLAUDE.md → Notifications). */
-export function reminderBand(daysToDeadline: number): 1 | 3 | 7 | null {
-  if (daysToDeadline < 0) return null;
-  if (daysToDeadline <= 1) return 1;
-  if (daysToDeadline <= 3) return 3;
-  if (daysToDeadline <= 7) return 7;
-  return null;
+export function reminderBand(daysToDeadline: number): number | null {
+  const { enabled, deadlineDays } = getAppSettings().reminders;
+  if (daysToDeadline < 0 || !enabled) return null;
+  // Settings > Reminders (default 7 / 3 / 1): the smallest configured band that still covers the days left.
+  const covering = [...deadlineDays].sort((a, b) => a - b).filter((d) => daysToDeadline <= d);
+  return covering[0] ?? null;
 }
 
 // ---- Convert to project -----------------------------------------------------
@@ -306,7 +307,7 @@ export function buildConversion(db: Database, d: TenderDetail, userId: Id, overr
     workOrderNo: d.award?.loaNo ?? t.tenderNo,
     workOrderDate: d.award?.loaDate ?? today,
     billingCycle: isService ? "MONTHLY" : "MILESTONE",
-    paymentTermsDays: 30,
+    paymentTermsDays: getAppSettings().billing.paymentTermsDays,
     tenderId: t.id,
     organisationId: t.organisationId,
     regionId: t.regionId,

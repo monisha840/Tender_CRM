@@ -1,4 +1,5 @@
 import type { IsoDate, IsoDateTime } from "@/types";
+import { deadlineBands } from "@/modules/settings/runtime";
 
 /**
  * Timestamps are UTC; display is Asia/Kolkata in DD-MM-YYYY (CLAUDE.md → Dates).
@@ -125,7 +126,8 @@ export function relativeDeadline(value: IsoDate | IsoDateTime, today: IsoDate = 
   if (days < 0) return { days, label: `${-days} day${days === -1 ? "" : "s"} overdue`, tone: "overdue" };
   if (days === 0) return { days, label: "Today", tone: "urgent" };
   if (days === 1) return { days, label: "Tomorrow", tone: "urgent" };
-  return { days, label: `in ${days} days`, tone: days <= 3 ? "urgent" : days <= 7 ? "soon" : "normal" };
+  const bands = deadlineBands(); // Settings > Reminders (default 7 / 3 / 1): urgent within the second band, soon within the first
+  return { days, label: `in ${days} days`, tone: days <= bands.urgent ? "urgent" : days <= bands.soon ? "soon" : "normal" };
 }
 
 /** Last `count` calendar days ending at `end` (inclusive), oldest first. */
